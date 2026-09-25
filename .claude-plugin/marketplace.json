@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-marketplace-manifest.json",
+  "name": "vanillafairy",
+  "description": "VanillaFairy's Claude Code plugins",
+  "owner": {
+    "name": "VanillaFairy",
+    "url": "https://github.com/VanillaFairy"
+  },
+  "plugins": [
+    {
+      "name": "agentics",
+      "source": "./agentics",
+      "description": "Workflow-orchestrated design, investigation and development over a generic codebase. All work is one execution tree: decomposed until atomic, executed by readiness in framework-owned worktrees, verified and reviewed by rigor, landed only on the user's go."
+    },
+    {
+      "name": "improve-clauding",
+      "source": "./improve-clauding",
+      "description": "Retrospective over recent Claude Code and Cursor sessions: separates the user's habits from agent/tool/model/router failures, reports patterns to fix and to endorse along six axes, and proposes rules, skill patches, skills, agents or hooks without applying them."
+    },
+    {
+      "name": "socratic",
+      "source": "./socratic",
+      "description": "Adversarial N-agent debate as a decision aid: /socratic stress-tests a decision or design question and translates the outcome into a plain recommendation; /socratic-continue feeds the last debate a new point."
+    }
+  ]
+}

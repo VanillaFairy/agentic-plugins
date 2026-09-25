@@ -1,0 +1,9 @@
+[submodule "agentics"]
+	path = agentics
+	url = https://github.com/VanillaFairy/agentics.git
+[submodule "improve-clauding"]
+	path = improve-clauding
+	url = https://github.com/VanillaFairy/improve-clauding.git
+[submodule "socratic"]
+	path = socratic
+	url = https://github.com/VanillaFairy/socratic.git
