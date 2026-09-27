@@ -1,7 +1,7 @@
 # T03: Viewer scaffold, pinned dependencies, shared types
 
-rigor: verify
-size: ~22 turns (10 edit sites, 10 files)
+rigor: tdd
+size: ~26 turns (11 edit sites, 11 files)
 
 **Repository:** vanillafairy.
 
@@ -29,6 +29,7 @@ size: ~22 turns (10 edit sites, 10 files)
 - Create: `agentics-viewer/shared/snapshot.ts`
 - Create: `agentics-viewer/server/clock.ts`
 - Create: `agentics-viewer/test/fake-clock.ts`
+- Create: `agentics-viewer/test/fake-clock.test.ts`
 - Create: `agentics-viewer/web/index.html`, `agentics-viewer/web/main.tsx`
 
 **Scope / Negative Constraints:**
@@ -137,7 +138,13 @@ record why in the commit message.
 `web/index.html` loads `/main.tsx` into `<div id="app">`, with `<title>agentics viewer</title>`.
 `web/main.tsx` renders `<p>agentics viewer</p>` with `render` from `preact`.
 
-- [ ] **Step 5: Verify**
+- [ ] **Step 5: Test the fake clock**
+
+T06's and T07a's tests rest on `fakeClock`, so it gets its own tests in `test/fake-clock.test.ts`,
+one per acceptance line marked "test" below. Write them before finishing `fake-clock.ts`, and
+see them fail first.
+
+- [ ] **Step 6: Verify**
 
 Run inside `agentics-viewer/`:
 - `npm test`: tsc passes, and vitest passes with no tests.
@@ -145,7 +152,7 @@ Run inside `agentics-viewer/`:
 - `node -e "import('./server/clock.ts').then(m => console.log(typeof m.realClock.now()))"`:
   prints `number`, which proves Node runs the `.ts` file directly.
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
 git add agentics-viewer
@@ -158,3 +165,8 @@ git commit -m "feat(agentics-viewer): scaffold with pinned dependencies and the 
 - [ ] Node imports `server/clock.ts` with no build step.
 - [ ] `shared/snapshot.ts` matches interfaces § Snapshot contract.
 - [ ] `node_modules/` and `dist/` are not committed.
+- [ ] Timers run in due-time order, whatever order they were set in → test 'timers run in due order'
+- [ ] A timer set by a running timer, and due inside the same `advance`, also runs → test 'timers set by timers run in the same advance'
+- [ ] After `advance(ms)`, `now()` is the start plus everything advanced → test 'now lands at the end of the advance'
+- [ ] A cleared timer never runs → test 'clearTimeout cancels'
+- [ ] `pending()` counts timers not yet run → test 'pending counts waiting timers'

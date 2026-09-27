@@ -2,7 +2,7 @@
 
 rigor: pair
 role: green
-size: ~18 turns (2 edit sites, 5 files)
+size: ~22 turns (2 edit sites, 5 files)
 
 **Repository:** vanillafairy.
 

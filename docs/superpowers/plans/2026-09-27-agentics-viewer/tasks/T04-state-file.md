@@ -92,6 +92,8 @@ git commit -m "feat(agentics-viewer): the state file, read with defaults and wri
 - [ ] `writeState` replaces an older file → test 'writeState replaces an older file'
 - [ ] Writing what was read gives the same state back → test 'writing what was read round-trips'
 - [ ] A leftover `.tmp` file is ignored by `readState` and replaced by the next write → test 'a leftover temp file is ignored and replaced'
-- [ ] `addRecent` puts the project first, removes an earlier entry with the same key (for
-      example `C:\work\x` and `c:/work/x/`), and keeps eight → test 'addRecent dedupes by key and keeps eight'
+- [ ] `addRecent` puts the project first → test 'addRecent puts the newest first'
+- [ ] `addRecent` removes an earlier entry with the same key (`C:\work\x` then `c:/work/x/`) →
+      test 'addRecent drops an earlier entry with the same key'
+- [ ] `addRecent` keeps at most eight, dropping the oldest → test 'addRecent keeps eight'
 - [ ] `projectKey` gives forward slashes, no trailing slash and a lower-case drive letter → test 'projectKey normalises separators, trailing slash and drive case'

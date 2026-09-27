@@ -1,7 +1,7 @@
 # T13: The board: tree layout, pan, zoom and selection
 
-rigor: verify
-size: ~26 turns (6 edit sites, 8 files)
+rigor: tdd
+size: ~30 turns (7 edit sites, 9 files)
 
 **Repository:** vanillafairy.
 
@@ -20,10 +20,11 @@ size: ~26 turns (6 edit sites, 8 files)
 
 ## Dependencies
 - Depends on: T11
-- Depended on by: T15
+- Depended on by: T15b
 
 **Files:**
 - Create: `agentics-viewer/web/layout.ts`
+- Create: `agentics-viewer/test/layout.test.ts` (imports only `layout.ts` and `test/snapshot-fixture.ts`; d3-hierarchy needs no DOM)
 - Create: `agentics-viewer/web/zoom.ts`
 - Modify: `agentics-viewer/web/Board.tsx`
 - Create: `agentics-viewer/web/board.css`: the board rules, imported by `Board.tsx`. Tokens come
@@ -59,7 +60,7 @@ export function attachZoom(svg: SVGSVGElement, layer: SVGGElement, content: () =
   - the selected block gets a 2.5 px `--ink` border, except `hold` and `stop`, which keep their
     colour.
 - **Tracks:** orthogonal elbows from the parent's right edge to each child's left edge. A folder
-  whose whole subtree is merged draws its tracks `class="track q"`.
+  for which `subtreeDone(model, id)` holds draws its tracks `class="track q"`.
 - **After edges:** for the selected node, `afterEdges` gives dashed `--work` arrows from each
   incoming node to it, and from it to each outgoing node. They're routed to the right of the
   blocks.
@@ -78,17 +79,26 @@ export function attachZoom(svg: SVGSVGElement, layer: SVGGElement, content: () =
 - Blocks are focusable (`tabindex="0"`, `role="button"`, `aria-label` = `<name>, <wording>`), and
   Enter selects.
 
-- [ ] **Step 1: Implement** `layout.ts`, `zoom.ts`, `Board.tsx` and the board styles.
-- [ ] **Step 2: Verify**: `npm test` and `npx vite build` pass.
-- [ ] **Step 3: Commit**
+- [ ] **Step 1: Write the failing layout tests** in `test/layout.test.ts`, one per acceptance line
+  marked "test". Build models with `buildModel(snap(...))`. Compute expectations from `BLOCK`.
+- [ ] **Step 2: Run**: `npx vitest run test/layout.test.ts`. Expected: FAIL (no module).
+- [ ] **Step 3: Implement** `layout.ts`, then `zoom.ts`, `Board.tsx` and the board styles.
+- [ ] **Step 4: Verify**: `npm test` and `npx vite build` pass.
+- [ ] **Step 5: Commit**
 
 ```bash
-git add agentics-viewer/web/layout.ts agentics-viewer/web/zoom.ts agentics-viewer/web/Board.tsx agentics-viewer/web/board.css
+git add agentics-viewer/test/layout.test.ts agentics-viewer/web/layout.ts agentics-viewer/web/zoom.ts agentics-viewer/web/Board.tsx agentics-viewer/web/board.css
 git commit -m "feat(agentics-viewer): the board, a left-to-right tree with pan, zoom and after edges"
 ```
 
 ## Acceptance
 - [ ] `npm test` and `npx vite build` pass.
+- [ ] Every node in `model.order` is placed → test 'every node is placed'
+- [ ] A child's `x` is its parent's `x` plus `BLOCK.w + BLOCK.depthGap` → test 'children sit one depth to the right'
+- [ ] Any two placed nodes at one depth are at least `BLOCK.h + BLOCK.rowGap` apart in `y` → test 'blocks at one depth never overlap'
+- [ ] An orphan is placed as a child of the root → test 'orphans hang from the root'
+- [ ] All coordinates are shifted so the minimum `x` and `y` are 0, and `width`/`height` cover the
+      farthest block edge → test 'the layout starts at the origin and reports its size'
 - [ ] Only `layout.ts` and `zoom.ts` import d3 packages (`grep -l "from 'd3-" web/` lists only them).
 - [ ] Blocks, tracks and after edges follow the Behaviour list. They're checked against the
-      mockup in T15.
+      mockup in T15b.

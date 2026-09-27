@@ -32,14 +32,14 @@ size: ~24 turns (4 edit sites, 7 files)
 - The scripts in `windows.ts` are the ones `knowledge/windows-powershell.md` marks proven. If T01
   recorded a fallback instead, implement that and nothing more.
 - Tests never spawn `powershell.exe`. They test `toastScript` and `folderDialogScript` as strings.
-  The spawn wrappers are checked by the user in T15.
+  The spawn wrappers are checked by the user in T15b.
 - `discoverProjects` never follows a symbolic link or junction (check with `lstatSync`), and
   never throws on an unreadable directory.
 
 **Interfaces:**
 - Consumes: `Clock` (T03), `test/fake-clock.ts` (T03).
 - Produces: `ProjectRef`, `discoverProjects`, `createDiscovery`, `recentProjects`, `latestEffort`,
-  `toastScript`, `folderDialogScript`, `showToast`, `FolderPick`, `pickFolder`.
+  `toastScript`, `folderDialogScript`, `showToast`, `FolderPick`, `parsePick`, `pickFolder`.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -63,10 +63,9 @@ size: ~24 turns (4 edit sites, 7 files)
   FAIL (no modules).
 
 - [ ] **Step 3: Implement** both modules per interfaces. `showToast` and `pickFolder` spawn
-  `powershell.exe` as `knowledge/windows-powershell.md` shows.
-  - `pickFolder` maps stdout `::cancelled::` to `{cancelled: true}`, other non-empty stdout to
-    `{path}`, and a non-zero exit or empty output to `{error}` carrying stderr.
-  - `showToast` resolves on close and on error. It never rejects.
+  `opts.exe` (default `powershell.exe`) as `knowledge/windows-powershell.md` shows.
+  - `pickFolder` hands the exit code, stdout and stderr to `parsePick`.
+  - `showToast` resolves on close and on a spawn `error`. It never rejects.
 
 - [ ] **Step 4: Run** `npm test`. Expected: PASS.
 
@@ -80,7 +79,11 @@ git commit -m "feat(agentics-viewer): project discovery, recent projects, toast 
 ## Acceptance
 - [ ] Projects at depth 1 and 2 are found → test 'finds projects holding .agentics'
 - [ ] A project deeper than `depth` is not found → test 'stops at the depth limit'
-- [ ] Projects under `node_modules` and `.claude` are not found → test 'skips node_modules, .git and .claude'
+- [ ] A project under `node_modules` is not found → test 'skips node_modules'
+- [ ] A project under `.claude` is not found → test 'skips .claude'
+- [ ] A project under `.git` is not found → test 'skips .git' (the fixture adds `root/.git/y/.agentics/`)
+- [ ] Discovery doesn't descend into `.agentics` (the fixture adds `root/a/.agentics/z/.agentics/`,
+      which must not appear) → test 'does not descend into .agentics'
 - [ ] A root that itself holds `.agentics` is found → test 'a root can be a project'
 - [ ] An unreadable directory is skipped without throwing → test 'unreadable directories are skipped' (simulate with a path that disappears between listing and reading, or a missing root)
 - [ ] Results are sorted by path, and `name` is the base name → test 'results are sorted with base names'
@@ -94,3 +97,8 @@ git commit -m "feat(agentics-viewer): project discovery, recent projects, toast 
       doubled for PowerShell → test 'toast text cannot break out of the script'
 - [ ] `toastScript` uses the AppUserModelID recorded in the knowledge file → test 'toast uses the proven app id'
 - [ ] `folderDialogScript` prints `::cancelled::` on cancel → test 'the dialog script reports cancel'
+- [ ] `parsePick(0, '::cancelled::\r\n', '')` is `{cancelled: true}` → test 'cancel is parsed'
+- [ ] `parsePick(0, 'C:\\work\\x\r\n', '')` is `{path: 'C:\\work\\x'}` → test 'a chosen path is parsed'
+- [ ] `parsePick(1, '', 'boom')` is `{error: 'boom'}` → test 'a failure carries stderr'
+- [ ] `parsePick(0, '', '')` is `{error}` with a non-empty message → test 'empty output is an error'
+- [ ] `showToast('t', 'b', { exe: 'no-such-exe-agentics' })` resolves → test 'showToast never rejects'

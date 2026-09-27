@@ -24,7 +24,7 @@ size: ~30 turns (8 edit sites, 10 files)
 
 ## Dependencies
 - Depends on: T02a
-- Depended on by: T15
+- Depended on by: T15b
 
 **Files:**
 - Modify: `lib/status.mjs`

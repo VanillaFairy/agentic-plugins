@@ -1,7 +1,7 @@
 # T11: Page shell: styles, stream client, header, Open project, layout
 
 rigor: tdd
-size: ~32 turns (10 edit sites, 12 files)
+size: ~34 turns (10 edit sites, 13 files)
 
 **Repository:** vanillafairy.
 
@@ -32,9 +32,9 @@ size: ~32 turns (10 edit sites, 12 files)
 - Create: `agentics-viewer/test/stream.test.ts`
 
 **Scope / Negative Constraints:**
-- Every sentence the page shows comes from `web/model.ts` (`problemText`, `tabTitle`, …) or from
-  the spec's §8 table copied into `App.tsx` for the page-only states: no project, no efforts,
-  lost server, the malformed bar and the stale bar.
+- Every sentence the page shows comes from `web/model.ts`: `problemText`, `staleText`,
+  `malformedText`, `noEffortsText`, `browseErrorText`, `TEXT` and `tabTitle`. No sentence is
+  typed into a component.
 - The stubs render a placeholder `<div>` with a class name, and export exactly the props in
   interfaces § Page components. T12, T13 and T14 fill them.
 - `styles.css` defines every token of spec § 7.2 under `:root`. The dark values sit under
@@ -59,13 +59,10 @@ size: ~32 turns (10 edit sites, 12 files)
   detail. Below 900 px the grid is one column: a List button in the header toggles the outline
   drawer, and the detail panel becomes a bottom sheet of 52% height, shown only when a node is
   selected.
-- **Bars** above the board:
-  - stale: "Showing the board from `<hh:mm>`. The last refresh failed: `<detail>`.";
-  - malformed: "`<n>` lines in the logs couldn't be read, so the board may be missing nodes.";
-  - lost server: "Lost the viewer server. Reconnecting."
-- **In place of the board:** a `problem` (via `problemText`), the no-project state ("Open a
-  project to watch its efforts.", with the Open project button), or no efforts ("No efforts in
-  `<name>` yet. Start one with /agentics:design.").
+- **Bars** above the board: stale (`staleText(p, receivedAt)`), malformed (`malformedText`), and
+  lost server (`TEXT.lostServer`).
+- **In place of the board:** a `problem` (`problemText`), the no-project state (`TEXT.noProject`,
+  with the Open project button), or no efforts (`noEffortsText`).
 - **Header:**
   - project picker: shows the project name and opens Open project;
   - effort picker: a native `<select>` over `list.efforts`, sorted as the server's `efforts` event
@@ -73,14 +70,15 @@ size: ~32 turns (10 edit sites, 12 files)
   - cost via `costText`, hidden when narrow;
   - an Open project button (the only filled button).
 - **OpenProject:** a modal `<dialog>` with Found and Recent lists from `/api/projects`, and a
-  Browse… button that `POST`s `/api/browse`. While it waits, it shows "The folder dialog is open.
-  It may be behind this window." A chosen path navigates to `urlFor({project: path, effort: null,
-  node: null})`. On `{error}` it shows "Couldn't open the folder dialog: `<error>`."
-- **`openStream`** uses `EventSource`, maps the four events to the handlers, and calls
-  `connection(false)` on `error` and `connection(true)` on `open`. It returns a close function.
+  Browse… button that `POST`s `/api/browse`. While it waits, it shows `TEXT.browseWaiting`. A
+  chosen path navigates to `urlFor({project: path, effort: null, node: null})`. On `{error}` it
+  shows `browseErrorText(error)`.
+- **`openStream`** per interfaces § Page components: `make` defaults to `new EventSource(url)`.
+  The tests pass a ten-line fake `EventSourceLike` that records listeners and lets the test fire
+  events.
 
-- [ ] **Step 1: Write the failing tests** for `readUrlState` and `urlFor` in `test/stream.test.ts`,
-  one per acceptance line marked "test".
+- [ ] **Step 1: Write the failing tests** for `readUrlState`, `urlFor` and `openStream` in
+  `test/stream.test.ts`, one per acceptance line marked "test".
 - [ ] **Step 2: Run**: `npx vitest run test/stream.test.ts`. Expected: FAIL.
 - [ ] **Step 3: Implement** `stream.ts`, then the components and styles.
 - [ ] **Step 4: Run** `npm test` and `npx vite build`. Expected: both pass.
@@ -94,7 +92,16 @@ git commit -m "feat(agentics-viewer): page shell, stream client, header and Open
 ## Acceptance
 - [ ] `readUrlState('?project=C%3A%5Cwork%5Cx&effort=e&node=a%2Fb')` gives the decoded three values → test 'url state decodes'
 - [ ] Missing params read as null → test 'missing params are null'
-- [ ] `urlFor` omits nulls and round-trips through `readUrlState` → test 'urlFor round-trips and omits nulls'
+- [ ] `urlFor` omits nulls → test 'urlFor omits nulls'
+- [ ] `urlFor` output read back by `readUrlState` gives the same state → test 'urlFor round-trips'
+- [ ] `openStream('C:\My Work', null, h, make)` opens `/api/stream?project=C%3A%5CMy%20Work` with no effort param → test 'the stream url encodes the project and omits a null effort'
+- [ ] With an effort, the url carries `&effort=<encoded>` → test 'the stream url carries the effort'
+- [ ] An `efforts` event reaches `h.efforts` parsed → test 'efforts events reach their handler'
+- [ ] A `snapshot` event reaches `h.snapshot` parsed → test 'snapshot events reach their handler'
+- [ ] A `problem` event reaches `h.problem` parsed → test 'problem events reach their handler'
+- [ ] A `stale` event reaches `h.stale` parsed → test 'stale events reach their handler'
+- [ ] `open` calls `connection(true)` and `error` calls `connection(false)` → test 'connection state follows the source'
+- [ ] The returned function closes the source → test 'the close function closes the source'
 - [ ] `npm test` and `npx vite build` pass.
 - [ ] `styles.css` carries every token of spec § 7.2, in light and dark.
 - [ ] The stub components export the props of interfaces § Page components exactly (tsc checks

@@ -79,6 +79,8 @@ git commit -m "feat(agentics-viewer): find agentics and run its status commands"
 - [ ] A payload with `format` 1 gives `ok` with the payload and digest → test 'a format 1 snapshot is ok'
 - [ ] An `unknown command "snapshot"` error gives `agentics_too_old` with path and version → test 'an old agentics is agentics_too_old'
 - [ ] A payload with `format` 2 gives `format_mismatch` carrying 2 → test 'another format is format_mismatch'
+- [ ] `format_mismatch` carries `path` and `version` → test 'a format mismatch names the install'
+- [ ] `snapshot_failed` carries `path` and `version` → test 'a failed snapshot names the install'
 - [ ] Non-JSON output gives `snapshot_failed` with the output as detail → test 'garbage output is snapshot_failed'
 - [ ] Exit 1 with `{error}` gives `snapshot_failed` with the error as detail → test 'an agentics error is snapshot_failed'
 - [ ] A run past `timeoutMs` gives `snapshot_failed` → test 'a slow agentics times out as snapshot_failed' (use `timeoutMs: 300`)

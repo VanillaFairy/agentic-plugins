@@ -8,7 +8,7 @@ repository. The mockup beside it is the reference for the look.
 | repository | path | branch | what lands there |
 |---|---|---|---|
 | agentics | `C:/work/claude/vanillafairy/agentics` (the vanillafairy submodule) | `design-loop` | `status.mjs snapshot`, `store` on `status.mjs list`, their tests and DESIGN.md entries (T02a, T02b) |
-| vanillafairy | `C:/work/claude/vanillafairy/.claude/worktrees/agentics-tasks-observability-f37843` | `claude/agentics-tasks-observability-f37843` | everything under `agentics-viewer/`, and the repo chores (T15) |
+| vanillafairy | `C:/work/claude/vanillafairy/.claude/worktrees/agentics-tasks-observability-f37843` | `claude/agentics-tasks-observability-f37843` | everything under `agentics-viewer/`, and the repo chores (T15a) |
 
 Every task file names its repository on its **Repository:** line. A task's worktree is cut from
 that repository's branch.
@@ -62,5 +62,12 @@ The spec leaves these open. Each is cheap to reverse.
   into the URL.
 - **`stale` vs `problem`.** A refresh that fails before the connection has received any snapshot
   sends `problem`. One that fails later sends `stale`, and the page keeps its board.
+- **`/api/browse` returns `{error}`,** not the spec § 6.7 wording `{problem}`. A browse failure
+  isn't one of the `Problem` codes. It's shown only inside the Open project dialog, through
+  `browseErrorText`.
+- **Main checkout as the key.** Watchers and alert watermarks are keyed by the main checkout
+  (`dirname(list.store)`), so opening a linked worktree and its main checkout never double-toasts.
+- **Save before toast.** The watermark is written before toasts are raised: a crash loses a
+  toast rather than repeating one.
 - **Problem text lives on the page** (`model.ts` `problemText`). The server sends codes and
   facts, never sentences.

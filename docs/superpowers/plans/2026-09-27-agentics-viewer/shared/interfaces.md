@@ -5,7 +5,7 @@ consumes one uses it as written.
 
 ## Snapshot contract (agentics ↔ viewer)
 
-**Produced by:** T02b (`lib/status.mjs` in agentics) and T04 (the TypeScript copy).
+**Produced by:** T02b (`lib/status.mjs` in agentics) and T03 (the TypeScript copy).
 **Consumed by:** T05, T08, T09, T10a/b, T11–T14.
 
 `node <agentics>/lib/status.mjs snapshot --repo <path> --effort <name> --json` prints one line,
@@ -106,7 +106,7 @@ export interface Problem {
 
 ## Clock
 
-**Produced by:** T04. **Consumed by:** T06, T07a/b, T09.
+**Produced by:** T03. **Consumed by:** T06, T07a/b, T09.
 
 ```ts
 // agentics-viewer/server/clock.ts
@@ -120,7 +120,7 @@ export const realClock: Clock
 ```
 
 ```ts
-// agentics-viewer/test/fake-clock.ts (T04): a hand-driven clock for tests
+// agentics-viewer/test/fake-clock.ts (T03): a hand-driven clock for tests
 export interface FakeClock extends Clock {
   advance(ms: number): void        // runs every due timer in due-time order, including timers they schedule
   pending(): number                // timers not yet run
@@ -130,7 +130,7 @@ export function fakeClock(start?: number): FakeClock
 
 ## State file
 
-**Produced by:** T05. **Consumed by:** T06, T09.
+**Produced by:** T04. **Consumed by:** T09.
 
 ```ts
 // agentics-viewer/server/state.ts
@@ -224,10 +224,18 @@ export function latestEffort(store: string, efforts: string[]): string | null
 // agentics-viewer/server/windows.ts
 export function toastScript(title: string, body: string): string
 export function folderDialogScript(): string
-export function showToast(title: string, body: string): Promise<void>
+export function showToast(title: string, body: string, opts?: { exe?: string }): Promise<void>
 export type FolderPick = { path: string } | { cancelled: true } | { error: string }
-export function pickFolder(): Promise<FolderPick>
+export function parsePick(code: number | null, stdout: string, stderr: string): FolderPick
+export function pickFolder(opts?: { exe?: string }): Promise<FolderPick>
 ```
+
+`opts.exe` defaults to `powershell.exe`. Tests pass a name that doesn't exist to prove
+`showToast` resolves anyway. `parsePick` is pure:
+- stdout `::cancelled::` (trimmed) with exit 0 gives `{cancelled: true}`;
+- other non-empty trimmed stdout with exit 0 gives `{path}`;
+- a non-zero or null exit, or empty stdout, gives `{error}` holding the trimmed stderr, or
+  `powershell exited <code>` when stderr is empty.
 
 - The scripts are the ones T01 proved, recorded in `knowledge/windows-powershell.md`.
 - `toastScript` embeds `title` and `body` so that no value can break out of the script or the
@@ -325,6 +333,7 @@ SSE events (`event:` name, `data:` JSON):
 // agentics-viewer/server/app.ts
 import type http from 'node:http'
 import type { Clock } from './clock.ts'
+import type { SchedulerOptions } from './watch.ts'
 import type { AgenticsLocation } from './agentics.ts'
 import type { Problem } from '../shared/snapshot.ts'
 import type { FolderPick } from './windows.ts'
@@ -337,10 +346,35 @@ export interface AppDeps {
   toast: (title: string, body: string) => Promise<void>
   pickFolder: () => Promise<FolderPick>
   log: (m: string) => void
+  heartbeatMs?: number                 // 15000; tests shrink it
+  timings?: SchedulerOptions           // passed to createScheduler; tests shrink them
 }
 export function hostAllowed(headers: http.IncomingHttpHeaders, port: number): boolean
 export function createApp(deps: AppDeps): { server: http.Server; close(): Promise<void> }
 ```
+
+- The state file is owned in memory by the app. Each change updates the in-memory
+  `ViewerState` and writes the whole object with `writeState`, so two schedulers can't lose each
+  other's update.
+- Watchers, schedulers and the `alerted` watermark are keyed by the **main checkout**,
+  `projectKey(dirname(list.store))`, not by the path the page sent. A linked worktree path and
+  its main checkout share one watcher and one watermark. `recent` and `last` keep the path the
+  user opened.
+- The new watermark is saved **before** the toasts are raised. A crash between the two loses a
+  toast; it never repeats one.
+
+```ts
+// agentics-viewer/server/start.ts (T09m): pure decisions for main.ts
+export type StartDecision = 'run' | 'already-running' | 'port-taken'
+export function startDecision(health: unknown, portFree: boolean): StartDecision
+export function needsBuild(newestWebMtime: number, distIndexMtime: number | null): boolean
+```
+
+- `startDecision`:
+  - `health` is the parsed `/api/health` body, or `null` when nothing answered;
+  - a body with `app === 'agentics-viewer'` gives `already-running`;
+  - otherwise a free port gives `run`, and a taken one `port-taken`.
+- `needsBuild` is true when `distIndexMtime` is null, or older than `newestWebMtime`.
 
 `hostAllowed`:
 - `Host` must be `127.0.0.1:<port>` or `localhost:<port>`;
@@ -386,6 +420,17 @@ export function costText(c: Snapshot['cost']): string
 export function spendText(c: Snapshot['cost'], id: string): string | null
 export function tileKey(project: string, effort: string, t: Tile): string
 export function tabTitle(tiles: Tile[]): string
+export function staleText(p: Problem, since: Date): string
+export function malformedText(n: number): string
+export function noEffortsText(projectName: string): string
+export function browseErrorText(error: string): string
+export const TEXT: { noProject: string; lostServer: string; browseWaiting: string }
+export function kindWord(kind: string): string
+export function fileLabel(path: string, kind: 'brief' | 'report'): string
+export function addAck(acks: string[], key: string, cap?: number): string[]
+export function visibleRows(model: BoardModel, filter: string, collapsed: Set<string>): string[]
+export function moveSelection(rows: string[], current: string | null, dir: 'up' | 'down'): string | null
+export function subtreeDone(model: BoardModel, id: string): boolean
 ```
 
 Rules (spec §7.3, §7.5, §8 and `architecture.md` § Design decisions):
@@ -426,7 +471,8 @@ Rules (spec §7.3, §7.5, §8 and `architecture.md` § Design decisions):
     agentics 4.0.0."
   - `format_mismatch` → "This viewer reads snapshot format 1. agentics at `<path>` writes format
     `<format>`. Update agentics-viewer."
-  - `snapshot_failed` → "The last refresh failed: `<detail>`."
+  - `snapshot_failed` → "The first refresh failed: `<detail>`." (A `problem` event only comes
+    before any board. The stale bar uses `staleText`.)
   - `project_gone` → "This project folder is gone: `<path>`."
   - Placeholders are filled without backticks; the backticks above only mark them.
 - `ago(iso, now)`:
@@ -445,6 +491,37 @@ Rules (spec §7.3, §7.5, §8 and `architecture.md` § Design decisions):
   leaf.
 - `tileKey`: `` `${project}|${effort}|${t.node}|${t.seq}` ``.
 - `tabTitle`: `agentics viewer` when there are no tiles, else `(<n>) agentics viewer`.
+- `staleText(p, since)`: "Showing the board from `<HH:MM>`. The last refresh failed:
+  `<detail>`." `HH:MM` is `since`'s local time, zero-padded, 24-hour. When `detail` is empty,
+  the last sentence is "The last refresh failed."
+- `malformedText(n)`: "`<n>` lines in the logs couldn't be read, so the board may be missing
+  nodes." With `n === 1`: "1 line in the logs couldn't be read, so the board may be missing
+  nodes."
+- `noEffortsText(name)`: "No efforts in `<name>` yet. Start one with /agentics:design."
+- `browseErrorText(e)`: "Couldn't open the folder dialog: `<e>`."
+- `TEXT.noProject` = "Open a project to watch its efforts."; `TEXT.lostServer` = "Lost the
+  viewer server. Reconnecting."; `TEXT.browseWaiting` = "The folder dialog is open. It may be
+  behind this window."
+- `kindWord`: `leaf` → `task`, `composite` → `folder`, `design` → `design`, anything else as it
+  is.
+- `fileLabel(path, kind)` works on the base name.
+  - It matches `-(implementer|test-author|auditor|reviewer|none)-r(\d+)\.md$`, giving
+    "Brief, `<role>` round `<n>`" or "Report, `<role>` round `<n>`".
+  - It works for briefs (`<node>-<role>-r<n>.md`, no stamp) and reports
+    (`<stamp>-<node>-<role>-r<n>.md`), and for node parts containing dashes.
+  - With no match, it's "Brief, `<base name>`" or "Report, `<base name>`".
+- `addAck(acks, key, cap = 200)`: removes an earlier copy of `key`, appends it (newest last),
+  and keeps the last `cap`.
+- `visibleRows(model, filter, collapsed)`: `model.order` filtered.
+  - An empty (trimmed) filter keeps every row not below a collapsed id.
+  - A non-empty filter keeps rows whose `name` or `node.title` contains it, case-insensitively,
+    plus all their ancestors. Collapse is ignored while filtering.
+- `moveSelection(rows, current, dir)`:
+  - with `current` absent from `rows` (or null): `down` gives the first row and `up` the last;
+  - otherwise the neighbour in `dir`, staying put at either end;
+  - null for empty rows.
+- `subtreeDone(model, id)`: true when every leaf below `id` has a `done` lamp and `id` has at
+  least one leaf below it.
 
 ## Page components
 
@@ -473,5 +550,16 @@ export interface StreamHandlers {
   stale(p: Problem): void
   connection(up: boolean): void
 }
-export function openStream(project: string, effort: string | null, h: StreamHandlers): () => void
+export interface EventSourceLike {
+  addEventListener(type: string, fn: (e: { data?: string }) => void): void
+  close(): void
+}
+export function openStream(project: string, effort: string | null, h: StreamHandlers,
+  make?: (url: string) => EventSourceLike): () => void      // default: (u) => new EventSource(u)
 ```
+
+- `openStream` opens `/api/stream?project=<enc>&effort=<enc>`, leaving out `effort` when it's
+  null.
+- `efforts`, `snapshot`, `problem` and `stale` events are `JSON.parse`d into their handlers.
+- `open` calls `connection(true)` and `error` calls `connection(false)`.
+- The returned function calls `close()`.

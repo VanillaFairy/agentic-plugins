@@ -59,6 +59,7 @@ git commit -m "test(agentics-viewer): the refresh scheduler's timing rules"
 - [ ] A `run` that rejects still lets the queued run happen → test 'a failed run still settles'
 - [ ] `setActive(true)` runs every `pollMs` with no notify → test 'active polling runs every five seconds'
 - [ ] `setActive(false)` stops polling → test 'inactive stops polling'
+- [ ] `setActive(true)` twice keeps one poll: over 15 s exactly three polled runs happen → test 'setActive with the current value changes nothing'
 - [ ] A poll that comes due while a run is in flight doesn't start a second concurrent run →
       test 'polling respects one run at a time'
 - [ ] After `dispose()`, no notify or pending timer runs anything, and `pending()` is 0 → test 'dispose stops everything'
@@ -68,3 +69,6 @@ git commit -m "test(agentics-viewer): the refresh scheduler's timing rules"
 - [ ] `watchStore` on a temp directory calls `onChange` within 2 s of appending to
       `eff/.state/events.jsonl` → test 'watchStore reports a write'
 - [ ] `watchStore` doesn't call `onChange` for a write to `eff/.state/context/c.md` → test 'watchStore ignores context writes'
+- [ ] `watchStore` on a path that doesn't exist (so `fs.watch` throws twice) calls `onChange` once
+      per `fallbackPollMs` as the fake clock advances. It logs `watching <store> by polling every
+      2 s`, and `close()` stops the polling → test 'a store that cannot be watched is polled'

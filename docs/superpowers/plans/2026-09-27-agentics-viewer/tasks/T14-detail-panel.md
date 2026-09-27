@@ -20,7 +20,7 @@ size: ~18 turns (4 edit sites, 6 files)
 
 ## Dependencies
 - Depends on: T11
-- Depended on by: T15
+- Depended on by: T15b
 
 **Files:**
 - Create: `agentics-viewer/web/markdown.ts`
@@ -33,13 +33,13 @@ size: ~18 turns (4 edit sites, 6 files)
   `inlineMarkdown(text: string): string`: `marked.parseInline`, then `DOMPurify.sanitize` with
   `ALLOWED_TAGS: ['em','strong','code','a','br']` and `ALLOWED_ATTR: ['href']`. That HTML is the
   only thing set with `dangerouslySetInnerHTML`.
-- Wording comes from the model (`returnInWords`, `ago`, `spendText`, `vscodeLink`).
+- Wording comes from the model (`kindWord`, `fileLabel`, `returnInWords`, `ago`, `spendText`,
+  `vscodeLink`).
 - Don't touch `App.tsx` or the other components.
 
 ## Behaviour
-- **First line** (12.5 px, `--ink-2`): `<id>, <kind word>, <rigor>, <raw status>`, where the kind
-  word is `task` for `leaf`, `folder` for `composite` and `design` for `design`. Empty parts are
-  skipped.
+- **First line** (12.5 px, `--ink-2`): `<id>, <kindWord(kind)>, <rigor>, <raw status>`. Empty
+  parts are skipped.
 - **Name:** 20 px, semi-condensed, weight 600. **Title:** Sitka Text, 15 px.
 - **State block** for `parked`: heading "Waiting on you: `<returnInWords(return)>`", then the
   question in full. For `escalated`: heading "Escalated", then the reason, then the detail.
@@ -51,9 +51,8 @@ size: ~18 turns (4 edit sites, 6 files)
   - Context: intent, then context, through `inlineMarkdown`, in Sitka Text.
   - Criteria: a checklist. Each `check` is shown beneath its item in Cascadia Mono. `HUMAN:` items
     drop the prefix and get a "You decide" tag.
-  - Files: "Spec in `<relative folder>/DESIGN.md`" with its line, "Brief, `<role>` round `<n>`"
-    and "Report, `<role>` round `<n>`" (parsed from the file names `<stamp>-<node>-<role>-r<n>.md`),
-    and "Worktree". Each is a `vscodeLink` anchor, with a copy-path button (`aria-label` "Copy
+  - Files: "Spec in `<relative folder>/DESIGN.md`" with its line, each brief and report labelled
+    by `fileLabel(path, 'brief' | 'report')`, and "Worktree". Each is a `vscodeLink` anchor, with a copy-path button (`aria-label` "Copy
     path") that uses `navigator.clipboard.writeText` and falls back to selecting a hidden input.
   - Writes: the locus paths.
   - Spend: `spendText`.
@@ -71,4 +70,4 @@ git commit -m "feat(agentics-viewer): the detail panel"
 - [ ] `npm test` and `npx vite build` pass.
 - [ ] Only `markdown.ts` imports `marked` or `dompurify`. `dangerouslySetInnerHTML` appears only
       with `inlineMarkdown`'s output.
-- [ ] The sections, links and copy buttons follow the Behaviour list. They're checked in T15.
+- [ ] The sections, links and copy buttons follow the Behaviour list. They're checked in T15b.

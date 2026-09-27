@@ -109,6 +109,11 @@ git commit -m "test(status): snapshot, the viewer's read contract"
       `return` and `question` → test 'event carries its kind\'s payload fields'
 - [ ] `stage` equals `todoFor(...).activeForm` for in-progress items and is null for the others
       → test 'stage is todoFor\'s activeForm only while in progress'
+- [ ] A design node with no children passes through as `open` with a null stage → test 'an open design node passes through'
+- [ ] A folder whose children have all merged passes through as `integrated` → test 'an integrated folder passes through'
+- [ ] Status is never mapped: the test swaps in an events log producing every status the fixture
+      can reach (`planned`, `active`, `approved`, `merged`, `integrated`, `parked`, `escalated`,
+      `open`), and each appears unchanged → test 'every reachable status passes through unchanged'
 - [ ] `commits` for the active `a/impl` has `count` 2, the second commit's subject, and its ISO
       committer date → test 'commits count from the parent integration branch'
 - [ ] `commits` is null for every node that isn't an active leaf → test 'commits only for active leaves'
