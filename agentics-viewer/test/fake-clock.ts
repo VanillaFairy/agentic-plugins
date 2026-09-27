@@ -33,16 +33,17 @@ export function fakeClock(start = 0): FakeClock {
     },
     advance(ms: number): void {
       const target = now + ms
+      const queue = timers
       for (;;) {
         let earliest: Timer | null = null
-        for (const t of timers) {
+        for (const t of queue) {
           if (t.due <= target && (earliest === null || t.due < earliest.due || (t.due === earliest.due && t.id < earliest.id))) {
             earliest = t
           }
         }
         if (earliest === null) break
-        const index = timers.indexOf(earliest)
-        timers.splice(index, 1)
+        const index = queue.indexOf(earliest)
+        queue.splice(index, 1)
         now = earliest.due
         earliest.fn()
       }
