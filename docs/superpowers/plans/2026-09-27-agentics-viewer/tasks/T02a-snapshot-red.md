@@ -4,7 +4,8 @@ rigor: pair
 role: red
 size: ~30 turns (6 edit sites, 11 files)
 
-**Repository:** agentics (`C:/work/claude/vanillafairy/agentics`), branch `design-loop`.
+**Repository:** agentics (`C:/work/claude/vanillafairy/agentics`), branch `master` (agentics
+4.0.0, released 2026-09-27; `design-loop` is merged and closed).
 
 ## Dispatch
 | Stage | Model | Effort | Why |

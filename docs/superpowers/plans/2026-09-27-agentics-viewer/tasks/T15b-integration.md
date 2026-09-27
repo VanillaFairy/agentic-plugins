@@ -28,7 +28,8 @@ eyes, the Browser pane or Windows.
 
 **Scope / Negative Constraints:**
 - Fixes the checks turn up go in their own commits, each naming the file and the check it failed.
-- Point `agentics_path` at the `design-loop` checkout until agentics 4.0.0 is installed.
+- Point `agentics_path` at `C:/work/claude/vanillafairy/agentics` (the submodule checkout, on
+  `master`, already at 4.0.0) until the plugin marketplace's installed copy catches up.
 - Never write into eva-plays-2's real `.agentics/`. Liveness is tested on a scratch copy.
 
 - [ ] **Step 1: Run it against real efforts**

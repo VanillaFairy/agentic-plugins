@@ -7,7 +7,7 @@ repository. The mockup beside it is the reference for the look.
 
 | repository | path | branch | what lands there |
 |---|---|---|---|
-| agentics | `C:/work/claude/vanillafairy/agentics` (the vanillafairy submodule) | `design-loop` | `status.mjs snapshot`, `store` on `status.mjs list`, their tests and DESIGN.md entries (T02a, T02b) |
+| agentics | `C:/work/claude/vanillafairy/agentics` (the vanillafairy submodule) | `master` | `status.mjs snapshot`, `store` on `status.mjs list`, their tests and DESIGN.md entries (T02a, T02b) |
 | vanillafairy | `C:/work/claude/vanillafairy/.claude/worktrees/agentics-tasks-observability-f37843` | `claude/agentics-tasks-observability-f37843` | everything under `agentics-viewer/`, and the repo chores (T15a) |
 
 Every task file names its repository on its **Repository:** line. A task's worktree is cut from

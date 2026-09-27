@@ -30,8 +30,9 @@ mockup beside it. Executors read the sections their task names.
 ## Global Constraints
 
 - Two repositories (`shared/architecture.md` § Two repositories). Each task names its
-  repository. T02a and T02b land on agentics' `design-loop` before that plan's release task (T29,
-  4.0.0) runs. Everything else lands on vanillafairy's `claude/agentics-tasks-observability-f37843`.
+  repository. T02a and T02b land on agentics' `master`, which shipped 4.0.0 on 2026-09-27 (the
+  `design-loop` branch is merged and closed; work continues on `master`). Everything else lands on
+  vanillafairy's `claude/agentics-tasks-observability-f37843`.
 - Dependency versions are exact, from spec § 11. No `^` or `~`.
 - The server imports only `node:` built-ins. Only `web/layout.ts`, `web/zoom.ts` and
   `web/markdown.ts` import d3, marked or DOMPurify.
