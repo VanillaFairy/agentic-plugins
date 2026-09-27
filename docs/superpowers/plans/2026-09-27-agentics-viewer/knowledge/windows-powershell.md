@@ -1,7 +1,13 @@
 # Toast and folder dialog through powershell.exe
 
-Status: **candidate scripts. T01 proves them on this machine and rewrites this file with what
-worked.**
+Status: **proven on this machine, 2026-09-27.** Both scripts below work exactly as written — no
+change to the toast XML, the AppUserModelID, or the dialog script was needed.
+
+The toast is silent (script exits 0, nothing shown, not even in the action center) when Windows
+notifications are off system-wide (Settings > System > Notifications, or Focus Assist/Do Not
+Disturb). That's a system setting, not a script bug: `ToastNotificationManager` doesn't report
+the failure. The viewer can't detect or fix this; `showToast` never rejects either way (§4.6 of
+the spec already treats a toast failure as silent).
 
 Both scripts run under Windows PowerShell 5.1 (`powershell.exe`), not PowerShell 7 (`pwsh`):
 only 5.1 can load WinRT types with `ContentType = WindowsRuntime`. Spawn it from Node with the
