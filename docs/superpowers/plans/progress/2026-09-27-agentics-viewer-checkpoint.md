@@ -9,7 +9,7 @@ Remaining: T02a, T02b, T03, T04, T05, T06, T07a, T07b, T08, T09, T09m, T10a, T10
 ## Tasks
 | Task | Wave | Branch | State | Review cycles | Merge commit |
 | T02a | 2 | sdd/2026-09-27-agentics-viewer/T02a | merged | 0 | 80f39d2 |
-| T02b | 2 | sdd/2026-09-27-agentics-viewer/T02b | implementing | 0 | |
+| T02b | 2 | sdd/2026-09-27-agentics-viewer/T02b | merging | 1 | |
 | T03 | 2 | sdd/2026-09-27-agentics-viewer/T03 | merged | 0 | 183f5c0 |
 
 ## Decisions and deviations
