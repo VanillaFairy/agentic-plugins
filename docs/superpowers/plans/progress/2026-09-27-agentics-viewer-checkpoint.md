@@ -1,9 +1,9 @@
-Status: DONE
+Status: ONGOING
 # 2026-09-27-agentics-viewer checkpoint
 
-Wave: 3 — T04, T05, T06, T07a, T07b, T08, T10a, T10b
+Wave: 4 — T09, T11
 Integration head (agentics/master): 48f5b18
-Integration head (vanillafairy/claude/agentics-tasks-observability-f37843): 465141b
+Integration head (vanillafairy/claude/agentics-tasks-observability-f37843): 2e6717f
 Remaining: T09, T09m, T11, T12, T13, T14, T15a, T15b
 
 ## Tasks
@@ -19,30 +19,17 @@ Remaining: T09, T09m, T11, T12, T13, T14, T15a, T15b
 | T08 | 3 | sdd/2026-09-27-agentics-viewer/T08 | merged | 0 | c8451bc |
 | T10a | 3 | sdd/2026-09-27-agentics-viewer/T10a | merged | 1 | 4cf5002 |
 | T10b | 3 | sdd/2026-09-27-agentics-viewer/T10b | merged | 0 | 51965ba |
+| T09 | 4 | sdd/2026-09-27-agentics-viewer/T09 | not started | 0 | |
+| T11 | 4 | sdd/2026-09-27-agentics-viewer/T11 | not started | 0 | |
 
 
 ## Decisions and deviations
-- W2: `knowledge/run-checks-agentics.md` says "branch `design-loop`"; agentics is actually on
-  `master` now (4.0.0 shipped 2026-09-27). The command it names is unaffected; only the branch
-  note is stale.
-- W2 T02a: the RED test-author used a namespace import so 25 tests fail on three distinguishable
-  reasons instead of one masked `SyntaxError`; reviewer confirmed this preserves Step 3's intent.
-- W2 T02b fix round 1: moved `foldersOf` into `lib/status.mjs` (re-exported into `next.mjs`) and
-  restored a split DESIGN.md sentence. Re-review: ADDRESSED.
-- W2 T03: `node_modules` doesn't survive a merge; the integration checkout needed its own
-  `npm install`. Recorded as `knowledge/viewer-node-modules-after-merge.md`.
-- W3: every non-pair task (T04, T05, T06, T08) and both green tasks (T10b) used the plan's
-  `tdd`/`pair` Dispatch rows exactly (implement/test-author sonnet, review opus medium, fix sonnet
-  medium). All ran to plan with one fix round each except T08 (clean pass) and T10b (clean pass).
-- W3 T04 fix round 1: the Important finding (no mutant isolates the leftover-`.tmp` acceptance
-  line) was closed by adding one mutant to the probe report; no source or test line changed, so
-  the merge carries no new commit over the reviewed head.
+(W2 and part of W3 moved to `progress/2026-09-27-agentics-viewer-history.md` at the start of Wave 4 — not depended on by T09, T11, T09m, T12, T13, T14, T15a, T15b)
 - W3 T05 fix round 1: `execFile`'s default 1 MiB `maxBuffer` made a large snapshot's stdout
   overflow read as a false "timed out" (Node sets `err.killed` on both timeout and overflow).
   Fixed by raising `maxBuffer` to 64 MiB and telling the two apart by `err.code`. Also closed two
   probe gaps (three acceptance lines had no mutant of their own). 8-line fix, re-review skipped.
-- W3 T06 fix round 1: the tie-break test only proved "last in list wins", not "larger name wins".
-  One-line fix (a reversed-order assertion). Re-review skipped.
+  Relevant to T09 (runs `runSnapshot`).
 - W3 T10a fix round 1: the depth-first-order test's fixture ids happened to sort lexicographically
   into the same order, so a plain `sort()` would have passed. Added a sibling id (`a-b`) whose
   lexicographic and depth-first positions diverge. 8-line fix, re-review skipped.
