@@ -1,9 +1,9 @@
-Status: DONE
+Status: ONGOING
 # 2026-09-27-agentics-viewer checkpoint
 
-Wave: 4 — T09, T11
+Wave: 5 — T09m, T12, T13, T14, T15a
 Integration head (agentics/master): 48f5b18
-Integration head (vanillafairy/claude/agentics-tasks-observability-f37843): db042e1
+Integration head (vanillafairy/claude/agentics-tasks-observability-f37843): 5505f21
 Remaining: T09m, T12, T13, T14, T15a, T15b
 
 ## Tasks
@@ -21,6 +21,11 @@ Remaining: T09m, T12, T13, T14, T15a, T15b
 | T10b | 3 | sdd/2026-09-27-agentics-viewer/T10b | merged | 0 | 51965ba |
 | T09 | 4 | sdd/2026-09-27-agentics-viewer/T09 | merged | 1 | b3b7d2b |
 | T11 | 4 | sdd/2026-09-27-agentics-viewer/T11 | merged | 1 | db042e1 |
+| T09m | 5 | sdd/2026-09-27-agentics-viewer/T09m | implementing | 0 | |
+| T12 | 5 | sdd/2026-09-27-agentics-viewer/T12 | implementing | 0 | |
+| T13 | 5 | sdd/2026-09-27-agentics-viewer/T13 | implementing | 0 | |
+| T14 | 5 | sdd/2026-09-27-agentics-viewer/T14 | implementing | 0 | |
+| T15a | 5 | sdd/2026-09-27-agentics-viewer/T15a | implementing | 0 | |
 
 
 ## Decisions and deviations
