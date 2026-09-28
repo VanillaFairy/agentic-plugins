@@ -1,10 +1,10 @@
-Status: ONGOING
+Status: DONE
 # 2026-09-27-agentics-viewer checkpoint
 
 Wave: 4 — T09, T11
 Integration head (agentics/master): 48f5b18
-Integration head (vanillafairy/claude/agentics-tasks-observability-f37843): 2e6717f
-Remaining: T09, T09m, T11, T12, T13, T14, T15a, T15b
+Integration head (vanillafairy/claude/agentics-tasks-observability-f37843): db042e1
+Remaining: T09m, T12, T13, T14, T15a, T15b
 
 ## Tasks
 | Task | Wave | Branch | State | Review cycles | Merge commit |
@@ -19,8 +19,8 @@ Remaining: T09, T09m, T11, T12, T13, T14, T15a, T15b
 | T08 | 3 | sdd/2026-09-27-agentics-viewer/T08 | merged | 0 | c8451bc |
 | T10a | 3 | sdd/2026-09-27-agentics-viewer/T10a | merged | 1 | 4cf5002 |
 | T10b | 3 | sdd/2026-09-27-agentics-viewer/T10b | merged | 0 | 51965ba |
-| T09 | 4 | sdd/2026-09-27-agentics-viewer/T09 | not started | 0 | |
-| T11 | 4 | sdd/2026-09-27-agentics-viewer/T11 | not started | 0 | |
+| T09 | 4 | sdd/2026-09-27-agentics-viewer/T09 | merged | 1 | b3b7d2b |
+| T11 | 4 | sdd/2026-09-27-agentics-viewer/T11 | merged | 1 | db042e1 |
 
 
 ## Decisions and deviations
@@ -30,6 +30,32 @@ Remaining: T09, T09m, T11, T12, T13, T14, T15a, T15b
   Fixed by raising `maxBuffer` to 64 MiB and telling the two apart by `err.code`. Also closed two
   probe gaps (three acceptance lines had no mutant of their own). 8-line fix, re-review skipped.
   Relevant to T09 (runs `runSnapshot`).
+- W4 T09 brief: `assemble-brief` warned the implementer brief is 42554-42925 bytes (task + shared +
+  knowledge), over the 40000-byte guide. T09's References section names 7 § sections across two
+  shared files plus one `roles:` knowledge file; not trimmed mid-wave per procedure.
+- W4 T09 review round 1 (SPEC FAIL): backslash/`%5c`/drive-letter path traversal past `distDir`
+  on Windows in static serving; a watcher leaked when a stream opened with no effort selected
+  (`disposeFn` was a no-op); the watcher-close call site had no killing mutant; `/api/projects`'s
+  test didn't assert `found` and scanned the developer's real `C:\work`; no mutant existed for
+  "the viewer writes nothing under .agentics". Fix round 1 (84 lines: `server/app.ts`,
+  `test/app.test.ts`, `test/wiring.test.ts`) closed all five — `serveStatic` now resolves and
+  requires containment under `resolve(distDir)`; `KeyState` gained an `openCount` so a null-effort
+  stream's close also tears down the watcher at 0; a `deps.log` trace on the watcher's onChange
+  makes the close call site observable to a new mutant; the projects test seeds a temp fixture
+  root and asserts `found`; a new mutant (F6, a second `writeState` under the project's
+  `.agentics/`) covers the no-writes line. Scoped re-review: ADDRESSED, 0 open. Merged `b3b7d2b`.
+  7 Minor findings from round 1 were left for the plan's final review (T15b).
+- W4 T11 review round 1 (SPEC PASS, 1 unverifiable): the wide 3-track grid auto-placed the board
+  column into the 250px outline track whenever `<Outline>` wasn't mounted (every pre-snapshot
+  state: no-project, `problemText`, `noEffortsText`, loading) — spec §7.4. The probe's 'connection
+  state follows the source' mutant covered only the `open` listener, not `error`. Fix round 1
+  (6 lines: `styles.css` pins `.board-col`/`.detail` to grid-column 2/3 wide, 1/1 narrow; probe
+  mutant M13 added for the `error` listener) closed both; re-review skipped (≤20 lines) per
+  procedure, final review covers it. Merged `db042e1`. 7 Minor findings from round 1
+  (per-fetch `.catch` handling, a double-connect on the first `efforts` event, a `toEqual` on a
+  whole `UrlState`, visible placeholder text in the T12–T14 stubs, a missing "Effort" label, a
+  `!important` rule-order workaround, no visible close control on the Open project dialog) were
+  left for the plan's final review.
 - W3 T10a fix round 1: the depth-first-order test's fixture ids happened to sort lexicographically
   into the same order, so a plain `sort()` would have passed. Added a sibling id (`a-b`) whose
   lexicographic and depth-first positions diverge. 8-line fix, re-review skipped.
