@@ -277,12 +277,24 @@ Scheduler rules:
 6. A `run` that rejects counts as settled.
 
 `isIgnored(rel)` is true for any path with a segment sequence `.state/context/`, and for any path
-whose base name is `.lock`. Separators may be `\` or `/`.
+whose base name is `.lock`. Separators may be `\` or `/`. `isIgnored` is not widened beyond this:
+it matches only a fully resolved relative path, never a bare directory name on its own (see the
+next paragraph for why).
 
 `watchStore` calls `fs.watch(store, { recursive: true })` and calls `onChange` for each event
 whose relative path is not ignored. On a watcher error it recreates the watcher once. If that
 fails, it calls `onChange` every `fallbackPollMs` (2000) and logs
 `watching <store> by polling every 2 s`.
+
+Decided: on Windows, recursive `fs.watch` can report a change deep inside an ignored subtree (for
+example a write to `.state/context/c.md`) as a second event on a bare ancestor directory with no
+file detail (for example just `.state`, or `context`). That event's relative path does not, by
+itself, resolve to `.state/context/…` or a `.lock` basename, so `isIgnored` correctly returns
+`false` for it and `watchStore` calls `onChange`. This is intentional, not a gap: a spurious
+`onChange` costs one snapshot/list call that produces no digest change and is silently dropped
+downstream; treating it as ignored risks silently dropping a real log write, the exact failure
+this watcher exists to prevent. `isIgnored` is never changed to also match a bare directory name —
+only a relative path that fully resolves into `.state/context/…` or a `.lock` basename is ignored.
 
 ## Alerts
 
