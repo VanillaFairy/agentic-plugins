@@ -69,6 +69,9 @@ export function Detail(props: { view: NodeView; snapshot: Snapshot; now: number 
 
   const spend = spendText(snapshot.cost, view.id)
 
+  const specFolder = view.folder !== null ? view.id : (node.parent ?? '.')
+  const specLabel = specFolder === '.' ? 'DESIGN.md' : `${specFolder}/DESIGN.md`
+
   return (
     <div class="detail" aria-label="Selected node">
       <div class="d-id">{firstLine}</div>
@@ -124,7 +127,7 @@ export function Detail(props: { view: NodeView; snapshot: Snapshot; now: number 
       <div class="links">
         <div class="linkrow">
           <a href={vscodeLink(node.files.spec.path, node.files.spec.line)}>
-            <span>Spec in {node.files.spec.path}</span>
+            <span>Spec in {specLabel}</span>
             {node.files.spec.line !== null && <span>line {node.files.spec.line}</span>}
           </a>
           <button class="copy" aria-label="Copy path" onClick={() => copyPath(node.files.spec.path)}>
