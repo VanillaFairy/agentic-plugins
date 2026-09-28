@@ -1,6 +1,7 @@
 import { select } from 'd3-selection'
 import { zoom, zoomIdentity, zoomTransform, type D3ZoomEvent, type ZoomTransform } from 'd3-zoom'
 import 'd3-transition'
+import { BLOCK } from './layout.ts'
 
 export interface ZoomControl {
   zoomIn(): void
@@ -56,16 +57,24 @@ export function attachZoom(
       moveTo(zoomIdentity.translate(tx, ty).scale(scale))
     },
     panTo(x, y, visible) {
+      // x, y is the block's centre in content coordinates. Clamp the whole
+      // block's screen box into `visible`, not just its centre point.
       const t = zoomTransform(svg)
       const box = svg.getBoundingClientRect()
+      const halfW = (BLOCK.w / 2) * t.k
+      const halfH = (BLOCK.h / 2) * t.k
       const screenX = box.left + t.applyX(x)
       const screenY = box.top + t.applyY(y)
+      const left = screenX - halfW
+      const right = screenX + halfW
+      const top = screenY - halfH
+      const bottom = screenY + halfH
       let dx = 0
       let dy = 0
-      if (screenX < visible.left) dx = visible.left - screenX
-      else if (screenX > visible.right) dx = visible.right - screenX
-      if (screenY < visible.top) dy = visible.top - screenY
-      else if (screenY > visible.bottom) dy = visible.bottom - screenY
+      if (left < visible.left) dx = visible.left - left
+      else if (right > visible.right) dx = visible.right - right
+      if (top < visible.top) dy = visible.top - top
+      else if (bottom > visible.bottom) dy = visible.bottom - bottom
       if (dx === 0 && dy === 0) return
       moveTo(t.translate(dx / t.k, dy / t.k))
     },

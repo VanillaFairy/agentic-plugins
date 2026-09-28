@@ -74,14 +74,18 @@ export function Board(props: {
     // Attach once: the zoom transform must survive later re-renders.
   }, [])
 
+  const pannedRef = useRef<{ id: string | null; narrow: boolean } | null>(null)
+
   useEffect(() => {
+    if (pannedRef.current !== null && pannedRef.current.id === selected && pannedRef.current.narrow === narrow) return
+    pannedRef.current = { id: selected, narrow }
     if (selected === null || wrapRef.current === null || zoomRef.current === null) return
-    const placed = layout.placed.get(selected)
+    const placed = layoutRef.current.placed.get(selected)
     if (!placed) return
     const box = wrapRef.current.getBoundingClientRect()
     const visible = narrow ? new DOMRect(box.left, box.top, box.width, box.height * NARROW_VISIBLE_FRACTION) : box
     zoomRef.current.panTo(placed.x + BLOCK.w / 2, placed.y + BLOCK.h / 2, visible)
-  }, [selected, narrow, layout])
+  }, [selected, narrow])
 
   const tracks: JSX.Element[] = []
   for (const id of model.order) {
