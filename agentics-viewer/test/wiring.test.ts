@@ -136,7 +136,7 @@ afterEach(async () => {
   }
 })
 
-async function buildWiringApp(store: string, eventsFile: string): Promise<Harness> {
+async function buildWiringApp(store: string, eventsFile: string, overrides: Partial<AppDeps> = {}): Promise<Harness> {
   const home = tempDir()
   tempDirs.push(home)
   const distDir = tempDir()
@@ -158,6 +158,7 @@ async function buildWiringApp(store: string, eventsFile: string): Promise<Harnes
     toast: async (): Promise<void> => {},
     pickFolder: async (): Promise<FolderPick> => ({ path: 'C:/x' }),
     log: () => {},
+    ...overrides,
   }
   const app = createApp(deps)
   await new Promise<void>((resolve) => app.server.on('listening', resolve))
@@ -222,16 +223,23 @@ describe('wiring', () => {
   test('the last stream closing stops watching', async () => {
     const { root, store, eventsFile } = fixtureProject()
     tempDirs.push(root)
-    const h = await buildWiringApp(store, eventsFile)
+    // app.ts logs `store change: <key>` for every raw fs.watch event that
+    // reaches the app, before checking whether any scheduler is left to
+    // notify. That makes a still-open watcher observable even though the
+    // (correctly emptied) efforts map would otherwise swallow the evidence.
+    const logMessages: string[] = []
+    const h = await buildWiringApp(store, eventsFile, { log: (m) => { logMessages.push(m) } })
     const client = connect(h, root)
     await waitForNth(client, 'snapshot', 0)
     const before = runLines(h.runLogFile)
 
     client.close()
     await sleep(200)
+    const logsAtClose = logMessages.length
     appendFileSync(eventsFile, '{"seq":2}\n')
     await sleep(1000)
 
     expect(runLines(h.runLogFile)).toBe(before)
+    expect(logMessages.length).toBe(logsAtClose)
   })
 })

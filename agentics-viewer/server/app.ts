@@ -1,6 +1,6 @@
 import http from 'node:http'
 import { existsSync, readFileSync, statSync } from 'node:fs'
-import { dirname, join } from 'node:path'
+import { dirname, join, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type { Clock, TimerHandle } from './clock.ts'
 import type { SchedulerOptions, Scheduler } from './watch.ts'
@@ -72,6 +72,7 @@ interface KeyState {
   project: string
   watcher: { close(): void } | null
   efforts: Map<string, EffortState>
+  openCount: number
 }
 
 function sendEvent(res: http.ServerResponse, event: string, data: unknown): void {
@@ -207,25 +208,41 @@ export function createApp(deps: AppDeps): { server: http.Server; close(): Promis
       let keyState = keys.get(key)
       const isNewKey = keyState === undefined
       if (keyState === undefined) {
-        keyState = { project, watcher: null, efforts: new Map() }
+        keyState = { project, watcher: null, efforts: new Map(), openCount: 0 }
         keys.set(key, keyState)
       }
+      const openKeyState = keyState
+      // Every stream attached to this key counts here, whether or not it has
+      // an effort (an effortless stream never gets an EffortState entry, so
+      // `efforts.size` alone can't tell us when the key is truly unused).
+      openKeyState.openCount += 1
       if (isNewKey) {
         let next = addRecent(state, project)
         if (effort !== null) next = { ...next, last: { project, effort } }
         saveState(next)
-        const openKeyState = keyState
         openKeyState.watcher = watchStore(list.store, () => {
+          // No effort is attached right now (either none is open yet, or the
+          // last one just closed): there's nothing to `notify()`, so a leaked
+          // watcher would otherwise be invisible. Logging here is the only
+          // trace such a leak leaves.
+          if (openKeyState.efforts.size === 0) deps.log(`store change with no effort open: ${key}`)
           for (const es of openKeyState.efforts.values()) es.scheduler.notify()
         }, { clock: deps.clock, log: deps.log })
       }
 
+      function releaseKey(): void {
+        openKeyState.openCount -= 1
+        if (openKeyState.openCount === 0) {
+          openKeyState.watcher?.close()
+          keys.delete(key)
+        }
+      }
+
       if (effort === null) {
-        disposeFn = () => {}
+        disposeFn = releaseKey
         return
       }
 
-      const openKeyState = keyState
       let effortState = openKeyState.efforts.get(effort)
       if (effortState === undefined) {
         effortState = {
@@ -251,10 +268,7 @@ export function createApp(deps: AppDeps): { server: http.Server; close(): Promis
           openEffortState.scheduler.dispose()
           openKeyState.efforts.delete(effort)
         }
-        if (openKeyState.efforts.size === 0) {
-          openKeyState.watcher?.close()
-          keys.delete(key)
-        }
+        releaseKey()
       }
     })
   }
@@ -267,12 +281,12 @@ export function createApp(deps: AppDeps): { server: http.Server; close(): Promis
       decoded = pathname
     }
     const rel = decoded === '/' ? 'index.html' : decoded.slice(1)
-    const segments = rel.split('/')
-    if (segments.includes('..')) {
+    const distRoot = resolve(deps.distDir)
+    const filePath = resolve(distRoot, rel)
+    if (filePath !== distRoot && !filePath.startsWith(distRoot + sep)) {
       res.writeHead(403).end()
       return
     }
-    const filePath = join(deps.distDir, ...segments)
     let servedPath = filePath
     let body: Buffer
     try {

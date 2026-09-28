@@ -4,7 +4,7 @@ import { appendFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, utimesSyn
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { realClock } from '../server/clock.ts'
-import { projectKey, readState, statePath, writeState } from '../server/state.ts'
+import { DEFAULT_STATE, projectKey, readState, statePath, writeState } from '../server/state.ts'
 import type { ViewerState } from '../server/state.ts'
 import { createApp } from '../server/app.ts'
 import type { AppDeps } from '../server/app.ts'
@@ -303,17 +303,19 @@ describe('health and host checks', () => {
 
 describe('projects and browse', () => {
   test('projects lists found, recent and last', async () => {
-    const h = await buildApp()
-    const p = project()
+    const home = tempDir()
     const s = store()
+    const p = dirname(s) // the temp dir `store()` made, holding `.agentics`
+    writeState(statePath(home), { ...DEFAULT_STATE, roots: [p] })
+    const h = await buildApp({}, { home })
     setList(h, p, listEntry(s, ['e']))
     setSnapshot(h, p, 'e', snapshotEntry(s, 'e'))
     const client = connect(h, p, 'e')
     await waitForNth(client, 'efforts', 0)
 
     const res = await fetch(`${h.base}/api/projects`)
-    const body = (await res.json()) as { found: unknown[]; recent: Array<{ path: string }>; last: { project: string; effort: string } | null }
-    expect(Array.isArray(body.found)).toBe(true)
+    const body = (await res.json()) as { found: Array<{ path: string }>; recent: Array<{ path: string }>; last: { project: string; effort: string } | null }
+    expect(body.found.some((r) => r.path === p)).toBe(true)
     expect(body.recent.some((r) => r.path === p)).toBe(true)
     expect(body.last).toEqual({ project: p, effort: 'e' })
   })
@@ -354,6 +356,23 @@ describe('stream connection basics', () => {
     const client = connect(h, p)
     const efforts = await waitForNth(client, 'efforts', 0)
     expect((efforts.data as { selected: string }).selected).toBe('new')
+  })
+
+  test('a project with no efforts leaks no watcher when its stream closes', async () => {
+    const logMessages: string[] = []
+    const h = await buildApp({ log: (m) => { logMessages.push(m) } })
+    const p = project()
+    const s = store()
+    setList(h, p, listEntry(s, []))
+    const client = connect(h, p)
+    const efforts = await waitForNth(client, 'efforts', 0)
+    expect((efforts.data as { selected: string | null }).selected).toBeNull()
+    client.close()
+    await sleep(200)
+    const before = logMessages.length
+    touchStore(s)
+    await sleep(300)
+    expect(logMessages.length).toBe(before)
   })
 
   test('a new stream gets the latest snapshot without waiting', async () => {
@@ -679,5 +698,10 @@ describe('static files', () => {
     const h = await buildApp()
     const res = await fetch(`${h.base}/..%2f..%2fpackage.json`)
     expect(res.status).toBe(403)
+    // Windows resolves backslashes as separators too: `..%5c..%5c` decodes to
+    // `..\..\`, a single path.split('/') segment that a forward-slash-only
+    // check would miss.
+    const backslashRes = await fetch(`${h.base}/..%5c..%5cpackage.json`)
+    expect(backslashRes.status).toBe(403)
   })
 })
