@@ -1,9 +1,9 @@
-Status: NEEDS_INPUT
+Status: ONGOING
 # 2026-09-27-agentics-viewer checkpoint
 
 Wave: 3 — T04, T05, T06, T07a, T07b, T08, T10a, T10b
 Integration head (agentics/master): 48f5b18
-Integration head (vanillafairy/claude/agentics-tasks-observability-f37843): 51965ba
+Integration head (vanillafairy/claude/agentics-tasks-observability-f37843): 119c595
 Remaining: T07a, T07b, T09, T09m, T11, T12, T13, T14, T15a, T15b
 
 ## Tasks
@@ -14,15 +14,15 @@ Remaining: T07a, T07b, T09, T09m, T11, T12, T13, T14, T15a, T15b
 | T04 | 3 | sdd/2026-09-27-agentics-viewer/T04 | merged | 1 | c5ebeec |
 | T05 | 3 | sdd/2026-09-27-agentics-viewer/T05 | merged | 1 | d0b347e |
 | T06 | 3 | sdd/2026-09-27-agentics-viewer/T06 | merged | 1 | afdf906 |
-| T07a | 3 | sdd/2026-09-27-agentics-viewer/T07a | blocked | 0 | |
+| T07a | 3 | sdd/2026-09-27-agentics-viewer/T07a | implementing | 0 | |
 | T07b | 3 | sdd/2026-09-27-agentics-viewer/T07b | not started | 0 | |
 | T08 | 3 | sdd/2026-09-27-agentics-viewer/T08 | merged | 0 | c8451bc |
 | T10a | 3 | sdd/2026-09-27-agentics-viewer/T10a | merged | 1 | 4cf5002 |
 | T10b | 3 | sdd/2026-09-27-agentics-viewer/T10b | merged | 0 | 51965ba |
 
 `T07a`'s worktree stays at `.worktrees/2026-09-27-agentics-viewer-T07a` (head `7ff73ed`) with its
-node_modules junction in place; don't delete it. The next wave-controller resumes it once the
-question below is answered.
+node_modules junction in place; a fresh test-author is being dispatched into it to fix the
+store-root bug and the 'watchStore ignores context writes' acceptance per the decision above.
 
 ## Decisions and deviations
 - W2: `knowledge/run-checks-agentics.md` says "branch `design-loop`"; agentics is actually on
@@ -58,33 +58,18 @@ question below is answered.
   pins either way. T10b's implementer picked a reasonable reading for each (documented in
   T10b-implementer.md) without needing a decision, since nothing enforces one reading over another
   yet. Worth pinning explicitly if T12/T13/T14 turn out to depend on a specific reading.
-- W3 T07a is blocked; see Pending questions. Its Critical finding (wrong `tempStore()` root — the
-  acceptance puts the store at the temp dir with files under `eff/.state/...`, but the test passed
-  `eff/.state` itself as the store) is a plain bug, fixable without a decision. But the reviewer's
-  own scratch test on this machine showed that even after that fix, `fs.watch(store, {recursive:
-  true})` on Windows fires a `change` event on the bare ancestor directory itself (e.g. `change
-  eff\.state`) when a file changes deep inside it — a path with no `context` segment, so
-  `isIgnored` (as interfaces.md § Refresh scheduler and store watcher defines it: a segment
-  sequence `.state/context/`, or a `.lock` basename) can't filter it out. 'watchStore ignores
-  context writes' can't pass on Windows under the contract as written. This reaches into
-  shared/interfaces.md, not just T07a's own test file, so it isn't the wave-controller's call.
-  T07a's worktree is kept; no fix round was dispatched pending the answer. T07b never started.
+- W3 T07a round 1 found a plain bug (wrong `tempStore()` root) and a real contract gap (Windows'
+  recursive `fs.watch` can report a change inside an ignored subtree as a bare ancestor-directory
+  event with no filename, e.g. `change eff\.state`, which `isIgnored` can't classify). The user
+  decided: treat an ambiguous/unresolvable event as real (call `onChange`), never suppress it — a
+  spurious `onChange` costs one dropped snapshot call, suppressing risks missing a real log write.
+  `shared/interfaces.md` § Refresh scheduler and store watcher now states this explicitly
+  (commit `119c595`); `isIgnored` is not widened to bare directory names. T07a is being re-run
+  with a fresh test-author to fix the store-root bug and correct the 'watchStore ignores context
+  writes' acceptance to this contract.
 
 ## Open issues and escalations
-- T07a/T07b: blocked on the pending question below. Nothing else in the wave depends on this
-  chain, so T09 (wave 4) should NOT be started until T07b lands, since T09 depends on T07b.
-
-## Pending questions
-- T07a: how should `isIgnored`/`watchStore`'s contract treat a bare ancestor-directory `change`
-  event (e.g. `change eff\.state`) that Windows' recursive `fs.watch` fires when a file changes
-  inside an ignored subtree, given the event's own path carries no `context` or `.lock` segment to
-  match against? Candidate directions, none chosen: (a) widen `isIgnored` to also ignore an
-  extensionless/directory-only relative path when it is itself `.state` or an ancestor that only
-  ever contains ignored content; (b) relax the acceptance to "no event names a non-ignored file"
-  (the reviewer's suggestion — checks that `onChange`'s caller sees no *file* path it must react
-  to, rather than banning the event outright); (c) something else. Full reproduction and reasoning
-  in T07a-review.md (Critical and the "Escalation for the wave-controller" note) and
-  T07a-test-author.md. Remove this question once answered and T07a/T07b are re-run.
+- (none open)
 
 ## Knowledge entries
 - viewer-node-modules-after-merge (W2)
