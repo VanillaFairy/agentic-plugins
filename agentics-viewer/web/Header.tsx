@@ -1,6 +1,7 @@
 import type { JSX } from 'preact'
 import type { EffortListing, Snapshot } from '../shared/snapshot.ts'
 import { costText } from './model.ts'
+import type { Theme } from './theme.ts'
 
 export interface HeaderProps {
   projectName: string
@@ -10,6 +11,8 @@ export interface HeaderProps {
   cost: Snapshot['cost'] | null
   onOpenProject: () => void
   onToggleList: () => void
+  theme: Theme
+  onToggleTheme: () => void
 }
 
 export function Header(props: HeaderProps): JSX.Element {
@@ -34,6 +37,13 @@ export function Header(props: HeaderProps): JSX.Element {
       </select>
       <span class="spacer"></span>
       {props.cost && <span class="cost">{costText(props.cost)}</span>}
+      <button
+        class="pick theme"
+        aria-label={props.theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
+        onClick={props.onToggleTheme}
+      >
+        {props.theme === 'dark' ? 'Dark' : 'Light'}
+      </button>
       <button class="open" onClick={props.onOpenProject}>
         Open project
       </button>

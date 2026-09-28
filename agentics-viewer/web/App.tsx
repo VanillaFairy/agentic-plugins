@@ -4,6 +4,8 @@ import { readUrlState, urlFor, openStream } from './stream.ts'
 import type { UrlState } from './stream.ts'
 import { buildModel, problemText, staleText, malformedText, noEffortsText, tabTitle, TEXT } from './model.ts'
 import type { EffortsList, Snapshot, Problem } from '../shared/snapshot.ts'
+import { applyTheme, loadTheme, saveTheme, systemTheme } from './theme.ts'
+import type { Theme } from './theme.ts'
 import { Header } from './Header.tsx'
 import { OpenProject } from './OpenProject.tsx'
 import { Annunciator } from './Annunciator.tsx'
@@ -30,6 +32,14 @@ export function App(): JSX.Element {
   const [narrow, setNarrow] = useState(() => matchMedia('(max-width: 899px)').matches)
   const [listOpen, setListOpen] = useState(false)
   const [openProjectOpen, setOpenProjectOpen] = useState(false)
+  const [theme, setTheme] = useState<Theme>(() => loadTheme() ?? systemTheme())
+
+  function toggleTheme(): void {
+    const next: Theme = theme === 'dark' ? 'light' : 'dark'
+    setTheme(next)
+    saveTheme(next)
+    applyTheme(next)
+  }
 
   useEffect(() => {
     const mq = matchMedia('(max-width: 899px)')
@@ -195,6 +205,8 @@ export function App(): JSX.Element {
         cost={snapshot?.cost ?? null}
         onOpenProject={() => setOpenProjectOpen(true)}
         onToggleList={() => setListOpen((v) => !v)}
+        theme={theme}
+        onToggleTheme={toggleTheme}
       />
       {model !== null && (
         <Annunciator

@@ -33,6 +33,21 @@
   }
 }
 
+/* Forced dark, independent of the OS setting (the viewer's own theme toggle). */
+:root[data-theme='dark'] {
+  --board: #1d2124;
+  --panel: #262b2f;
+  --ink: #dadfd8;
+  --ink-2: #9aa29a;
+  --rule: #3a4146;
+  --quiet: #6e766f;
+  --work: #6fa6e6;
+  --hold: #f2b63a;
+  --hold-lit: #e8a92a;
+  --stop: #e0564c;
+  --good: #7fc75a;
+}
+
 * {
   box-sizing: border-box;
 }
@@ -50,7 +65,8 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
-button {
+button,
+select {
   font: inherit;
   color: inherit;
 }
@@ -94,6 +110,10 @@ button {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.pick.effort option {
+  background: var(--panel);
+  color: var(--ink);
 }
 .top .spacer {
   flex: 1;
