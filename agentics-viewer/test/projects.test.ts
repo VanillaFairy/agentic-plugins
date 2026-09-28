@@ -145,6 +145,7 @@ describe('latestEffort', () => {
     utimesSync(join(store, 'one', '.state', 'nodes.jsonl'), same, same)
     utimesSync(join(store, 'two', 'DESIGN.md'), same, same)
     expect(latestEffort(store, ['one', 'two'])).toBe('two')
+    expect(latestEffort(store, ['two', 'one'])).toBe('two')
   })
 
   test('no efforts gives null', () => {
