@@ -1,10 +1,10 @@
-Status: ONGOING
+Status: DONE
 # 2026-09-27-agentics-viewer checkpoint
 
 Wave: 3 — T04, T05, T06, T07a, T07b, T08, T10a, T10b
 Integration head (agentics/master): 48f5b18
-Integration head (vanillafairy/claude/agentics-tasks-observability-f37843): 445068b
-Remaining: T07a, T07b, T09, T09m, T11, T12, T13, T14, T15a, T15b
+Integration head (vanillafairy/claude/agentics-tasks-observability-f37843): 465141b
+Remaining: T09, T09m, T11, T12, T13, T14, T15a, T15b
 
 ## Tasks
 | Task | Wave | Branch | State | Review cycles | Merge commit |
@@ -15,7 +15,7 @@ Remaining: T07a, T07b, T09, T09m, T11, T12, T13, T14, T15a, T15b
 | T05 | 3 | sdd/2026-09-27-agentics-viewer/T05 | merged | 1 | d0b347e |
 | T06 | 3 | sdd/2026-09-27-agentics-viewer/T06 | merged | 1 | afdf906 |
 | T07a | 3 | sdd/2026-09-27-agentics-viewer/T07a | merged | 1 | 445068b |
-| T07b | 3 | sdd/2026-09-27-agentics-viewer/T07b | merging | 0 | |
+| T07b | 3 | sdd/2026-09-27-agentics-viewer/T07b | merged | 0 | 465141b |
 | T08 | 3 | sdd/2026-09-27-agentics-viewer/T08 | merged | 0 | c8451bc |
 | T10a | 3 | sdd/2026-09-27-agentics-viewer/T10a | merged | 1 | 4cf5002 |
 | T10b | 3 | sdd/2026-09-27-agentics-viewer/T10b | merged | 0 | 51965ba |
