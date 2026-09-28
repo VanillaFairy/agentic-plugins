@@ -1,23 +1,35 @@
 # agentics-viewer
 
 A local web app that shows an agentics effort's tree live, updating as the effort's files
-change on disk.
+change on disk. Version 1.0.0; see [CLAUDE.md](CLAUDE.md) for how versions move.
 
 ## Running it
 
+Double-click `agentics-viewer.cmd`. It installs dependencies on first run, starts the viewer in
+that window and opens `http://127.0.0.1:5181` in your default browser. If the viewer is already
+running, it only opens the page. Close the window or press Ctrl+C to stop the viewer.
+
+From a terminal, the same thing is:
+
 ```
 npm install
-npm start
+npm run app
 ```
 
-Then open `http://127.0.0.1:4747`, either in the Claude desktop app's Browser pane or in any
-browser.
+`npm start` starts the viewer without opening a browser.
+
+## Changing the page
+
+`npx vite` serves `web/` at `http://localhost:5173` with hot reload and forwards `/api` to the
+viewer on port 5181, which must be running. A saved change to a file in `web/` shows at once.
+The viewer itself serves the built `dist/`, rebuilt at start when `web/` is newer, or with
+`npm run build`.
 
 ## Settings
 
 Settings are read once at start from the state file `~/.agentics-viewer/state.json`, which holds:
 
-- `port`: the port the server listens on.
+- `port`: the port the server listens on, 5181 by default.
 - `roots`: the folders scanned for projects, which are subfolders containing a `.agentics/`
   directory.
 - `depth`: how many levels deep under `roots` that scan goes.

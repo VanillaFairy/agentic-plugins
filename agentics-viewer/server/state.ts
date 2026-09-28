@@ -12,7 +12,7 @@ export interface ViewerState {
 }
 
 export const DEFAULT_STATE: ViewerState = {
-  port: 4747,
+  port: 5181,
   roots: ['C:\\work'],
   depth: 4,
   agentics_path: null,

@@ -92,6 +92,13 @@ export function showToast(title: string, body: string, opts?: { exe?: string }):
     })
 }
 
+/** Opens `url` in the default browser. */
+export function openBrowser(url: string): void {
+  spawn('explorer.exe', [url], { detached: true, stdio: 'ignore' })
+    .on('error', (error) => console.error('openBrowser failed', error))
+    .unref()
+}
+
 export function pickFolder(opts?: { exe?: string }): Promise<FolderPick> {
   const exe = opts?.exe ?? 'powershell.exe'
   const args = ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-STA', '-Command', '-']

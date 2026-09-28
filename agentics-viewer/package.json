@@ -1,13 +1,14 @@
 {
   "name": "agentics-viewer",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
   "type": "module",
   "engines": { "node": ">=26" },
   "scripts": {
     "test": "tsc --noEmit && vitest run --passWithNoTests",
     "build": "vite build",
-    "start": "node server/main.ts"
+    "start": "node server/main.ts",
+    "app": "node server/main.ts --open"
   },
   "dependencies": {
     "d3-hierarchy": "3.1.2",

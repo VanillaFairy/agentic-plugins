@@ -9,7 +9,7 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { realClock } from './clock.ts'
 import { locateAgentics } from './agentics.ts'
-import { showToast, pickFolder } from './windows.ts'
+import { showToast, pickFolder, openBrowser } from './windows.ts'
 import { readState, statePath } from './state.ts'
 import { createApp } from './app.ts'
 import { needsBuild, startDecision } from './start.ts'
@@ -63,13 +63,17 @@ async function main(): Promise<void> {
   const stateFile = statePath(homedir())
   const { state, problem } = readState(stateFile)
   if (problem !== null) console.log(problem)
+  const url = `http://127.0.0.1:${state.port}`
+  // --open: also show the viewer in the default browser, whether this starts it or it already runs.
+  const open = process.argv.includes('--open')
 
   const health = await fetchHealth(state.port)
   const portFree = await isPortFree(state.port)
 
   const decision = startDecision(health, portFree)
   if (decision === 'already-running') {
-    console.log(`agentics viewer is already running at http://127.0.0.1:${state.port}`)
+    console.log(`agentics viewer is already running at ${url}`)
+    if (open) openBrowser(url)
     process.exit(0)
   }
   if (decision === 'port-taken') {
@@ -104,7 +108,8 @@ async function main(): Promise<void> {
   })
 
   await new Promise<void>((resolve) => app.server.on('listening', resolve))
-  console.log(`agentics viewer at http://127.0.0.1:${state.port}`)
+  console.log(`agentics viewer at ${url}`)
+  if (open) openBrowser(url)
 
   process.on('SIGINT', () => {
     void app.close().then(() => process.exit(0))
