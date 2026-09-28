@@ -14,7 +14,7 @@ Remaining: T07a, T07b, T09, T09m, T11, T12, T13, T14, T15a, T15b
 | T04 | 3 | sdd/2026-09-27-agentics-viewer/T04 | merged | 1 | c5ebeec |
 | T05 | 3 | sdd/2026-09-27-agentics-viewer/T05 | merged | 1 | d0b347e |
 | T06 | 3 | sdd/2026-09-27-agentics-viewer/T06 | merged | 1 | afdf906 |
-| T07a | 3 | sdd/2026-09-27-agentics-viewer/T07a | implementing | 0 | |
+| T07a | 3 | sdd/2026-09-27-agentics-viewer/T07a | merging | 1 | |
 | T07b | 3 | sdd/2026-09-27-agentics-viewer/T07b | not started | 0 | |
 | T08 | 3 | sdd/2026-09-27-agentics-viewer/T08 | merged | 0 | c8451bc |
 | T10a | 3 | sdd/2026-09-27-agentics-viewer/T10a | merged | 1 | 4cf5002 |
