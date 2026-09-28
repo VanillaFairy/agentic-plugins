@@ -271,6 +271,7 @@ button {
   display: flex;
   flex-direction: column;
   min-height: 0;
+  grid-column: 2;
 }
 .bar {
   padding: 6px 14px;
@@ -402,6 +403,7 @@ button {
   border-left: 1px solid var(--rule);
   overflow: auto;
   padding: 16px 18px 24px;
+  grid-column: 3;
 }
 .d-id {
   color: var(--ink-2);
@@ -578,7 +580,11 @@ dialog.openproject::backdrop {
     inset: 0;
     z-index: 1;
   }
+  .board-col {
+    grid-column: 1;
+  }
   .detail {
+    grid-column: 1;
     position: absolute;
     left: 0;
     right: 0;
