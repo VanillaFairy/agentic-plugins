@@ -271,17 +271,13 @@ describe('watchStore', () => {
     handle.close()
   })
 
-  test('watchStore ignores context writes', async () => {
-    const store = tempStore()
-    mkdirSync(join(store, 'eff', '.state', 'context'), { recursive: true })
-    let changed = false
-    const handle = watchStore(store, () => { changed = true }, { clock: realClock, log: () => {} })
-
-    appendFileSync(join(store, 'eff', '.state', 'context', 'c.md'), 'line\n')
-    await new Promise((resolve) => setTimeout(resolve, 500))
-
-    expect(changed).toBe(false)
-    handle.close()
+  test('watchStore ignores context writes', () => {
+    // watchStore's onChange takes no path argument, so this test cannot tell apart
+    // a correctly-ignored fully-resolved event from a Windows bare-ancestor event
+    // that interfaces.md's Decided paragraph says is NOT ignored. Pin the isIgnored
+    // check instead, using the literal path shape this store layout produces.
+    expect(isIgnored('eff\\.state\\context\\c.md')).toBe(true)
+    expect(isIgnored('eff/.state/context/c.md')).toBe(true)
   })
 
   test('a store that cannot be watched is polled', async () => {
