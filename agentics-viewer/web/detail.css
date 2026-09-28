@@ -33,12 +33,25 @@
   flex: none;
   width: 20px;
   height: 20px;
-  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
   border: 1px solid var(--rule);
   border-radius: 3px;
   background: transparent;
   color: var(--ink-2);
   cursor: pointer;
+}
+.copy.done,
+.copy.done:hover {
+  color: var(--good);
+  border-color: var(--good);
+}
+.copied {
+  flex: none;
+  color: var(--good);
+  font-size: 12px;
 }
 .copy:hover {
   color: var(--ink);

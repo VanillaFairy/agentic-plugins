@@ -1,5 +1,5 @@
 import type { JSX } from 'preact'
-import { useRef } from 'preact/hooks'
+import { useEffect, useRef, useState } from 'preact/hooks'
 import type { NodeView } from './model.ts'
 import { kindWord, fileLabel, returnInWords, ago, spendText, vscodeLink } from './model.ts'
 import { inlineMarkdown } from './markdown.ts'
@@ -32,18 +32,55 @@ function statusTone(status: string): 'good' | 'bad' | 'ongoing' {
   return 'ongoing'
 }
 
+const COPIED_MS = 1500
+
+// Turns green with "Copied" only once the clipboard write succeeded; the select-text fallback
+// copies nothing, so it leaves the button as it was.
+function CopyButton(props: { path: string; copy: (path: string) => Promise<boolean> }): JSX.Element {
+  const [copied, setCopied] = useState(false)
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => () => clearTimeout(timer.current ?? undefined), [])
+
+  function onClick(): void {
+    void props.copy(props.path).then((ok) => {
+      if (!ok) return
+      setCopied(true)
+      clearTimeout(timer.current ?? undefined)
+      timer.current = setTimeout(() => setCopied(false), COPIED_MS)
+    })
+  }
+
+  return (
+    <>
+      {copied && <span class="copied">Copied</span>}
+      <button class={`copy${copied ? ' done' : ''}`} aria-label="Copy path" onClick={onClick}>
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" aria-hidden="true">
+          <rect x="3.5" y="3.5" width="8" height="8" rx="1" />
+          <path d="M8.5 3.5v-2a1 1 0 0 0-1-1h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2" />
+        </svg>
+      </button>
+    </>
+  )
+}
+
 export function Detail(props: { view: NodeView; snapshot: Snapshot; now: number }): JSX.Element {
   const { view, snapshot, now } = props
   const node = view.node
   const fallbackRef = useRef<HTMLInputElement | null>(null)
 
-  function copyPath(path: string): void {
+  function copyPath(path: string): Promise<boolean> {
     const clipboard = navigator.clipboard
     if (clipboard && typeof clipboard.writeText === 'function') {
-      clipboard.writeText(path).catch(() => selectFallback(path))
-    } else {
-      selectFallback(path)
+      return clipboard.writeText(path).then(
+        () => true,
+        () => {
+          selectFallback(path)
+          return false
+        },
+      )
     }
+    selectFallback(path)
+    return Promise.resolve(false)
   }
 
   function selectFallback(path: string): void {
@@ -140,32 +177,24 @@ export function Detail(props: { view: NodeView; snapshot: Snapshot; now: number 
             <span>Spec in {specLabel}</span>
             {node.files.spec.line !== null && <span>line {node.files.spec.line}</span>}
           </a>
-          <button class="copy" aria-label="Copy path" onClick={() => copyPath(node.files.spec.path)}>
-            ⧉
-          </button>
+          <CopyButton key={node.files.spec.path} path={node.files.spec.path} copy={copyPath} />
         </div>
         {node.files.briefs.map((path) => (
           <div class="linkrow" key={path}>
             <a href={vscodeLink(path)}>{fileLabel(path, 'brief')}</a>
-            <button class="copy" aria-label="Copy path" onClick={() => copyPath(path)}>
-              ⧉
-            </button>
+            <CopyButton path={path} copy={copyPath} />
           </div>
         ))}
         {node.files.reports.map((path) => (
           <div class="linkrow" key={path}>
             <a href={vscodeLink(path)}>{fileLabel(path, 'report')}</a>
-            <button class="copy" aria-label="Copy path" onClick={() => copyPath(path)}>
-              ⧉
-            </button>
+            <CopyButton path={path} copy={copyPath} />
           </div>
         ))}
         {node.worktree !== null && (
           <div class="linkrow">
             <a href={vscodeLink(node.worktree)}>Worktree</a>
-            <button class="copy" aria-label="Copy path" onClick={() => copyPath(node.worktree!)}>
-              ⧉
-            </button>
+            <CopyButton key={node.worktree} path={node.worktree} copy={copyPath} />
           </div>
         )}
       </div>
