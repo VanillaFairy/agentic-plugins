@@ -221,6 +221,23 @@ describe('isIgnored', () => {
     expect(isIgnored('.state/events.jsonl')).toBe(false)
     expect(isIgnored('a/DESIGN.md')).toBe(false)
   })
+
+  test('a bare ancestor directory with no file segment beneath it is not ignored', () => {
+    // Windows' recursive fs.watch can report a change deep inside .state/context/
+    // as a second event on a bare ancestor directory, with no filename detail.
+    // isIgnored must not be widened to treat that ancestor as ignored: only a
+    // relative path that fully resolves into a .state/context/... file, or a
+    // .lock basename, is ignored.
+    expect(isIgnored('eff\\.state')).toBe(false)
+    expect(isIgnored('.state')).toBe(false)
+    expect(isIgnored('context')).toBe(false)
+    // The full .state/context segment sequence with nothing after it (no file)
+    // must also not be ignored — a naive "does the path contain .state/context"
+    // check would wrongly return true here.
+    expect(isIgnored('.state\\context')).toBe(false)
+    expect(isIgnored('.state/context')).toBe(false)
+    expect(isIgnored('eff\\.state\\context')).toBe(false)
+  })
 })
 
 describe('watchStore', () => {
@@ -229,7 +246,7 @@ describe('watchStore', () => {
   function tempStore(): string {
     const dir = mkdtempSync(join(tmpdir(), 'agentics-viewer-'))
     dirs.push(dir)
-    return join(dir, 'eff', '.state')
+    return dir
   }
 
   afterEach(() => {
@@ -240,11 +257,11 @@ describe('watchStore', () => {
 
   test('watchStore reports a write', async () => {
     const store = tempStore()
-    mkdirSync(store, { recursive: true })
+    mkdirSync(join(store, 'eff', '.state'), { recursive: true })
     let changed = false
     const handle = watchStore(store, () => { changed = true }, { clock: realClock, log: () => {} })
 
-    appendFileSync(join(store, 'events.jsonl'), 'line\n')
+    appendFileSync(join(store, 'eff', '.state', 'events.jsonl'), 'line\n')
     const deadline = Date.now() + 2000
     while (!changed && Date.now() < deadline) {
       await new Promise((resolve) => setTimeout(resolve, 20))
@@ -256,11 +273,11 @@ describe('watchStore', () => {
 
   test('watchStore ignores context writes', async () => {
     const store = tempStore()
-    mkdirSync(join(store, 'context'), { recursive: true })
+    mkdirSync(join(store, 'eff', '.state', 'context'), { recursive: true })
     let changed = false
     const handle = watchStore(store, () => { changed = true }, { clock: realClock, log: () => {} })
 
-    appendFileSync(join(store, 'context', 'c.md'), 'line\n')
+    appendFileSync(join(store, 'eff', '.state', 'context', 'c.md'), 'line\n')
     await new Promise((resolve) => setTimeout(resolve, 500))
 
     expect(changed).toBe(false)
