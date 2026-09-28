@@ -1,10 +1,117 @@
 import type { JSX } from 'preact'
+import { useState } from 'preact/hooks'
 import type { BoardModel } from './model.ts'
+import { visibleRows, moveSelection } from './model.ts'
 
 export function Outline(props: {
   model: BoardModel
   selected: string | null
   onSelect: (id: string) => void
 }): JSX.Element {
-  return <div class="rail">outline placeholder</div>
+  const [filter, setFilter] = useState('')
+  const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set())
+
+  const rows = visibleRows(props.model, filter, collapsed)
+
+  function toggle(id: string): void {
+    setCollapsed((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  function collapse(id: string): void {
+    setCollapsed((prev) => {
+      if (prev.has(id)) return prev
+      const next = new Set(prev)
+      next.add(id)
+      return next
+    })
+  }
+
+  function expand(id: string): void {
+    setCollapsed((prev) => {
+      if (!prev.has(id)) return prev
+      const next = new Set(prev)
+      next.delete(id)
+      return next
+    })
+  }
+
+  function onKeyDown(e: JSX.TargetedKeyboardEvent<HTMLDivElement>): void {
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault()
+      const next = moveSelection(rows, props.selected, e.key === 'ArrowDown' ? 'down' : 'up')
+      if (next !== null) props.onSelect(next)
+      return
+    }
+    if (e.key === 'ArrowLeft') {
+      if (props.selected !== null && (props.model.nodes.get(props.selected)?.children.length ?? 0) > 0) {
+        e.preventDefault()
+        collapse(props.selected)
+      }
+      return
+    }
+    if (e.key === 'ArrowRight') {
+      if (props.selected !== null && (props.model.nodes.get(props.selected)?.children.length ?? 0) > 0) {
+        e.preventDefault()
+        expand(props.selected)
+      }
+      return
+    }
+    if (e.key === 'Enter') {
+      if (props.selected !== null) props.onSelect(props.selected)
+    }
+  }
+
+  return (
+    <nav class="rail" aria-label="Nodes">
+      <input
+        class="find"
+        placeholder="Find a node"
+        value={filter}
+        onInput={(e) => setFilter((e.target as HTMLInputElement).value)}
+      />
+      <div role="tree" onKeyDown={onKeyDown}>
+        {rows.map((id) => {
+          const view = props.model.nodes.get(id)!
+          const isFolder = view.children.length > 0
+          const isCollapsed = collapsed.has(id)
+          const isSelected = props.selected === id
+          return (
+            <div
+              key={id}
+              role="treeitem"
+              aria-selected={isSelected}
+              tabIndex={isSelected ? 0 : -1}
+              class={`row${isSelected ? ' sel' : ''}${view.lamp === 'done' ? ' done' : ''}`}
+              style={{ paddingLeft: `${12 * (view.depth + 1)}px` }}
+              onClick={() => props.onSelect(id)}
+            >
+              <i class={`lamp l-${view.lamp}`}></i>
+              <span class="nm">
+                {isFolder && (
+                  <button
+                    type="button"
+                    class="chev"
+                    aria-label={isCollapsed ? 'Expand' : 'Collapse'}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      toggle(id)
+                    }}
+                  >
+                    {isCollapsed ? '▸' : '▾'}
+                  </button>
+                )}
+                {view.name}
+              </span>
+              <span class="st">{view.wording}</span>
+            </div>
+          )
+        })}
+      </div>
+    </nav>
+  )
 }
