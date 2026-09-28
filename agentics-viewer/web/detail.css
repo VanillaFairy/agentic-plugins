@@ -1,0 +1,45 @@
+/* Detail panel rules beyond the shared component styles in styles.css (T11).
+   Tokens (--panel, --ink, --hold, --stop, etc.) come from styles.css. */
+
+.d-sub {
+  color: var(--ink-2);
+  margin: 0 0 14px;
+}
+
+.linkrow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.linkrow a {
+  flex: 1;
+  min-width: 0;
+}
+
+.copy {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  line-height: 1;
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  background: transparent;
+  color: var(--ink-2);
+  cursor: pointer;
+}
+.copy:hover {
+  color: var(--ink);
+  border-color: var(--ink-2);
+}
+
+.copy-fallback {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
