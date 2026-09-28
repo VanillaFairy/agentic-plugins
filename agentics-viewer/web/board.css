@@ -1,0 +1,99 @@
+.boardwrap {
+  position: relative;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  min-height: 0;
+  flex: 1;
+}
+.boardwrap svg {
+  display: block;
+  max-width: none;
+}
+.zoom {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  display: flex;
+  gap: 4px;
+}
+.zoom button {
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--rule);
+  background: var(--panel);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.track {
+  stroke: var(--ink);
+  stroke-width: 2;
+  fill: none;
+}
+.track.q {
+  stroke: var(--quiet);
+  stroke-width: 1.5;
+}
+.after {
+  stroke: var(--work);
+  stroke-width: 1.5;
+  stroke-dasharray: 5 4;
+  fill: none;
+}
+.blk rect.b {
+  fill: var(--panel);
+  stroke: var(--rule);
+  stroke-width: 1;
+}
+.blk text {
+  fill: var(--ink);
+  font-family: var(--sys);
+}
+.blk .n {
+  font-size: 14px;
+  font-weight: 600;
+  font-stretch: 87.5%;
+}
+.blk .s {
+  font-size: 12px;
+  fill: var(--ink-2);
+}
+.blk.done rect.b {
+  fill: var(--board);
+  stroke: var(--quiet);
+}
+.blk.done .n {
+  fill: var(--ink-2);
+  font-weight: 400;
+}
+.blk.open rect.b {
+  fill: transparent;
+  stroke: var(--quiet);
+  stroke-dasharray: 4 3;
+}
+.blk.hold rect.b {
+  stroke: var(--hold);
+  stroke-width: 2.5;
+}
+.blk.stop rect.b {
+  stroke: var(--stop);
+  stroke-width: 2.5;
+}
+.blk.work rect.b {
+  stroke: var(--work);
+  stroke-width: 1.5;
+}
+.blk.sel rect.b {
+  stroke: var(--ink);
+  stroke-width: 2.5;
+}
+.blk.sel.hold rect.b {
+  stroke: var(--hold);
+}
+.blk.sel.stop rect.b {
+  stroke: var(--stop);
+}
+.blk.comp .n {
+  font-size: 15px;
+}
