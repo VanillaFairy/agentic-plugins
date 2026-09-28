@@ -97,9 +97,12 @@ function Relations(props: {
               onMouseEnter={() => props.onHighlight([id])}
               onMouseLeave={() => props.onHighlight([])}
             >
-              <i class={`lamp l-${other?.lamp ?? 'unknown'}`}></i>
               <span class="nm">{other?.name ?? id}</span>
-              <span class="st">{other?.wording ?? ''}</span>
+              {other !== undefined && other.status !== '' ? (
+                <span class={`st badge t-${other.lamp}`}>{other.status}</span>
+              ) : (
+                <span class="st">{other?.wording ?? ''}</span>
+              )}
             </button>
           )
         })}
@@ -186,7 +189,6 @@ export function Detail(props: {
       {(isParked || isEscalated) && (
         <div class={isEscalated ? 'state stop' : 'state'}>
           <div class="h">
-            <i class={`lamp l-${view.lamp}`}></i>
             {isParked ? `Waiting on you: ${returnInWords(event?.return ?? '')}` : 'Escalated'}
           </div>
           {isParked && event?.question && <p>{event.question}</p>}

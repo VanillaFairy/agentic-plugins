@@ -1,7 +1,7 @@
 # agentics-viewer
 
 A local web app that shows an agentics effort's tree live, updating as the effort's files
-change on disk. Version 1.0.0; see [CLAUDE.md](CLAUDE.md) for how versions move.
+change on disk. [CLAUDE.md](CLAUDE.md) says how its version moves.
 
 ## Running it
 

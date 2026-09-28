@@ -96,7 +96,6 @@ export function Outline(props: {
               title={`${view.name}, ${view.wording}${blockedTitle}`}
               onClick={() => props.onSelect(id)}
             >
-              <i class={`lamp l-${view.lamp}`}></i>
               <span class="nm">
                 {isFolder && (
                   <button

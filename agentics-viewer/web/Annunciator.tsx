@@ -76,22 +76,10 @@ export function Annunciator(props: {
         )
       })}
       <div class="calm">
-        <span>
-          <i class="lamp l-work"></i>
-          {props.counts.working} working
-        </span>
-        <span>
-          <i class="lamp l-done"></i>
-          {props.counts.merged} merged
-        </span>
-        <span>
-          <i class="lamp l-idle"></i>
-          {props.counts.queued} queued
-        </span>
-        <span>
-          <i class="lamp l-open"></i>
-          {props.counts.needDesign} need design
-        </span>
+        <span>{props.counts.working} working</span>
+        <span>{props.counts.merged} merged</span>
+        <span>{props.counts.queued} queued</span>
+        <span>{props.counts.needDesign} need design</span>
       </div>
     </div>
   )

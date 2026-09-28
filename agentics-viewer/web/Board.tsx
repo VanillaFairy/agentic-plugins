@@ -12,7 +12,7 @@ import { Hourglass } from './Hourglass.tsx'
 import './board.css'
 
 const NARROW_VISIBLE_FRACTION = 0.48
-const TITLE_LEFT = 28
+const TITLE_LEFT = 12
 const SUBTITLE_LEFT = 12
 const RIGHT_MARGIN = 10
 const TITLE_LINE_HEIGHT = 17
@@ -86,23 +86,6 @@ function trackPath(parent: Placed, child: Placed, blockH: number): string {
 
 function afterPath(from: Placed, to: Placed, r: DepRoute): string {
   return roundedHVH(from.x + BLOCK.w, r.fromY, r.railX, r.toY, to.x + BLOCK.w + 2, CORNER_R)
-}
-
-function lampGlyph(view: NodeView, cx: number, cy: number): JSX.Element {
-  switch (view.lamp) {
-    case 'work':
-      return <circle cx={cx} cy={cy} r={5} fill="var(--work)" />
-    case 'hold':
-      return <circle cx={cx} cy={cy} r={5} fill="var(--hold)" />
-    case 'stop':
-      return <circle cx={cx} cy={cy} r={5} fill="var(--stop)" />
-    case 'done':
-      return <circle cx={cx} cy={cy} r={5} fill="var(--quiet)" />
-    case 'open':
-      return <circle cx={cx} cy={cy} r={4.5} fill="none" stroke="var(--hold)" stroke-width={1.5} stroke-dasharray="2 2" />
-    default:
-      return <circle cx={cx} cy={cy} r={4.5} fill="none" stroke="var(--quiet)" stroke-width={1.5} />
-  }
 }
 
 export function Board(props: {
@@ -230,7 +213,6 @@ export function Board(props: {
         }}
       >
         <rect class="b" x={p.x} y={p.y} width={BLOCK.w} height={blockH} rx={8} />
-        {lampGlyph(view, p.x + 16, p.y + 15)}
         <text class="n" x={p.x + TITLE_LEFT} y={titleTop}>
           {titleLines.map((line, i) => (
             <tspan key={i} x={p.x + TITLE_LEFT} dy={i === 0 ? 0 : TITLE_LINE_HEIGHT}>

@@ -39,7 +39,7 @@
   cursor: pointer;
 }
 .rel {
-  grid-template-columns: 12px fit-content(60%) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: 7px;
 }
