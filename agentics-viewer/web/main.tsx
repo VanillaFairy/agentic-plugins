@@ -1,3 +1,5 @@
 import { render } from 'preact'
+import { App } from './App.tsx'
+import './styles.css'
 
-render(<p>agentics viewer</p>, document.getElementById('app')!)
+render(<App />, document.getElementById('app')!)
