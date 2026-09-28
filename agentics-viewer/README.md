@@ -18,13 +18,14 @@ browser.
 Settings are read once at start from the state file `~/.agentics-viewer/state.json`, which holds:
 
 - `port`: the port the server listens on.
-- `roots`: the project directories whose efforts the viewer watches.
-- `depth`: how many levels of the effort tree to expand by default.
+- `roots`: the folders scanned for projects, which are subfolders containing a `.agentics/`
+  directory.
+- `depth`: how many levels deep under `roots` that scan goes.
 - `agentics_path`: the path to an agentics dev checkout, when running against one instead of the
   installed plugin.
-- `recent`: the roots opened most recently.
-- `last`: the root and effort open when the viewer last closed.
-- `alerted`: the alerts already shown, so they don't repeat.
+- `recent`: the last eight projects opened, newest first.
+- `last`: the project and effort open when the viewer last closed.
+- `alerted`: the highest park or escalation event `seq` already alerted, per project and effort.
 
 ## Requirements
 
