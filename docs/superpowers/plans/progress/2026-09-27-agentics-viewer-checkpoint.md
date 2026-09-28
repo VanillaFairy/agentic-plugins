@@ -3,7 +3,7 @@ Status: ONGOING
 
 Wave: 3 — T04, T05, T06, T07a, T07b, T08, T10a, T10b
 Integration head (agentics/master): 48f5b18
-Integration head (vanillafairy/claude/agentics-tasks-observability-f37843): 119c595
+Integration head (vanillafairy/claude/agentics-tasks-observability-f37843): 445068b
 Remaining: T07a, T07b, T09, T09m, T11, T12, T13, T14, T15a, T15b
 
 ## Tasks
@@ -14,15 +14,12 @@ Remaining: T07a, T07b, T09, T09m, T11, T12, T13, T14, T15a, T15b
 | T04 | 3 | sdd/2026-09-27-agentics-viewer/T04 | merged | 1 | c5ebeec |
 | T05 | 3 | sdd/2026-09-27-agentics-viewer/T05 | merged | 1 | d0b347e |
 | T06 | 3 | sdd/2026-09-27-agentics-viewer/T06 | merged | 1 | afdf906 |
-| T07a | 3 | sdd/2026-09-27-agentics-viewer/T07a | merging | 1 | |
+| T07a | 3 | sdd/2026-09-27-agentics-viewer/T07a | merged | 1 | 445068b |
 | T07b | 3 | sdd/2026-09-27-agentics-viewer/T07b | not started | 0 | |
 | T08 | 3 | sdd/2026-09-27-agentics-viewer/T08 | merged | 0 | c8451bc |
 | T10a | 3 | sdd/2026-09-27-agentics-viewer/T10a | merged | 1 | 4cf5002 |
 | T10b | 3 | sdd/2026-09-27-agentics-viewer/T10b | merged | 0 | 51965ba |
 
-`T07a`'s worktree stays at `.worktrees/2026-09-27-agentics-viewer-T07a` (head `7ff73ed`) with its
-node_modules junction in place; a fresh test-author is being dispatched into it to fix the
-store-root bug and the 'watchStore ignores context writes' acceptance per the decision above.
 
 ## Decisions and deviations
 - W2: `knowledge/run-checks-agentics.md` says "branch `design-loop`"; agentics is actually on
@@ -66,7 +63,14 @@ store-root bug and the 'watchStore ignores context writes' acceptance per the de
   `shared/interfaces.md` § Refresh scheduler and store watcher now states this explicitly
   (commit `119c595`); `isIgnored` is not widened to bare directory names. T07a is being re-run
   with a fresh test-author to fix the store-root bug and correct the 'watchStore ignores context
-  writes' acceptance to this contract.
+  writes' acceptance to this contract. Review round 2 found one further Critical: `watchStore`'s
+  `onChange` takes no path argument, so a real-fs test of that acceptance line can never
+  distinguish the (ignored, correct) resolved context event from the (not-ignored, correct per
+  the Decided paragraph) bare-ancestor event that fires alongside it on Windows — the line is
+  unsatisfiable as a `watchStore`-level integration test. Fix round 1 (18 lines, re-review
+  skipped) repointed 'watchStore ignores context writes' at `isIgnored` directly, asserting the
+  fully-resolved `eff/.state/context/c.md` shape is ignored, without exercising real `fs.watch`.
+  Merged as `445068b`.
 
 ## Open issues and escalations
 - (none open)
