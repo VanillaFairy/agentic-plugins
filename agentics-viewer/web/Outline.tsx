@@ -80,14 +80,19 @@ export function Outline(props: {
           const isFolder = view.children.length > 0
           const isCollapsed = collapsed.has(id)
           const isSelected = props.selected === id
+          const isBlocked = view.blockedBy.length > 0
+          const blockedTitle = isBlocked
+            ? `, blocked by ${view.blockedBy.map((d) => props.model.nodes.get(d)?.name ?? d).join(', ')}`
+            : ''
           return (
             <div
               key={id}
               role="treeitem"
               aria-selected={isSelected}
               tabIndex={isSelected ? 0 : -1}
-              class={`row${isSelected ? ' sel' : ''}${view.lamp === 'done' ? ' done' : ''}`}
+              class={`row${isSelected ? ' sel' : ''}${view.lamp === 'done' ? ' done' : ''}${isBlocked ? ' blocked' : ''}`}
               style={{ paddingLeft: `${12 * (view.depth + 1)}px` }}
+              title={`${view.name}, ${view.wording}${blockedTitle}`}
               onClick={() => props.onSelect(id)}
             >
               <i class={`lamp l-${view.lamp}`}></i>

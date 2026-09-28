@@ -13,11 +13,15 @@ export interface Layout {
   height: number
 }
 
-export const BLOCK = { w: 170, h: 48, rowGap: 12, depthGap: 60 }
+// h is the default block height: up to two wrapped title lines plus one subtitle line, with
+// comfortable padding. A subtitle that genuinely needs more room (status text is never
+// trimmed) grows every block in that render uniformly — see Board.tsx's blockHeightFor — so
+// blocks stay the same size as each other, just not always this exact one.
+export const BLOCK = { w: 170, h: 72, rowGap: 26, depthGap: 70 }
 
-export function layoutTree(model: BoardModel): Layout {
+export function layoutTree(model: BoardModel, blockH: number = BLOCK.h): Layout {
   const root = hierarchy(model.root, (id) => model.nodes.get(id)?.children ?? [])
-  tree<string>().nodeSize([BLOCK.h + BLOCK.rowGap, BLOCK.w + BLOCK.depthGap])(root)
+  tree<string>().nodeSize([blockH + BLOCK.rowGap, BLOCK.w + BLOCK.depthGap])(root)
 
   const nodes = root.descendants()
   let minAcross = Infinity
@@ -35,7 +39,7 @@ export function layoutTree(model: BoardModel): Layout {
     const y = n.x! - minDown
     placed.set(n.data, { id: n.data, x, y })
     width = Math.max(width, x + BLOCK.w)
-    height = Math.max(height, y + BLOCK.h)
+    height = Math.max(height, y + blockH)
   }
 
   return { placed, width, height }

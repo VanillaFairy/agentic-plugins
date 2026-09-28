@@ -7,10 +7,11 @@ export interface NodeView {
   name: string // last id segment; the effort name for '.'
   parent: string | null // the drawn parent ('.' for an orphan)
   depth: number
-  children: string[] // sorted by id
+  children: string[] // blocking order: a dependency before its dependant, ties by id
   lamp: Lamp
   wording: string
   orphan: boolean
+  blockedBy: string[] // sibling or ancestor-subtree ids this node's deps name that aren't done yet
   node: SnapshotNode
   folder: SnapshotFolder | null // the folder whose id equals the node id, if any
 }
@@ -93,6 +94,31 @@ export function lampAndWording(
   }
 }
 
+/**
+ * One parent's children, ordered so a sibling it depends on always comes before it — a
+ * topological sort scoped to this sibling list, siblings with no dependency between them kept
+ * in id order. A dependency cycle (never expected, never trusted) places whatever's left in id
+ * order rather than looping, so this always terminates and never reorders on its own between
+ * calls with the same input.
+ */
+function blockingOrder(ids: string[], byId: Map<string, SnapshotNode>): string[] {
+  const siblings = new Set(ids)
+  const prereqs = new Map(ids.map((id) => [id, new Set((byId.get(id)?.deps ?? []).filter((d) => siblings.has(d) && d !== id))]))
+  const placed = new Set<string>()
+  const result: string[] = []
+  while (result.length < ids.length) {
+    // Nothing in one ready batch depends on anything else in it — placing the whole batch,
+    // in id order, is as valid as placing one at a time and needs fewer rounds.
+    const ready = ids.filter((id) => !placed.has(id) && [...prereqs.get(id)!].every((d) => placed.has(d))).sort()
+    const batch = ready.length > 0 ? ready : ids.filter((id) => !placed.has(id)).sort()
+    for (const id of batch) {
+      result.push(id)
+      placed.add(id)
+    }
+  }
+  return result
+}
+
 export function buildModel(s: Snapshot): BoardModel {
   const byId = new Map<string, SnapshotNode>()
   for (const n of s.nodes) byId.set(n.id, n)
@@ -121,7 +147,30 @@ export function buildModel(s: Snapshot): BoardModel {
     list.push(n.id)
     childrenOf.set(p, list)
   }
-  for (const list of childrenOf.values()) list.sort()
+
+  // Lamp, wording and what each node is still waiting on, computed before siblings are
+  // ordered: the order below reads a dependency's lamp to decide what blocks what.
+  const lampWordingOf = new Map<string, { lamp: Lamp; wording: string }>()
+  for (const n of s.nodes) {
+    const isOrphan = orphan.get(n.id)!
+    const children = childrenOf.get(n.id) ?? []
+    const childStatuses = children.map((c) => byId.get(c)!.status)
+    const folder = foldersById.get(n.id) ?? null
+    lampWordingOf.set(
+      n.id,
+      isOrphan ? { lamp: 'orphan', wording: `parent missing: ${n.parent}` } : lampAndWording(n, folder, childStatuses),
+    )
+  }
+  const blockedByOf = new Map<string, string[]>()
+  for (const n of s.nodes) {
+    const unmet = n.deps.filter((d) => byId.has(d) && lampWordingOf.get(d)?.lamp !== 'done').sort()
+    if (unmet.length > 0) blockedByOf.set(n.id, unmet)
+  }
+
+  // Siblings sort by blocking order, not by name: an id a sibling depends on comes first,
+  // and among siblings with no dependency on each other the order falls back to the id, so a
+  // fresh session with the same tree computes the same order every time.
+  for (const [parent, list] of childrenOf) childrenOf.set(parent, blockingOrder(list, byId))
 
   const depth = new Map<string, number>()
   const order: string[] = []
@@ -137,11 +186,7 @@ export function buildModel(s: Snapshot): BoardModel {
     const n = byId.get(id)!
     const isOrphan = orphan.get(id)!
     const children = childrenOf.get(id) ?? []
-    const childStatuses = children.map((c) => byId.get(c)!.status)
-    const folder = foldersById.get(id) ?? null
-    const { lamp, wording } = isOrphan
-      ? { lamp: 'orphan' as Lamp, wording: `parent missing: ${n.parent}` }
-      : lampAndWording(n, folder, childStatuses)
+    const { lamp, wording } = lampWordingOf.get(id)!
     nodes.set(id, {
       id,
       name: id === '.' ? s.effort : lastSegment(id),
@@ -151,8 +196,9 @@ export function buildModel(s: Snapshot): BoardModel {
       lamp,
       wording,
       orphan: isOrphan,
+      blockedBy: blockedByOf.get(id) ?? [],
       node: n,
-      folder,
+      folder: foldersById.get(id) ?? null,
     })
   }
 

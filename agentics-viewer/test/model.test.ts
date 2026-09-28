@@ -183,6 +183,38 @@ describe('buildModel', () => {
     expect(m.order).toEqual(['.', 'a', 'a.a', 'a.z', 'a-b', 'b', 'b.a'])
   })
 
+  test('siblings order by blocking, not by name: a dependency comes before its dependant', () => {
+    // x and z have no unmet dependency among these siblings, so they place first, by id; y
+    // depends on z and can only place once z has. Plain alphabetical would give x, y, z.
+    const s = snap([node('.'), node('x'), node('y', { deps: ['z'] }), node('z')])
+    const m = buildModel(s)
+    expect(m.nodes.get('.')!.children).toEqual(['x', 'z', 'y'])
+  })
+
+  test('a dependency cycle places everything left in id order rather than hanging', () => {
+    const s = snap([node('.'), node('a', { deps: ['b'] }), node('b', { deps: ['a'] })])
+    const m = buildModel(s)
+    expect(m.nodes.get('.')!.children).toEqual(['a', 'b'])
+  })
+
+  test('blockedBy names an unmet dependency', () => {
+    const s = snap([node('.'), node('a', { status: 'planned' }), node('b', { deps: ['a'] })])
+    const m = buildModel(s)
+    expect(m.nodes.get('b')!.blockedBy).toEqual(['a'])
+  })
+
+  test('blockedBy is empty once the dependency is done', () => {
+    const s = snap([node('.'), node('a', { status: 'merged' }), node('b', { deps: ['a'] })])
+    const m = buildModel(s)
+    expect(m.nodes.get('b')!.blockedBy).toEqual([])
+  })
+
+  test('blockedBy drops a dependency the snapshot does not carry', () => {
+    const s = snap([node('.'), node('a', { deps: ['ghost'] })])
+    const m = buildModel(s)
+    expect(m.nodes.get('a')!.blockedBy).toEqual([])
+  })
+
   test('names are last segments', () => {
     const s = snap([node('.'), node('a'), node('a.b')], { effort: 'my-effort' })
     const m = buildModel(s)

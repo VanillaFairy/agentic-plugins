@@ -119,6 +119,10 @@
 .row.done .nm {
   color: var(--ink-2);
 }
+.row.blocked .st {
+  color: var(--hold);
+  font-style: italic;
+}
 .row .chev {
   display: inline-block;
   width: 12px;
