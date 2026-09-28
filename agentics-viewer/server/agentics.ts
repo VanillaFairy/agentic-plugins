@@ -7,6 +7,7 @@ import { FORMAT } from '../shared/snapshot.ts'
 export interface AgenticsLocation { path: string; version: string }
 
 const DEFAULT_TIMEOUT_MS = 10000
+const MAX_BUFFER_BYTES = 64 * 1024 * 1024
 
 export function locateAgentics(opts: { override: string | null; installedPlugins: string }): AgenticsLocation | Problem {
   const candidate = opts.override ?? readInstallPath(opts.installedPlugins)
@@ -42,9 +43,12 @@ function execStatus(loc: AgenticsLocation, args: string[], timeoutMs: number): P
     execFile(
       process.execPath,
       [join(loc.path, 'lib', 'status.mjs'), ...args, '--json'],
-      { timeout: timeoutMs },
+      { timeout: timeoutMs, maxBuffer: MAX_BUFFER_BYTES },
       (err, stdout) => {
-        const timedOut = err !== null && (err as NodeJS.ErrnoException & { killed?: boolean }).killed === true
+        const timedOut =
+          err !== null &&
+          (err as NodeJS.ErrnoException & { killed?: boolean }).killed === true &&
+          (err as NodeJS.ErrnoException).code !== 'ERR_CHILD_PROCESS_STDIO_MAXBUFFER'
         resolve({ stdout: stdout ?? '', timedOut })
       },
     )
