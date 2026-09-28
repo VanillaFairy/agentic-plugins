@@ -11,6 +11,7 @@
   --hold-ink: #3a2a00;
   --stop: #c4372e;
   --stop-ink: #ffffff;
+  --good: #3e7d1f;
   --sys: 'Bahnschrift', 'DIN Alternate', system-ui, sans-serif;
   --prose: 'Sitka Text', 'Iowan Old Style', Georgia, serif;
   --code: 'Cascadia Mono', Consolas, monospace;
@@ -28,6 +29,7 @@
     --hold: #f2b63a;
     --hold-lit: #e8a92a;
     --stop: #e0564c;
+    --good: #7fc75a;
   }
 }
 

@@ -23,6 +23,15 @@ function commitWord(n: number): string {
   return n === 1 ? '1 commit' : `${n} commits`
 }
 
+// The status word is the most important thing on the panel, so it carries its own colour: green
+// once nothing more is needed, red the moment something is, amber for everything still moving
+// or unclassified.
+function statusTone(status: string): 'good' | 'bad' | 'ongoing' {
+  if (status === 'merged' || status === 'integrated' || status === 'landed') return 'good'
+  if (status === 'parked' || status === 'escalated') return 'bad'
+  return 'ongoing'
+}
+
 export function Detail(props: { view: NodeView; snapshot: Snapshot; now: number }): JSX.Element {
   const { view, snapshot, now } = props
   const node = view.node
@@ -44,9 +53,7 @@ export function Detail(props: { view: NodeView; snapshot: Snapshot; now: number 
     input.select()
   }
 
-  const firstLine = [view.id, kindWord(node.kind), node.rigor, node.status]
-    .filter((part) => part.trim() !== '')
-    .join(', ')
+  const idParts = [view.id, kindWord(node.kind), node.rigor].filter((part) => part.trim() !== '')
 
   const isParked = node.status === 'parked'
   const isEscalated = node.status === 'escalated'
@@ -74,7 +81,10 @@ export function Detail(props: { view: NodeView; snapshot: Snapshot; now: number 
 
   return (
     <div class="detail" aria-label="Selected node">
-      <div class="d-id">{firstLine}</div>
+      <div class="d-id">
+        {idParts.length > 0 ? `${idParts.join(', ')}, ` : ''}
+        <span class={`d-status tone-${statusTone(node.status)}`}>{node.status}</span>
+      </div>
       <div class="d-name">{view.name}</div>
       {node.title !== '' && <p class="d-title">{node.title}</p>}
 

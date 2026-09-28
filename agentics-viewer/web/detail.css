@@ -1,6 +1,19 @@
 /* Detail panel rules beyond the shared component styles in styles.css (T11).
    Tokens (--panel, --ink, --hold, --stop, etc.) come from styles.css. */
 
+.d-status {
+  font-weight: 600;
+}
+.d-status.tone-good {
+  color: var(--good);
+}
+.d-status.tone-bad {
+  color: var(--stop);
+}
+.d-status.tone-ongoing {
+  color: var(--hold);
+}
+
 .d-sub {
   color: var(--ink-2);
   margin: 0 0 14px;
