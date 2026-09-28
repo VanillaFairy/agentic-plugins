@@ -63,9 +63,11 @@ describe('main.ts', () => {
     tempDirs.push(distDir)
     writeFileSync(join(distDir, 'index.html'), '<html>viewer</html>')
 
+    const stateDir = tempDir()
+    tempDirs.push(stateDir)
     const deps: AppDeps = {
       port: 0,
-      stateFile: join(tempDir(), 'state.json'),
+      stateFile: join(stateDir, 'state.json'),
       distDir,
       clock: realClock,
       locate: (): AgenticsLocation => ({ path: 'C:/agentics', version: '1.0.0' }),
@@ -89,9 +91,10 @@ describe('main.ts', () => {
       execFile(
         process.execPath,
         ['server/main.ts'],
-        { cwd, env: { ...process.env, USERPROFILE: home, HOME: home } },
+        { cwd, env: { ...process.env, USERPROFILE: home, HOME: home }, timeout: 10_000 },
         (err, stdout) => {
-          const code = err !== null && typeof (err as NodeJS.ErrnoException & { code?: number }).code === 'number' ? (err as unknown as { code: number }).code : 0
+          const errCode = (err as NodeJS.ErrnoException & { code?: number } | null)?.code
+          const code = err === null ? 0 : typeof errCode === 'number' ? errCode : -1
           resolve({ code, stdout })
         },
       )

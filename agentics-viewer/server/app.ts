@@ -341,7 +341,7 @@ export function createApp(deps: AppDeps): { server: http.Server; close(): Promis
     const addr = server.address()
     if (addr !== null && typeof addr === 'object') boundPort = addr.port
   })
-  server.listen(deps.port)
+  server.listen(deps.port, '127.0.0.1')
 
   let heartbeatTimer: TimerHandle | null = null
   function scheduleHeartbeat(): void {

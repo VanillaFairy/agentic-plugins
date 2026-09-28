@@ -83,7 +83,7 @@ async function main(): Promise<void> {
   if (needsBuild(newestMtimeUnder(webDir), distIndexMtime)) {
     const { code, output } = await runViteBuild()
     if (code !== 0) {
-      console.log(output)
+      console.error(output)
       process.exit(1)
     }
   }
