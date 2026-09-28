@@ -1,0 +1,6 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    { "name": "agentics-viewer", "runtimeExecutable": "npm", "runtimeArgs": ["--prefix", "agentics-viewer", "start"], "port": 4747 }
+  ]
+}

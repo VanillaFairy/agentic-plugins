@@ -8,6 +8,11 @@ held here as a git submodule.
 | [agentics](https://github.com/VanillaFairy/agentics) | Workflow-orchestrated design, investigation and development over a codebase |
 | [improve-clauding](https://github.com/VanillaFairy/improve-clauding) | Retrospective over your recent Claude Code and Cursor sessions |
 | [socratic](https://github.com/VanillaFairy/socratic) | Adversarial multi-agent debate as a decision aid |
+## Tools
+
+`agentics-viewer/` is a local web app that shows an agentics effort's tree live. It is not a
+plugin and isn't listed in the marketplace. See its README.
+
 ## Install
 
 ```
