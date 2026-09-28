@@ -172,11 +172,15 @@ describe('lampAndWording', () => {
 
 describe('buildModel', () => {
   test('order is depth-first by id', () => {
-    const nodes = [node('.'), node('b'), node('a'), node('a.z'), node('a.a'), node('b.a')]
+    // `a-b` is a root-level sibling whose id sorts before `a.a` and `a.z` in a
+    // plain lexicographic sort of all ids ('-' 0x2D < '.' 0x2E), but after them
+    // in depth-first order (it's a sibling of `a`, not a descendant). A plain
+    // `nodes.map(id).sort()` implementation fails this test.
+    const nodes = [node('.'), node('b'), node('a'), node('a.z'), node('a.a'), node('b.a'), node('a-b')]
     const s = snap(nodes)
     const m = buildModel(s)
     expect(m.order).toEqual(expectedOrder(nodes))
-    expect(m.order).toEqual(['.', 'a', 'a.a', 'a.z', 'b', 'b.a'])
+    expect(m.order).toEqual(['.', 'a', 'a.a', 'a.z', 'a-b', 'b', 'b.a'])
   })
 
   test('names are last segments', () => {
