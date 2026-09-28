@@ -1,10 +1,10 @@
-Status: ONGOING
+Status: DONE
 # 2026-09-27-agentics-viewer checkpoint
 
 Wave: 5 — T09m, T12, T13, T14, T15a
 Integration head (agentics/master): 48f5b18
-Integration head (vanillafairy/claude/agentics-tasks-observability-f37843): 5505f21
-Remaining: T09m, T12, T13, T14, T15a, T15b
+Integration head (vanillafairy/claude/agentics-tasks-observability-f37843): ba45042
+Remaining: T15b
 
 ## Tasks
 | Task | Wave | Branch | State | Review cycles | Merge commit |
@@ -21,15 +21,39 @@ Remaining: T09m, T12, T13, T14, T15a, T15b
 | T10b | 3 | sdd/2026-09-27-agentics-viewer/T10b | merged | 0 | 51965ba |
 | T09 | 4 | sdd/2026-09-27-agentics-viewer/T09 | merged | 1 | b3b7d2b |
 | T11 | 4 | sdd/2026-09-27-agentics-viewer/T11 | merged | 1 | db042e1 |
-| T09m | 5 | sdd/2026-09-27-agentics-viewer/T09m | implementing | 0 | |
-| T12 | 5 | sdd/2026-09-27-agentics-viewer/T12 | implementing | 0 | |
-| T13 | 5 | sdd/2026-09-27-agentics-viewer/T13 | implementing | 0 | |
-| T14 | 5 | sdd/2026-09-27-agentics-viewer/T14 | implementing | 0 | |
-| T15a | 5 | sdd/2026-09-27-agentics-viewer/T15a | implementing | 0 | |
+| T09m | 5 | sdd/2026-09-27-agentics-viewer/T09m | merged | 1 | 53a3de1 |
+| T12 | 5 | sdd/2026-09-27-agentics-viewer/T12 | merged | 0 | 66cc74d |
+| T13 | 5 | sdd/2026-09-27-agentics-viewer/T13 | merged | 1 | 25cec75 |
+| T14 | 5 | sdd/2026-09-27-agentics-viewer/T14 | merged | 1 | 525cd40 |
+| T15a | 5 | sdd/2026-09-27-agentics-viewer/T15a | merged | 1 | ba45042 |
 
 
 ## Decisions and deviations
 (W2 and part of W3 moved to `progress/2026-09-27-agentics-viewer-history.md` at the start of Wave 4 — not depended on by T09, T11, T09m, T12, T13, T14, T15a, T15b)
+- W5, T12/T13/T14 review: `styles.css` (T11) already carries a full copy of the annunciator,
+  board and detail CSS rules the mockup describes; each of T12/T13/T14's own stylesheet
+  (annunciator.css, board.css, detail.css) is forbidden from touching styles.css, so each ends up
+  duplicating or partially duplicating those rules, and load order lets one copy silently shadow
+  the other. All three implementers flagged this honestly instead of papering over it; reviewers
+  approved T12 with it noted as plan-mandated, and T13's review holds it open as Important #3 for
+  the same reason. Left unresolved in this wave — it's a plan-level conflict between T11 and
+  T12/T13/T14's Scope/Negative Constraints, not a task-level defect. T15b (integration) should
+  either delete the duplicated blocks from styles.css now that the three new stylesheets own them,
+  or drop the new stylesheets' duplicate rules — the plan author's call.
+- W5 T09m fix round 1: T09m's review found `main.ts`'s server (via T09's `createApp`) was binding
+  every network interface instead of `127.0.0.1` (spec step 5), a one-line fix in
+  `agentics-viewer/server/app.ts:344` (`server.listen(deps.port, '127.0.0.1')`). Routed to T09m's
+  own fix round rather than a separate T09 follow-up, since it's a one-line change already inside
+  T09m's worktree and dependency graph. Also fixed 4 cheap Minors (leaking temp dir, misleading
+  exit-code fallback, no execFile timeout on the spawn test, build-failure output to stderr).
+- W5 T14 fix round 1: the spec-file link showed the raw absolute path instead of
+  "Spec in `<relative folder>/DESIGN.md`". Fixed by deriving the label from the view model's own
+  dot-separated id (folder's own id, or a task's parent id) rather than stripping a prefix off the
+  absolute path, since the fixtures never exercise a non-empty absolute path to verify a prefix
+  strategy against.
+- W5 T15a fix round 1: `agentics-viewer/README.md` described `depth`, `roots`, `recent` and `last`
+  incorrectly against spec §6.4/§6.8 (scan depth vs. tree-expand depth, project-scan roots vs.
+  watched efforts, etc.). Reworded to match the spec.
 - W3 T05 fix round 1: `execFile`'s default 1 MiB `maxBuffer` made a large snapshot's stdout
   overflow read as a false "timed out" (Node sets `err.killed` on both timeout and overflow).
   Fixed by raising `maxBuffer` to 64 MiB and telling the two apart by `err.code`. Also closed two
