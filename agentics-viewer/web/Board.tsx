@@ -1,52 +1,61 @@
 import type { JSX } from 'preact'
 import { useEffect, useMemo, useRef } from 'preact/hooks'
-import { afterEdges, subtreeDone } from './model.ts'
+import { subtreeDone } from './model.ts'
 import type { BoardModel, NodeView } from './model.ts'
 import type { Snapshot } from '../shared/snapshot.ts'
-import { layoutTree, BLOCK } from './layout.ts'
-import type { Placed } from './layout.ts'
+import { layoutTree, routeDeps, BLOCK } from './layout.ts'
+import type { DepRoute, Placed } from './layout.ts'
 import { attachZoom } from './zoom.ts'
 import type { ZoomControl } from './zoom.ts'
-import { sysFont, wrapLines } from './wrap-text.ts'
+import { sysFont, textWidth, wrapLines } from './wrap-text.ts'
+import { Hourglass } from './Hourglass.tsx'
 import './board.css'
 
-const AFTER_MARGIN = 24
-const AFTER_STEP = 14
 const NARROW_VISIBLE_FRACTION = 0.48
 const TITLE_LEFT = 28
 const SUBTITLE_LEFT = 12
 const RIGHT_MARGIN = 10
 const TITLE_LINE_HEIGHT = 17
 const TITLE_TOP = 24
-const SUBTITLE_TOP = 58
-const SUBTITLE_LINE_HEIGHT = 15
+const STATUS_TOP = 46
+const STATUS_H = 18
+const STATUS_PAD_X = 8
+const FACTS_TOP = 82
+const FACT_LINE_HEIGHT = 15
 const BOTTOM_PAD = 14
-const BLOCKED_GAP = 15
+const BADGE_H = 18
+const BADGE_INSET = 8
 const CORNER_R = 10
 
 interface BlockText {
   title: string[]
-  subtitle: string[]
-  blocked: string[]
+  statusW: number
+  factsTop: number // the first fact's baseline: under the badge, or in its place when there is none
+  facts: string[] // every fact's wrapped lines, in order
 }
 
-function textFor(name: string, wording: string, isComp: boolean, blockedOn: string): BlockText {
-  const titleWidth = BLOCK.w - TITLE_LEFT - RIGHT_MARGIN
-  const subtitleWidth = BLOCK.w - SUBTITLE_LEFT - RIGHT_MARGIN
-  const subFont = sysFont(12, 400)
+// The waits-on badge: an hourglass and the count, the same size whatever the blockers' names.
+function badgeWidth(count: number): number {
+  return 26 + 7 * String(count).length
+}
+
+function textFor(view: NodeView): BlockText {
+  const waitsOn = view.blockedBy.length
+  const badgeRoom = waitsOn > 0 ? badgeWidth(waitsOn) + 4 : 0
+  const titleWidth = BLOCK.w - TITLE_LEFT - RIGHT_MARGIN - badgeRoom
+  const factWidth = BLOCK.w - SUBTITLE_LEFT - RIGHT_MARGIN
   return {
-    title: wrapLines(name, titleWidth, sysFont(isComp ? 15 : 14, 600), 2),
-    // Status wording, and what a node is blocked on, are never trimmed: each wraps to as many
-    // lines as it needs, never ellipsized.
-    subtitle: wrapLines(wording, subtitleWidth, subFont, Infinity),
-    blocked: blockedOn === '' ? [] : wrapLines(blockedOn, subtitleWidth, subFont, Infinity),
+    title: wrapLines(view.name, titleWidth, sysFont(view.children.length > 0 ? 15 : 14, 600), 2),
+    statusW: textWidth(view.status, sysFont(12, 600)) + 2 * STATUS_PAD_X,
+    factsTop: view.status === '' ? STATUS_TOP + 13 : FACTS_TOP,
+    // Facts are never trimmed: each wraps to as many lines as it needs.
+    facts: view.facts.flatMap((f) => wrapLines(f, factWidth, sysFont(12, 400), Infinity)),
   }
 }
 
-/** The block height this node's subtitle and blocked line need, never below BLOCK.h. */
-function neededHeight(subtitleLines: number, blockedLines: number): number {
-  const afterSubtitle = SUBTITLE_TOP + (subtitleLines - 1) * SUBTITLE_LINE_HEIGHT
-  const bottom = blockedLines === 0 ? afterSubtitle : afterSubtitle + BLOCKED_GAP + (blockedLines - 1) * SUBTITLE_LINE_HEIGHT
+/** The block height this node's facts need, never below BLOCK.h. */
+function neededHeight(t: BlockText): number {
+  const bottom = t.facts.length === 0 ? STATUS_TOP + STATUS_H : t.factsTop + (t.facts.length - 1) * FACT_LINE_HEIGHT
   return Math.max(BLOCK.h, bottom + BOTTOM_PAD)
 }
 
@@ -75,12 +84,8 @@ function trackPath(parent: Placed, child: Placed, blockH: number): string {
   return roundedHVH(parent.x + BLOCK.w, parentY, midX, childY, child.x, CORNER_R)
 }
 
-// After edges route to the right of every block, on a rail past the widest
-// column, so they never cross a track.
-function afterPath(from: Placed, to: Placed, railX: number, blockH: number): string {
-  const fromY = from.y + blockH / 2
-  const toY = to.y + blockH / 2
-  return roundedHVH(from.x + BLOCK.w, fromY, railX, toY, to.x + BLOCK.w + 4, CORNER_R)
+function afterPath(from: Placed, to: Placed, r: DepRoute): string {
+  return roundedHVH(from.x + BLOCK.w, r.fromY, r.railX, r.toY, to.x + BLOCK.w + 2, CORNER_R)
 }
 
 function lampGlyph(view: NodeView, cx: number, cy: number): JSX.Element {
@@ -94,9 +99,9 @@ function lampGlyph(view: NodeView, cx: number, cy: number): JSX.Element {
     case 'done':
       return <circle cx={cx} cy={cy} r={5} fill="var(--quiet)" />
     case 'open':
-      return <circle cx={cx} cy={cy} r={4.5} fill="none" stroke="var(--quiet)" strokeDasharray="2 2" />
+      return <circle cx={cx} cy={cy} r={4.5} fill="none" stroke="var(--hold)" stroke-width={1.5} stroke-dasharray="2 2" />
     default:
-      return <circle cx={cx} cy={cy} r={4.5} fill="none" stroke="var(--quiet)" strokeWidth={1.5} />
+      return <circle cx={cx} cy={cy} r={4.5} fill="none" stroke="var(--quiet)" stroke-width={1.5} />
   }
 }
 
@@ -105,26 +110,24 @@ export function Board(props: {
   snapshot: Snapshot
   selected: string | null
   onSelect: (id: string) => void
+  highlight: string[]
+  onHighlight: (ids: string[]) => void
   narrow: boolean
 }): JSX.Element {
-  const { model, snapshot, selected, onSelect, narrow } = props
+  const { model, snapshot, selected, onSelect, highlight, onHighlight, narrow } = props
 
   const texts = useMemo(() => {
     const m = new Map<string, BlockText>()
     for (const id of model.order) {
       const view = model.nodes.get(id)!
-      const blockedOn =
-        view.blockedBy.length === 0
-          ? ''
-          : `blocked by ${view.blockedBy.map((d) => model.nodes.get(d)?.name ?? d).join(', ')}`
-      m.set(id, textFor(view.name, view.wording, view.children.length > 0, blockedOn))
+      m.set(id, textFor(view))
     }
     return m
   }, [model])
 
   const blockH = useMemo(() => {
     let h = BLOCK.h
-    for (const t of texts.values()) h = Math.max(h, neededHeight(t.subtitle.length, t.blocked.length))
+    for (const t of texts.values()) h = Math.max(h, neededHeight(t))
     return h
   }, [texts])
 
@@ -159,7 +162,8 @@ export function Board(props: {
     if (!placed) return
     const box = wrapRef.current.getBoundingClientRect()
     const visible = narrow ? new DOMRect(box.left, box.top, box.width, box.height * NARROW_VISIBLE_FRACTION) : box
-    zoomRef.current.panTo(placed.x + BLOCK.w / 2, placed.y + blockH / 2, visible)
+    // Keep the blocking arrows' rails, in the gap right of the block, in view too.
+    zoomRef.current.panTo(placed.x + BLOCK.w / 2, placed.y + blockH / 2, visible, BLOCK.depthGap)
   }, [selected, narrow])
 
   const tracks: JSX.Element[] = []
@@ -174,24 +178,23 @@ export function Board(props: {
     }
   }
 
-  const afterPaths: JSX.Element[] = []
-  const selPlaced = selected !== null ? layout.placed.get(selected) : undefined
-  if (selected !== null && selPlaced) {
-    const { incoming, outgoing } = afterEdges(snapshot, selected)
-    let rail = layout.width + AFTER_MARGIN
-    for (const from of incoming) {
-      const p = layout.placed.get(from)
-      if (!p) continue
-      afterPaths.push(<path key={`a:in:${from}`} class="after" markerEnd="url(#ah)" d={afterPath(p, selPlaced, rail, blockH)} />)
-      rail += AFTER_STEP
-    }
-    for (const to of outgoing) {
-      const p = layout.placed.get(to)
-      if (!p) continue
-      afterPaths.push(<path key={`a:out:${to}`} class="after" markerEnd="url(#ah)" d={afterPath(selPlaced, p, rail, blockH)} />)
-      rail += AFTER_STEP
-    }
-  }
+  const routes = useMemo(
+    () => routeDeps(snapshot.nodes.flatMap((n) => n.deps.map((d) => ({ from: d, to: n.id }))), layout.placed, blockH),
+    [snapshot, layout, blockH],
+  )
+  // The selected node's edges go last, so they draw over the rest.
+  const touchesSelected = (r: DepRoute): boolean => r.from === selected || r.to === selected
+  const afterPaths = [...routes.filter((r) => !touchesSelected(r)), ...routes.filter(touchesSelected)].map((r) => {
+    const variant = touchesSelected(r) ? 'sel' : model.nodes.get(r.from)?.lamp === 'done' ? 'q' : ''
+    return (
+      <path
+        key={`a:${r.from}>${r.to}`}
+        class={`after ${variant}`}
+        marker-end={`url(#ah${variant === '' ? '' : `-${variant}`})`}
+        d={afterPath(layout.placed.get(r.from)!, layout.placed.get(r.to)!, r)}
+      />
+    )
+  })
 
   const blocks = model.order.map((id) => {
     const view = model.nodes.get(id)!
@@ -200,10 +203,15 @@ export function Board(props: {
     const cls = ['blk', view.lamp]
     if (isComp) cls.push('comp')
     if (id === selected) cls.push('sel')
+    if (view.alertBelow !== null) cls.push(`${view.alertBelow}-below`)
+    if (highlight.includes(id)) cls.push('hl')
 
-    const { title: titleLines, subtitle: subtitleLines, blocked: blockedLines } = texts.get(id)!
+    const { title: titleLines, statusW, factsTop, facts: factLines } = texts.get(id)!
     const titleTop = p.y + TITLE_TOP
-    const blockedTop = p.y + SUBTITLE_TOP + (subtitleLines.length - 1) * SUBTITLE_LINE_HEIGHT + BLOCKED_GAP
+    const waitsOn = view.blockedBy.length
+    const badgeW = badgeWidth(waitsOn)
+    const badgeX = p.x + BLOCK.w - BADGE_INSET - badgeW
+    const badgeY = p.y + BADGE_INSET
 
     return (
       <g
@@ -213,7 +221,7 @@ export function Board(props: {
         role="button"
         aria-label={
           view.blockedBy.length > 0
-            ? `${view.name}, ${view.wording}, blocked by ${view.blockedBy.map((d) => model.nodes.get(d)?.name ?? d).join(', ')}`
+            ? `${view.name}, ${view.wording}, waits on ${view.blockedBy.map((d) => model.nodes.get(d)?.name ?? d).join(', ')}`
             : `${view.name}, ${view.wording}`
         }
         onClick={() => onSelect(id)}
@@ -230,21 +238,31 @@ export function Board(props: {
             </tspan>
           ))}
         </text>
-        <text class="s" x={p.x + SUBTITLE_LEFT} y={p.y + SUBTITLE_TOP}>
-          {subtitleLines.map((line, i) => (
-            <tspan key={i} x={p.x + SUBTITLE_LEFT} dy={i === 0 ? 0 : SUBTITLE_LINE_HEIGHT}>
-              {line}
-            </tspan>
-          ))}
-        </text>
-        {blockedLines.length > 0 && (
-          <text class="s blocked" x={p.x + SUBTITLE_LEFT} y={blockedTop}>
-            {blockedLines.map((line, i) => (
-              <tspan key={i} x={p.x + SUBTITLE_LEFT} dy={i === 0 ? 0 : SUBTITLE_LINE_HEIGHT}>
+        {view.status !== '' && (
+          <g class={`status t-${view.lamp}`}>
+            <rect x={p.x + SUBTITLE_LEFT} y={p.y + STATUS_TOP} width={statusW} height={STATUS_H} rx={4} />
+            <text x={p.x + SUBTITLE_LEFT + STATUS_PAD_X} y={p.y + STATUS_TOP + 13}>
+              {view.status}
+            </text>
+          </g>
+        )}
+        {factLines.length > 0 && (
+          <text class="s" x={p.x + SUBTITLE_LEFT} y={p.y + factsTop}>
+            {factLines.map((line, i) => (
+              <tspan key={i} x={p.x + SUBTITLE_LEFT} dy={i === 0 ? 0 : FACT_LINE_HEIGHT}>
                 {line}
               </tspan>
             ))}
           </text>
+        )}
+        {waitsOn > 0 && (
+          <g class="wait" onMouseEnter={() => onHighlight(view.blockedBy)} onMouseLeave={() => onHighlight([])}>
+            <rect x={badgeX} y={badgeY} width={badgeW} height={BADGE_H} rx={BADGE_H / 2} />
+            <Hourglass size={12} x={badgeX + 7} y={badgeY + 3} />
+            <text x={badgeX + 22} y={badgeY + 13}>
+              {waitsOn}
+            </text>
+          </g>
         )}
       </g>
     )
@@ -254,9 +272,21 @@ export function Board(props: {
     <div class="boardwrap" ref={wrapRef}>
       <svg ref={svgRef} width="100%" height="100%" role="img" aria-label="Effort tree">
         <defs>
-          <marker id="ah" viewBox="0 0 10 10" refX={8} refY={5} markerWidth={7} markerHeight={7} orient="auto">
-            <path d="M1 1L9 5L1 9" fill="none" stroke="context-stroke" strokeWidth={1.6} />
-          </marker>
+          {['', '-q', '-sel'].map((suffix) => (
+            <marker
+              key={suffix}
+              id={`ah${suffix}`}
+              viewBox="0 0 10 10"
+              refX={9}
+              refY={5}
+              markerWidth={9}
+              markerHeight={9}
+              markerUnits="userSpaceOnUse"
+              orient="auto"
+            >
+              <path class={`ah${suffix}`} d="M1 1L9 5L1 9Z" />
+            </marker>
+          ))}
         </defs>
         <g ref={layerRef}>
           {tracks}

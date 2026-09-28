@@ -2,6 +2,7 @@ import type { JSX } from 'preact'
 import { useState } from 'preact/hooks'
 import type { BoardModel } from './model.ts'
 import { visibleRows, moveSelection } from './model.ts'
+import { Hourglass } from './Hourglass.tsx'
 
 export function Outline(props: {
   model: BoardModel
@@ -82,7 +83,7 @@ export function Outline(props: {
           const isSelected = props.selected === id
           const isBlocked = view.blockedBy.length > 0
           const blockedTitle = isBlocked
-            ? `, blocked by ${view.blockedBy.map((d) => props.model.nodes.get(d)?.name ?? d).join(', ')}`
+            ? `, waits on ${view.blockedBy.map((d) => props.model.nodes.get(d)?.name ?? d).join(', ')}`
             : ''
           return (
             <div
@@ -112,7 +113,17 @@ export function Outline(props: {
                 )}
                 {view.name}
               </span>
-              <span class="st">{view.wording}</span>
+              {view.status !== '' ? (
+                <span class={`st badge t-${view.lamp}`}>{view.status}</span>
+              ) : (
+                <span class="st facts">{view.facts.join(', ')}</span>
+              )}
+              {isBlocked && (
+                <span class="wait">
+                  <Hourglass size={11} />
+                  {view.blockedBy.length}
+                </span>
+              )}
             </div>
           )
         })}

@@ -94,7 +94,7 @@
 }
 .row {
   display: grid;
-  grid-template-columns: 12px 1fr auto;
+  grid-template-columns: 12px 1fr fit-content(50%) auto;
   align-items: center;
   gap: 7px;
   padding: 4px 12px;
@@ -113,15 +113,31 @@
   text-overflow: ellipsis;
 }
 .row .st {
+  justify-self: end;
+}
+.row .facts {
   color: var(--ink-2);
   font-size: 12.5px;
+}
+.badge {
+  padding: 0 6px;
+  border: 1px solid var(--tone);
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--tone) 22%, var(--panel));
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
 }
 .row.done .nm {
   color: var(--ink-2);
 }
-.row.blocked .st {
-  color: var(--hold);
-  font-style: italic;
+.row .wait {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  color: var(--ink-2);
+  font-size: 12px;
 }
 .row .chev {
   display: inline-block;
@@ -160,7 +176,7 @@
 }
 .l-open {
   background: transparent;
-  border: 1.5px dashed var(--quiet);
+  border: 1.5px dashed var(--hold);
 }
 .l-unknown {
   background: transparent;

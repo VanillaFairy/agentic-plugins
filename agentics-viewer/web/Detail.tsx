@@ -1,9 +1,9 @@
 import type { JSX } from 'preact'
 import { useEffect, useRef, useState } from 'preact/hooks'
-import type { NodeView } from './model.ts'
-import { kindWord, fileLabel, returnInWords, ago, spendText, vscodeLink } from './model.ts'
+import type { BoardModel, NodeView } from './model.ts'
+import { kindWord, fileLabel, returnInWords, ago, spendText, vscodeLink, needsYou } from './model.ts'
 import { inlineMarkdown } from './markdown.ts'
-import type { Approval, Snapshot } from '../shared/snapshot.ts'
+import type { Approval, Snapshot, SnapshotNode } from '../shared/snapshot.ts'
 import './detail.css'
 
 function approvalWord(a: Approval): string {
@@ -24,12 +24,11 @@ function commitWord(n: number): string {
 }
 
 // The status word is the most important thing on the panel, so it carries its own colour: green
-// once nothing more is needed, red the moment something is, amber for everything still moving
-// or unclassified.
-function statusTone(status: string): 'good' | 'bad' | 'ongoing' {
-  if (status === 'merged' || status === 'integrated' || status === 'landed') return 'good'
-  if (status === 'parked' || status === 'escalated') return 'bad'
-  return 'ongoing'
+// once nothing more is needed, amber when this node waits on you, red when it escalated, plain
+// ink for everything still moving.
+function statusTone(node: SnapshotNode): 'good' | 'hold' | 'stop' | 'ongoing' {
+  if (node.status === 'merged' || node.status === 'integrated' || node.status === 'landed') return 'good'
+  return needsYou(node) ?? 'ongoing'
 }
 
 const COPIED_MS = 1500
@@ -63,8 +62,66 @@ function CopyButton(props: { path: string; copy: (path: string) => Promise<boole
   )
 }
 
-export function Detail(props: { view: NodeView; snapshot: Snapshot; now: number }): JSX.Element {
-  const { view, snapshot, now } = props
+const RELATIONS_FOLDED = 5
+
+// One direction of the blocking relation, as rows that select the node and, under the pointer,
+// ring it on the board. Folds past RELATIONS_FOLDED so a node with many blockers stays readable.
+function Relations(props: {
+  title: string
+  ids: string[]
+  model: BoardModel
+  onSelect: (id: string) => void
+  onHighlight: (ids: string[]) => void
+}): JSX.Element | null {
+  const [open, setOpen] = useState(false)
+  if (props.ids.length === 0) return null
+  const shown = open ? props.ids : props.ids.slice(0, RELATIONS_FOLDED)
+  const hidden = props.ids.length - shown.length
+  return (
+    <>
+      <div class="sec">
+        {props.title} {props.ids.length}
+      </div>
+      <div class="rels">
+        {shown.map((id) => {
+          const other = props.model.nodes.get(id)
+          return (
+            <button
+              type="button"
+              key={id}
+              class="rel"
+              onClick={() => {
+                props.onHighlight([])
+                props.onSelect(id)
+              }}
+              onMouseEnter={() => props.onHighlight([id])}
+              onMouseLeave={() => props.onHighlight([])}
+            >
+              <i class={`lamp l-${other?.lamp ?? 'unknown'}`}></i>
+              <span class="nm">{other?.name ?? id}</span>
+              <span class="st">{other?.wording ?? ''}</span>
+            </button>
+          )
+        })}
+        {hidden > 0 && (
+          <button type="button" class="rel-more" onClick={() => setOpen(true)}>
+            and {hidden} more
+          </button>
+        )}
+      </div>
+    </>
+  )
+}
+
+export function Detail(props: {
+  view: NodeView
+  model: BoardModel
+  snapshot: Snapshot
+  now: number
+  onSelect: (id: string) => void
+  onHighlight: (ids: string[]) => void
+}): JSX.Element {
+  const { view, model, snapshot, now, onSelect, onHighlight } = props
   const node = view.node
   const fallbackRef = useRef<HTMLInputElement | null>(null)
 
@@ -92,8 +149,9 @@ export function Detail(props: { view: NodeView; snapshot: Snapshot; now: number 
 
   const idParts = [view.id, kindWord(node.kind), node.rigor].filter((part) => part.trim() !== '')
 
-  const isParked = node.status === 'parked'
-  const isEscalated = node.status === 'escalated'
+  const isParked = node.status === 'parked' && needsYou(node) === 'hold'
+  const isEscalated = needsYou(node) === 'stop'
+  const rolledUp = (node.status === 'parked' || node.status === 'escalated') && needsYou(node) === null
   const event = node.event
 
   const showActiveLine = node.status === 'active' && node.commits !== null && node.commits.count > 0
@@ -120,7 +178,7 @@ export function Detail(props: { view: NodeView; snapshot: Snapshot; now: number 
     <div class="detail" aria-label="Selected node">
       <div class="d-id">
         {idParts.length > 0 ? `${idParts.join(', ')}, ` : ''}
-        <span class={`d-status tone-${statusTone(node.status)}`}>{node.status}</span>
+        <span class={`d-status tone-${statusTone(node)}`}>{rolledUp ? view.wording : node.status}</span>
       </div>
       <div class="d-name">{view.name}</div>
       {node.title !== '' && <p class="d-title">{node.title}</p>}
@@ -139,6 +197,9 @@ export function Detail(props: { view: NodeView; snapshot: Snapshot; now: number 
 
       {activeLine !== null && <p class="d-sub">{activeLine}</p>}
       {approvalParts.length > 0 && <p class="d-sub">{approvalParts.join(', ')}</p>}
+
+      <Relations key={`w:${view.id}`} title="Waits on" ids={view.blockedBy} model={model} onSelect={onSelect} onHighlight={onHighlight} />
+      <Relations key={`h:${view.id}`} title="Holds up" ids={view.holdsUp} model={model} onSelect={onSelect} onHighlight={onHighlight} />
 
       {showContext && (
         <>

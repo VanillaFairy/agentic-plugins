@@ -337,11 +337,13 @@ The one loud element is the annunciator strip. Everything else stays quiet.
 | `--ink` | `#2B3035` | `#DADFD8` | text, live tracks |
 | `--ink-2` | `#5E655F` | `#9AA29A` | secondary text |
 | `--rule` | `#B9BEB6` | `#3A4146` | borders |
-| `--quiet` | `#8C928A` | `#6E766F` | merged lamps, quiet tracks, outlines of pending blocks |
-| `--work` | `#2F6DB5` | `#6FA6E6` | working lamps and borders, "after" edges, links, focus ring |
-| `--hold` | `#E0A21B` | `#F2B63A` | waiting-on-you lamps and borders |
+| `--quiet` | `#8C928A` | `#6E766F` | done borders and badges, quiet tracks and arrows |
+| `--work` | `#2F6DB5` | `#6FA6E6` | working borders and badges, links, focus ring |
+| `--hold` | `#D48A00` | `#F2B63A` | what needs you: borders, fills and badges |
 | `--hold-lit` / `--hold-ink` | `#F2C14E` / `#3A2A00` | `#E8A92A` / `#3A2A00` | a lit waiting tile |
-| `--stop` / `--stop-ink` | `#C4372E` / `#FFFFFF` | `#E0564C` / `#FFFFFF` | escalated lamps, a lit escalation tile |
+| `--stop` / `--stop-ink` | `#C2203A` / `#FFFFFF` | `#E0564C` / `#FFFFFF` | escalated borders, fills and badges, a lit escalation tile |
+| `--good` | `#3E7D1F` | `#7FC75A` | a done status word, a copied path |
+| `--dep` | `#6B4FC8` | `#A992F2` | the selected node's dependency arrows, a highlighted blocker |
 
 The page follows `prefers-color-scheme`, and gives `body` an explicit background.
 
@@ -359,24 +361,32 @@ The page follows `prefers-color-scheme`, and gives `body` an explicit background
   name.
 - Sentence case everywhere. No all-caps labels, no dot-joined meta strings.
 
-### 7.3 Lamps and wording
+### 7.3 Status and facts
 
-Status comes from the snapshot. The page words it from your side. The raw agentics status stays
-visible in the detail panel's first line.
+Status comes from the snapshot. The page words it from your side: a status badge, tinted and
+outlined in the block's colour, then one line per fact. The raw agentics status stays visible in
+the detail panel's first line. Hovering a block or row shows status and facts in one phrase.
 
-| status | lamp | block | outline and board wording |
+| status | block | badge | facts |
 |---|---|---|---|
-| `active` | solid `--work` | `--work` border | the stage: "implementing", "writing tests", "in review", "fix round 2"; plus ", 3 commits" when there are commits |
-| `approved` | solid `--work` | `--work` border | "awaiting merge" or "held" (from `stage`) |
-| `parked` | solid `--hold` | 2.5 px `--hold` border | "waiting on you" |
-| `escalated` | solid `--stop` | 2.5 px `--stop` border | "escalated" |
-| `merged`, `integrated`, `landed` | solid `--quiet` | recessed: `--board` fill, `--quiet` border, name in `--ink-2` | "merged", "integrated", "landed" |
-| `planned` | hollow `--quiet` ring | `--rule` border | "queued" |
-| `open` (a design node) | dashed `--quiet` ring | dashed `--quiet` border, no fill | "needs design"; ", 1 blocking" when its folder has blocking questions; "not approved" or "edited since approval" from its folder's `approval` |
-| anything else | hollow `--quiet` ring | `--rule` border | the raw status |
+| `active` | `--work` border | the stage: "implementing", "writing tests", "in review", "fix round 2"; "working" for a folder | "3 commits" when there are commits; "`n` of `m` merged" for a folder |
+| `approved` | `--work` border | "awaiting merge" or "held" (from `stage`) | none |
+| `parked`, with its own event | `--hold` border and a 16 % `--hold` fill | "waiting on you" | none |
+| `escalated`, with its own event | `--stop` border and a 16 % `--stop` fill | "escalated" | none |
+| `parked` or `escalated` with no event (agentics rolls a descendant's status up to every ancestor) | `--rule` border | none: the border says it | what is below: "1 escalated", "2 waiting on you", "4 need design" |
+| `merged`, `integrated`, `landed` | recessed: `--board` fill, `--quiet` border, name in `--ink-2` | "merged", "integrated", "landed" | none |
+| `planned` | `--rule` border | "queued" | "`n` of `m` merged" for a folder |
+| `open` (a design node) | dashed `--hold` border and a 16 % `--hold` fill: it needs you to design it | "needs design" | "`n` blocking questions" from its folder's DESIGN.md; "not approved" or "edited since approval"; "design not started" when it has no folder of its own yet |
+| anything else | `--rule` border | the raw status | none |
 
-A folder block's second line reads "`n` of `m` merged", counting its direct children. A folder
-whose whole subtree is merged draws its tracks in `--quiet` at 1.5 px. Live tracks are `--ink` at
+Amber and red mean the node itself needs you: it is parked with its own event, escalated with its own event, or a design node. Every ancestor of such a node gets a 1.5 px border
+in the same colour and no fill (red wins when both are below), so the path to it is traceable.
+
+A node with unmet `deps` shows a waits-on badge: an hourglass and the count of unmet
+dependencies, the same size for any count, at the top right of its block and at the end of its
+outline row. Being blocked is not a call for attention, so the badge is `--ink-2`.
+
+A folder whose whole subtree is merged draws its tracks in `--quiet` at 1.5 px. Live tracks are `--ink` at
 2 px.
 
 ### 7.4 Layout
@@ -437,16 +447,15 @@ most recently active first), cost ("412k tokens over 23 dispatches", with "and 2
 - With `prefers-reduced-motion: reduce` a tile doesn't flash. It gets an inset 2 px outline
   until you open it.
 - Clicking a tile selects its node.
-- To the right, on wide screens: counts with their lamps ("2 working", "1 merged", "1 queued",
-  "3 need design").
+- To the right, on wide screens: counts ("2 working", "1 merged", "1 queued", "3 need design").
 - With no tiles, only the counts line shows.
 - The tab title carries the count of lit tiles: "(2) agentics viewer".
 
 **Outline.**
 
 - A "Find a node" field filters by name and title.
-- Rows are the tree in depth-first order, indented by depth, each with lamp, name and wording.
-  Folder rows collapse.
+- Rows are the tree in depth-first order, indented by depth, each with the name and the status
+  badge, or the facts for a node with no badge. Folder rows collapse.
 - The selected row has a 3 px `--ink` inset bar.
 - Up and Down move the selection, Left and Right collapse and expand, Enter opens the detail
   panel.
@@ -458,26 +467,41 @@ most recently active first), cost ("412k tokens over 23 dispatches", with "and 2
   SVG by Preact.
 - Scale: 1:1 by default, centered. The fit button fits the whole tree and never scales above 1.
   Zoom and pan use `d3-zoom` on the SVG.
-- Blocks: a 3 px radius, a lamp at the left, the name, then the wording line.
+- Blocks: an 8 px radius, the name, the status badge, then the facts, one per line.
 - Selecting a node (click, outline, tile or URL):
-  - it gets a 2.5 px `--ink` border, or keeps its amber or red border;
-  - its `deps` (incoming) and the nodes that list it in `deps` (outgoing) are joined to it with
-    dashed `--work` arrows;
-  - the board pans the node into the visible area: the strip above the bottom sheet in narrow
-    mode, and the area between the outline and the detail panel in wide mode. The pan animates
-    over 250 ms, or jumps with reduced motion.
+  - it gets a thicker border, in `--ink`, or in its own amber or red;
+  - its dependency arrows turn `--dep` (violet) and draw over the rest;
+  - the board pans the node, and the rail gap beside it, into the visible area: the strip above
+    the bottom sheet in narrow mode, and the area between the outline and the detail panel in
+    wide mode. The pan animates over 250 ms, or jumps with reduced motion.
+- Dependencies: every `deps` edge is always drawn, blocker to blocked, as a solid arrow in the
+  track colour (`--quiet` once the blocker is done), its head on the blocked end. It leaves the
+  blocker's right side from the lower half and enters the blocked node's right side in the upper
+  half, each edge at its own point, and runs on a rail in the gap right of the rightmost column it
+  touches. In one gap, edges that overlap vertically take separate rails, a contained edge inside
+  the one containing it, so edges nest; edges that don't overlap share the innermost rail they
+  fit; many rails squeeze to fit the gap.
+  Dashes on the board mean "needs design" and nothing else.
+- Hovering a waits-on badge, or a row of the detail panel's relation lists, rings the nodes it
+  names with a 2.5 px `--dep` border.
 - New nodes appear without animation. The tree keeps the current zoom and pan across
   refreshes.
-- Orphans: a node whose `parent` is not in the snapshot sits under the root with a dashed
-  `--stop` lamp ring. Its wording is "parent missing: `<parent id>`".
+- Orphans: a node whose `parent` is not in the snapshot sits under the root with a `--stop`
+  badge: "parent missing: `<parent id>`".
 
 **Detail panel.**
 
 - First line (12.5 px, `--ink-2`): the node id, the kind, the rigor, and the raw status. For
   example: "foundations/idle-rules, task, tdd-pair, parked".
 - The name (20 px), then the title in Sitka Text.
-- A state block for parked and escalated nodes: a 4 px left bar in `--hold` or `--stop`, and a 7 %
-  tint of that colour on `--panel`.
+- The status word is amber when the node itself waits on you, red when it escalated, green when
+  done, `--ink` otherwise. A node parked or escalated only through its descendants shows its
+  summary wording there instead of the raw status.
+- "Waits on `n`" and "Holds up `n`": the unmet dependencies and the nodes this one still blocks,
+  one row each with the name and the status badge. A row selects that node. Past five rows the rest
+  fold behind "and `n` more".
+- A state block for a node that itself is parked or escalated: a 4 px left bar in `--hold` or
+  `--stop`, and a 7 % tint of that colour on `--panel`.
   - Parked: heading "Waiting on you" with the `return` in words ("needs a decision",
     "needs design", "needs the spec fixed", "can't tell from the evidence"), then the question in
     full, in serif.
@@ -562,8 +586,7 @@ is driven by hand through an injected clock.
   start against a running viewer exits 0.
 - **State file:** a corrupt file falls back to defaults; a write is atomic.
 - **View model:**
-  - every status in §7.3 maps to its lamp and wording, and an unknown status maps to the hollow
-    lamp with its raw name;
+  - every status in §7.3 maps to its badge and facts, and an unknown status shows its raw name;
   - tile order and counts are right;
   - the selected node's incoming and outgoing `deps` are right;
   - an orphan is placed under the root with its marker;
@@ -628,7 +651,7 @@ The server has no runtime dependencies. Each library sits behind one module of o
 
 1. Open project lists eva-plays-2 under Found, keeps recent projects, and Browse opens the native
    folder dialog. Choosing a project shows its most recently active effort.
-2. The board draws every live node of the effort as a left-to-right tree, each lamp and wording
+2. The board draws every live node of the effort as a left-to-right tree, each badge and facts
    from its derived status. The outline shows the same nodes in the same states.
 3. A write under the effort's `.agentics/` reaches the board within about a second. A commit on a
    running task shows within 5 s.

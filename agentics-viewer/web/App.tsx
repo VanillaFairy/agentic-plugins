@@ -29,6 +29,7 @@ export function App(): JSX.Element {
   const [connected, setConnected] = useState(true)
   const [receivedAt, setReceivedAt] = useState<Date | null>(null)
   const [selected, setSelected] = useState<string | null>(() => url.node)
+  const [highlight, setHighlight] = useState<string[]>([])
   const [narrow, setNarrow] = useState(() => matchMedia('(max-width: 899px)').matches)
   const [listOpen, setListOpen] = useState(false)
   const [openProjectOpen, setOpenProjectOpen] = useState(false)
@@ -192,7 +193,17 @@ export function App(): JSX.Element {
   } else if (list !== null && list.efforts.length === 0) {
     boardContent = <p class="msg">{noEffortsText(projectName)}</p>
   } else if (model !== null && snapshot !== null) {
-    boardContent = <Board model={model} snapshot={snapshot} selected={selected} onSelect={selectNode} narrow={narrow} />
+    boardContent = (
+      <Board
+        model={model}
+        snapshot={snapshot}
+        selected={selected}
+        onSelect={selectNode}
+        highlight={highlight}
+        onHighlight={setHighlight}
+        narrow={narrow}
+      />
+    )
   }
 
   return (
@@ -224,7 +235,16 @@ export function App(): JSX.Element {
           {bars}
           {boardContent}
         </div>
-        {selectedView !== null && snapshot !== null && <Detail view={selectedView} snapshot={snapshot} now={Date.now()} />}
+        {selectedView !== null && snapshot !== null && model !== null && (
+          <Detail
+            view={selectedView}
+            model={model}
+            snapshot={snapshot}
+            now={Date.now()}
+            onSelect={selectNode}
+            onHighlight={setHighlight}
+          />
+        )}
       </div>
       <OpenProject open={openProjectOpen} onClose={() => setOpenProjectOpen(false)} onChoose={chooseProject} />
     </div>

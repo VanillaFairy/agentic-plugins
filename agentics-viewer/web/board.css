@@ -28,18 +28,59 @@
 
 .track {
   stroke: var(--ink);
-  stroke-width: 2;
+  stroke-width: 1.25;
   fill: none;
 }
 .track.q {
   stroke: var(--quiet);
-  stroke-width: 1.5;
+  stroke-width: 1;
 }
 .after {
-  stroke: var(--work);
-  stroke-width: 1.5;
-  stroke-dasharray: 5 4;
+  stroke: var(--ink);
+  stroke-width: 1.25;
   fill: none;
+}
+.after.q {
+  stroke: var(--quiet);
+  stroke-width: 1;
+}
+.after.sel {
+  stroke: var(--dep);
+  stroke-width: 1.5;
+}
+.ah {
+  fill: var(--ink);
+}
+.ah-q {
+  fill: var(--quiet);
+}
+.ah-sel {
+  fill: var(--dep);
+}
+.status rect {
+  fill: color-mix(in srgb, var(--tone) 22%, var(--panel));
+  stroke: var(--tone);
+  stroke-width: 1;
+}
+.status text {
+  fill: var(--ink);
+  font-size: 12px;
+  font-weight: 600;
+}
+.wait {
+  color: var(--ink-2);
+}
+.wait rect {
+  fill: var(--panel);
+  stroke: var(--rule);
+  stroke-width: 1;
+}
+.wait text {
+  fill: var(--ink-2);
+  font-size: 12px;
+}
+.wait:hover rect {
+  stroke: var(--dep);
 }
 .blk {
   cursor: pointer;
@@ -62,10 +103,6 @@
   font-size: 12px;
   fill: var(--ink-2);
 }
-.blk .s.blocked {
-  fill: var(--hold);
-  font-style: italic;
-}
 .blk.done rect.b {
   fill: var(--board);
   stroke: var(--quiet);
@@ -75,30 +112,42 @@
   font-weight: 400;
 }
 .blk.open rect.b {
-  fill: color-mix(in srgb, var(--quiet) 14%, var(--panel));
-  stroke: var(--quiet);
+  fill: color-mix(in srgb, var(--hold) 16%, var(--panel));
+  stroke: var(--hold);
+  stroke-width: 1.5;
   stroke-dasharray: 4 3;
 }
 .blk.hold rect.b {
   fill: color-mix(in srgb, var(--hold) 16%, var(--panel));
   stroke: var(--hold);
-  stroke-width: 2.5;
+  stroke-width: 1.5;
 }
 .blk.stop rect.b {
   fill: color-mix(in srgb, var(--stop) 16%, var(--panel));
   stroke: var(--stop);
-  stroke-width: 2.5;
+  stroke-width: 1.5;
+}
+/* Something below needs you: the border only. The node that needs you gets border and fill. */
+.blk.hold-below rect.b {
+  stroke: var(--hold);
+  stroke-width: 1.5;
+}
+.blk.stop-below rect.b {
+  stroke: var(--stop);
+  stroke-width: 1.5;
 }
 .blk.work rect.b {
   fill: color-mix(in srgb, var(--work) 12%, var(--panel));
   stroke: var(--work);
-  stroke-width: 1.5;
+  stroke-width: 1;
 }
+/* Selection thickens the border; a block that needs you keeps its colour. */
 .blk.sel rect.b {
   stroke: var(--ink);
-  stroke-width: 2.5;
+  stroke-width: 2.25;
 }
-.blk.sel.hold rect.b {
+.blk.sel.hold rect.b,
+.blk.sel.open rect.b {
   stroke: var(--hold);
 }
 .blk.sel.stop rect.b {
@@ -106,4 +155,10 @@
 }
 .blk.comp .n {
   font-size: 15px;
+}
+/* A blocker of the badge or the detail-panel row under the pointer. Last, so it wins over every status border. */
+.blk.hl rect.b {
+  stroke: var(--dep);
+  stroke-width: 2.5;
+  stroke-dasharray: none;
 }

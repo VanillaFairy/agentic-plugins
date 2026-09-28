@@ -50,6 +50,13 @@ export function wrapLines(text: string, maxWidthPx: number, font: string, maxLin
   return lines
 }
 
+/** The rendered width of `text` under `font`. */
+export function textWidth(text: string, font: string): number {
+  const m = measurer()
+  m.font = font
+  return m.measureText(text).width
+}
+
 /** Truncates to one line with an ellipsis if `text` doesn't fit `maxWidthPx` under `font`. */
 export function truncateLine(text: string, maxWidthPx: number, font: string): string {
   const m = measurer()

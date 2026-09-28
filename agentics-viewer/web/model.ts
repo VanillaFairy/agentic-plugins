@@ -9,9 +9,13 @@ export interface NodeView {
   depth: number
   children: string[] // blocking order: a dependency before its dependant, ties by id
   lamp: Lamp
+  status: string
+  facts: string[]
   wording: string
   orphan: boolean
   blockedBy: string[] // sibling or ancestor-subtree ids this node's deps name that aren't done yet
+  holdsUp: string[] // ids whose blockedBy names this node
+  alertBelow: 'hold' | 'stop' | null // a descendant needs you; the worst of them
   node: SnapshotNode
   folder: SnapshotFolder | null // the folder whose id equals the node id, if any
 }
@@ -47,50 +51,97 @@ function mergedCount(statuses: string[]): { merged: number; total: number } {
   return { merged, total: statuses.length }
 }
 
+// A design node needs you to design it. agentics also marks a composite parked or escalated
+// when only a descendant is; the node that is itself waiting carries the event that says why,
+// and only that node needs you.
+export function needsYou(n: SnapshotNode): 'hold' | 'stop' | null {
+  if (n.status === 'open') return 'hold'
+  if (n.event === null) return null
+  if (n.status === 'parked') return 'hold'
+  if (n.status === 'escalated') return 'stop'
+  return null
+}
+
+export interface Below {
+  waiting: number
+  escalated: number
+  needDesign: number
+}
+
+const NOTHING_BELOW: Below = { waiting: 0, escalated: 0, needDesign: 0 }
+
+function alertOf(b: Below): 'hold' | 'stop' | null {
+  if (b.escalated > 0) return 'stop'
+  return b.waiting > 0 || b.needDesign > 0 ? 'hold' : null
+}
+
+function belowFacts(b: Below): string[] {
+  const facts: string[] = []
+  if (b.escalated > 0) facts.push(`${b.escalated} escalated`)
+  if (b.waiting > 0) facts.push(`${b.waiting} waiting on you`)
+  if (b.needDesign > 0) facts.push(`${b.needDesign} need design`)
+  return facts
+}
+
+export interface Wording {
+  lamp: Lamp
+  status: string // the state, shown as a badge; empty when the node only summarizes what is below it
+  facts: string[] // what else is true of the node, one line each
+  wording: string // status and facts in one phrase, for tooltips and screen readers
+}
+
+function worded(lamp: Lamp, status: string, facts: string[] = []): Wording {
+  return { lamp, status, facts, wording: [status, ...facts].filter((s) => s !== '').join(', ') }
+}
+
+function mergedFact(childStatuses: string[]): string {
+  const { merged, total } = mergedCount(childStatuses)
+  return `${merged} of ${total} merged`
+}
+
 export function lampAndWording(
   n: SnapshotNode,
   folder: SnapshotFolder | null,
   childStatuses: string[],
-): { lamp: Lamp; wording: string } {
+  below: Below = NOTHING_BELOW,
+): Wording {
+  if ((n.status === 'parked' || n.status === 'escalated') && needsYou(n) === null) {
+    // No status of its own: its border says something below needs you, its facts say what.
+    return worded('idle', '', belowFacts(below))
+  }
   switch (n.status) {
     case 'active': {
       if (n.kind === 'leaf') {
-        let wording = n.stage ?? 'working'
-        if (n.commits && n.commits.count > 0) {
-          wording += n.commits.count === 1 ? ', 1 commit' : `, ${n.commits.count} commits`
-        }
-        return { lamp: 'work', wording }
+        const count = n.commits?.count ?? 0
+        return worded('work', n.stage ?? 'working', count === 0 ? [] : [count === 1 ? '1 commit' : `${count} commits`])
       }
-      const { merged, total } = mergedCount(childStatuses)
-      return { lamp: 'work', wording: `${merged} of ${total} merged` }
+      return worded('work', 'working', [mergedFact(childStatuses)])
     }
     case 'approved':
-      return { lamp: 'work', wording: n.stage ?? 'awaiting merge' }
+      return worded('work', n.stage ?? 'awaiting merge')
     case 'parked':
-      return { lamp: 'hold', wording: 'waiting on you' }
+      return worded('hold', 'waiting on you')
     case 'escalated':
-      return { lamp: 'stop', wording: 'escalated' }
+      return worded('stop', 'escalated')
     case 'merged':
     case 'integrated':
     case 'landed':
-      return { lamp: 'done', wording: n.status }
+      return worded('done', n.status)
     case 'planned': {
-      if (n.kind === 'leaf') return { lamp: 'idle', wording: 'queued' }
-      if (childStatuses.length === 0) return { lamp: 'idle', wording: 'queued' }
-      const { merged, total } = mergedCount(childStatuses)
-      return { lamp: 'idle', wording: `${merged} of ${total} merged` }
+      if (n.kind === 'leaf' || childStatuses.length === 0) return worded('idle', 'queued')
+      return worded('idle', 'queued', [mergedFact(childStatuses)])
     }
     case 'open': {
-      let wording = 'needs design'
-      if (folder) {
-        if (folder.blocking > 0) wording += `, ${folder.blocking} blocking`
-        if (folder.approval === 'none') wording += ', not approved'
-        else if (folder.approval === 'edited') wording += ', edited since approval'
-      }
-      return { lamp: 'open', wording }
+      // Without a folder of its own the node has no DESIGN.md yet: only its parent's spec names it.
+      if (folder === null) return worded('open', 'needs design', ['design not started'])
+      const facts: string[] = []
+      if (folder.blocking > 0) facts.push(folder.blocking === 1 ? '1 blocking question' : `${folder.blocking} blocking questions`)
+      if (folder.approval === 'none') facts.push('not approved')
+      else if (folder.approval === 'edited') facts.push('edited since approval')
+      return worded('open', 'needs design', facts)
     }
     default:
-      return { lamp: 'unknown', wording: n.status }
+      return worded('unknown', n.status)
   }
 }
 
@@ -150,7 +201,27 @@ export function buildModel(s: Snapshot): BoardModel {
 
   // Lamp, wording and what each node is still waiting on, computed before siblings are
   // ordered: the order below reads a dependency's lamp to decide what blocks what.
-  const lampWordingOf = new Map<string, { lamp: Lamp; wording: string }>()
+  const belowOf = new Map<string, Below>()
+  function countBelow(id: string): Below {
+    const cached = belowOf.get(id)
+    if (cached) return cached
+    const b = { waiting: 0, escalated: 0, needDesign: 0 }
+    for (const c of childrenOf.get(id) ?? []) {
+      const child = byId.get(c)!
+      const need = needsYou(child)
+      if (child.status === 'open') b.needDesign++
+      else if (need === 'hold') b.waiting++
+      else if (need === 'stop') b.escalated++
+      const sub = countBelow(c)
+      b.waiting += sub.waiting
+      b.escalated += sub.escalated
+      b.needDesign += sub.needDesign
+    }
+    belowOf.set(id, b)
+    return b
+  }
+
+  const lampWordingOf = new Map<string, Wording>()
   for (const n of s.nodes) {
     const isOrphan = orphan.get(n.id)!
     const children = childrenOf.get(n.id) ?? []
@@ -158,13 +229,19 @@ export function buildModel(s: Snapshot): BoardModel {
     const folder = foldersById.get(n.id) ?? null
     lampWordingOf.set(
       n.id,
-      isOrphan ? { lamp: 'orphan', wording: `parent missing: ${n.parent}` } : lampAndWording(n, folder, childStatuses),
+      isOrphan
+        ? worded('orphan', `parent missing: ${n.parent}`)
+        : lampAndWording(n, folder, childStatuses, countBelow(n.id)),
     )
   }
   const blockedByOf = new Map<string, string[]>()
   for (const n of s.nodes) {
     const unmet = n.deps.filter((d) => byId.has(d) && lampWordingOf.get(d)?.lamp !== 'done').sort()
     if (unmet.length > 0) blockedByOf.set(n.id, unmet)
+  }
+  const holdsUpOf = new Map<string, string[]>()
+  for (const [id, unmet] of blockedByOf) {
+    for (const d of unmet) holdsUpOf.set(d, [...(holdsUpOf.get(d) ?? []), id])
   }
 
   // Siblings sort by blocking order, not by name: an id a sibling depends on comes first,
@@ -186,7 +263,7 @@ export function buildModel(s: Snapshot): BoardModel {
     const n = byId.get(id)!
     const isOrphan = orphan.get(id)!
     const children = childrenOf.get(id) ?? []
-    const { lamp, wording } = lampWordingOf.get(id)!
+    const { lamp, status, facts, wording } = lampWordingOf.get(id)!
     nodes.set(id, {
       id,
       name: id === '.' ? s.effort : lastSegment(id),
@@ -194,9 +271,13 @@ export function buildModel(s: Snapshot): BoardModel {
       depth: depth.get(id)!,
       children,
       lamp,
+      status,
+      facts,
       wording,
       orphan: isOrphan,
       blockedBy: blockedByOf.get(id) ?? [],
+      holdsUp: (holdsUpOf.get(id) ?? []).sort(),
+      alertBelow: alertOf(countBelow(id)),
       node: n,
       folder: foldersById.get(id) ?? null,
     })
@@ -236,14 +317,6 @@ export function buildModel(s: Snapshot): BoardModel {
 function lastSegment(id: string): string {
   const dot = id.lastIndexOf('.')
   return dot === -1 ? id : id.slice(dot + 1)
-}
-
-export function afterEdges(s: Snapshot, id: string): { incoming: string[]; outgoing: string[] } {
-  const byId = new Set(s.nodes.map((n) => n.id))
-  const self = s.nodes.find((n) => n.id === id)
-  const incoming = (self?.deps ?? []).filter((d) => byId.has(d)).sort()
-  const outgoing = s.nodes.filter((n) => n.deps.includes(id)).map((n) => n.id).sort()
-  return { incoming, outgoing }
 }
 
 export function returnInWords(ret: string): string {

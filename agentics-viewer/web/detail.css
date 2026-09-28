@@ -7,16 +7,61 @@
 .d-status.tone-good {
   color: var(--good);
 }
-.d-status.tone-bad {
+.d-status.tone-stop {
   color: var(--stop);
 }
-.d-status.tone-ongoing {
+.d-status.tone-hold {
   color: var(--hold);
+}
+.d-status.tone-ongoing {
+  color: var(--ink);
 }
 
 .d-sub {
   color: var(--ink-2);
   margin: 0 0 14px;
+}
+
+.rels {
+  margin: 0 0 14px;
+}
+.rel,
+.rel-more {
+  display: grid;
+  width: 100%;
+  border: 0;
+  padding: 3px 4px;
+  border-radius: 4px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.rel {
+  grid-template-columns: 12px fit-content(60%) minmax(0, 1fr);
+  align-items: center;
+  gap: 7px;
+}
+.rel:hover {
+  background: var(--board);
+  box-shadow: inset 2px 0 0 var(--dep);
+}
+.rel .nm {
+  color: var(--work);
+  overflow-wrap: anywhere;
+}
+.rel .st {
+  color: var(--ink-2);
+  font-size: 12.5px;
+  text-align: right;
+}
+.rel-more {
+  color: var(--ink-2);
+  font-size: 12.5px;
+}
+.rel-more:hover {
+  color: var(--ink);
 }
 
 .linkrow {

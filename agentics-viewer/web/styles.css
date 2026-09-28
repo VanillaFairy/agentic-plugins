@@ -6,12 +6,13 @@
   --rule: #b9beb6;
   --quiet: #8c928a;
   --work: #2f6db5;
-  --hold: #e0a21b;
+  --hold: #d48a00;
   --hold-lit: #f2c14e;
   --hold-ink: #3a2a00;
-  --stop: #c4372e;
+  --stop: #c2203a;
   --stop-ink: #ffffff;
   --good: #3e7d1f;
+  --dep: #6b4fc8;
   --sys: 'Bahnschrift', 'DIN Alternate', system-ui, sans-serif;
   --prose: 'Sitka Text', 'Iowan Old Style', Georgia, serif;
   --code: 'Cascadia Mono', Consolas, monospace;
@@ -30,6 +31,7 @@
     --hold-lit: #e8a92a;
     --stop: #e0564c;
     --good: #7fc75a;
+    --dep: #a992f2;
   }
 }
 
@@ -46,6 +48,25 @@
   --hold-lit: #e8a92a;
   --stop: #e0564c;
   --good: #7fc75a;
+  --dep: #a992f2;
+}
+
+/* Status badge tones, by lamp: board and outline badges read --tone. */
+.t-work {
+  --tone: var(--work);
+}
+.t-hold,
+.t-open {
+  --tone: var(--hold);
+}
+.t-stop,
+.t-orphan {
+  --tone: var(--stop);
+}
+.t-done,
+.t-idle,
+.t-unknown {
+  --tone: var(--quiet);
 }
 
 * {

@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'vitest'
 import { node, snap } from './snapshot-fixture.ts'
 import { buildModel } from '../web/model.ts'
-import { layoutTree, BLOCK } from '../web/layout.ts'
+import { layoutTree, routeDeps, BLOCK } from '../web/layout.ts'
 
 describe('layoutTree', () => {
   test('every node is placed', () => {
@@ -59,5 +59,62 @@ describe('layoutTree', () => {
     expect(minY).toBe(0)
     expect(width).toBe(maxRight)
     expect(height).toBe(maxBottom)
+  })
+})
+
+describe('routeDeps', () => {
+  // A chain a -> b -> c -> d plus a -> d, all siblings in one column.
+  const s = snap([
+    node('.'),
+    node('a'),
+    node('b', { deps: ['a'] }),
+    node('c', { deps: ['b'] }),
+    node('d', { deps: ['c', 'a'] }),
+  ])
+  const layout = layoutTree(buildModel(s))
+  const edges = s.nodes.flatMap((n) => n.deps.map((d) => ({ from: d, to: n.id })))
+  const routes = routeDeps(edges, layout.placed, BLOCK.h)
+
+  test('no two edges share an end on the same block', () => {
+    const ends = routes.flatMap((r) => [`${r.from}@${r.fromY}`, `${r.to}@${r.toY}`])
+    expect(new Set(ends).size).toBe(ends.length)
+  })
+
+  test('an edge enters the upper half of the blocked node and leaves the lower half of the blocker', () => {
+    for (const r of routes) {
+      const from = layout.placed.get(r.from)!
+      const to = layout.placed.get(r.to)!
+      expect(r.fromY).toBeGreaterThan(from.y + BLOCK.h / 2)
+      expect(r.toY).toBeLessThan(to.y + BLOCK.h / 2)
+    }
+  })
+
+  const lo = (r: (typeof routes)[number]): number => Math.min(r.fromY, r.toY)
+  const hi = (r: (typeof routes)[number]): number => Math.max(r.fromY, r.toY)
+  const route = (from: string, to: string) => routes.find((r) => r.from === from && r.to === to)!
+
+  test('edges that do not overlap share the innermost rail', () => {
+    const chain = [route('a', 'b'), route('b', 'c'), route('c', 'd')]
+    const innermost = Math.min(...routes.map((r) => r.railX))
+    for (const r of chain) expect(r.railX).toBe(innermost)
+  })
+
+  test('an edge containing another runs outside it', () => {
+    const outer = route('a', 'd')
+    for (const r of routes) {
+      if (r !== outer && lo(r) >= lo(outer) && hi(r) <= hi(outer)) expect(outer.railX).toBeGreaterThan(r.railX)
+    }
+  })
+
+  test('edges that overlap never share a rail', () => {
+    for (const x of routes) {
+      for (const y of routes) {
+        if (x !== y && lo(x) <= hi(y) && lo(y) <= hi(x)) expect(x.railX).not.toBe(y.railX)
+      }
+    }
+  })
+
+  test('an edge to a node outside the layout is dropped', () => {
+    expect(routeDeps([{ from: 'ghost', to: 'a' }], layout.placed, BLOCK.h)).toEqual([])
   })
 })

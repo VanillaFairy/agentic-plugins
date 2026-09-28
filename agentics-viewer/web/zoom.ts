@@ -7,7 +7,7 @@ export interface ZoomControl {
   zoomIn(): void
   zoomOut(): void
   fit(): void
-  panTo(x: number, y: number, visible: DOMRect): void
+  panTo(x: number, y: number, visible: DOMRect, padRight?: number): void
   dispose(): void
 }
 
@@ -56,9 +56,9 @@ export function attachZoom(
       const ty = (box.height - height * scale) / 2
       moveTo(zoomIdentity.translate(tx, ty).scale(scale))
     },
-    panTo(x, y, visible) {
+    panTo(x, y, visible, padRight = 0) {
       // x, y is the block's centre in content coordinates. Clamp the whole
-      // block's screen box into `visible`, not just its centre point.
+      // block's screen box, plus padRight content px beside it, into `visible`.
       const t = zoomTransform(svg)
       const box = svg.getBoundingClientRect()
       const halfW = (BLOCK.w / 2) * t.k
@@ -66,7 +66,7 @@ export function attachZoom(
       const screenX = box.left + t.applyX(x)
       const screenY = box.top + t.applyY(y)
       const left = screenX - halfW
-      const right = screenX + halfW
+      const right = screenX + halfW + padRight * t.k
       const top = screenY - halfH
       const bottom = screenY + halfH
       let dx = 0

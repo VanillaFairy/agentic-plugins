@@ -5,7 +5,6 @@ import type { Tile } from '../web/model.ts'
 import {
   buildModel,
   lampAndWording,
-  afterEdges,
   returnInWords,
   problemText,
   ago,
@@ -69,12 +68,13 @@ describe('lampAndWording', () => {
     const n = node('a', { status: 'active', kind: 'composite' })
     const r = lampAndWording(n, null, ['merged', 'active', 'planned'])
     expect(r.lamp).toBe('work')
-    expect(r.wording).toBe('1 of 3 merged')
+    expect(r.status).toBe('working')
+    expect(r.facts).toEqual(['1 of 3 merged'])
   })
 
   test('integrated and landed count as merged', () => {
     const n = node('a', { status: 'active', kind: 'composite' })
-    expect(lampAndWording(n, null, ['integrated', 'landed', 'active']).wording).toBe('2 of 3 merged')
+    expect(lampAndWording(n, null, ['integrated', 'landed', 'active']).facts).toEqual(['2 of 3 merged'])
   })
 
   test('approved reads its stage or awaiting merge', () => {
@@ -85,15 +85,24 @@ describe('lampAndWording', () => {
     expect(lampAndWording(none, null, []).wording).toBe('awaiting merge')
   })
 
-  test('parked waits on you', () => {
-    const n = node('a', { status: 'parked' })
+  test('parked with its own event waits on you', () => {
+    const n = node('a', { status: 'parked', event: { kind: 'parked', seq: 1 } })
     const r = lampAndWording(n, null, [])
     expect(r.lamp).toBe('hold')
     expect(r.wording).toBe('waiting on you')
   })
 
+  test('parked only through its children summarizes them instead', () => {
+    const n = node('a', { status: 'parked' })
+    const r = lampAndWording(n, null, ['open', 'parked'], { waiting: 1, escalated: 0, needDesign: 2 })
+    expect(r.lamp).toBe('idle')
+    expect(r.status).toBe('')
+    expect(r.wording).toBe('1 waiting on you, 2 need design')
+    expect(r.facts).toEqual(['1 waiting on you', '2 need design'])
+  })
+
   test('escalated is stop', () => {
-    const n = node('a', { status: 'escalated' })
+    const n = node('a', { status: 'escalated', event: { kind: 'escalated', seq: 1 } })
     const r = lampAndWording(n, null, [])
     expect(r.lamp).toBe('stop')
     expect(r.wording).toBe('escalated')
@@ -119,7 +128,8 @@ describe('lampAndWording', () => {
     const n = node('a', { status: 'planned', kind: 'composite' })
     const r = lampAndWording(n, null, ['planned', 'planned'])
     expect(r.lamp).toBe('idle')
-    expect(r.wording).toBe('0 of 2 merged')
+    expect(r.status).toBe('queued')
+    expect(r.facts).toEqual(['0 of 2 merged'])
   })
 
   test('planned folder with no children is queued', () => {
@@ -134,7 +144,13 @@ describe('lampAndWording', () => {
     const n = node('a', { status: 'open', kind: 'design' })
     const r = lampAndWording(n, folder, [])
     expect(r.lamp).toBe('open')
-    expect(r.wording).toBe('needs design, 1 blocking, not approved')
+    expect(r.status).toBe('needs design')
+    expect(r.facts).toEqual(['1 blocking question', 'not approved'])
+  })
+
+  test('a design node without its own folder has not started', () => {
+    const n = node('a', { status: 'open', kind: 'design' })
+    expect(lampAndWording(n, null, []).facts).toEqual(['design not started'])
   })
 
   test('edited spec is named', () => {
@@ -147,11 +163,6 @@ describe('lampAndWording', () => {
     const folder: SnapshotFolder = { id: 'a', title: 'A', approval: 'approved', blocking: 0, spec: { path: '' } }
     const n = node('a', { status: 'open', kind: 'design' })
     expect(lampAndWording(n, folder, []).wording).toBe('needs design')
-  })
-
-  test('open without a folder', () => {
-    const n = node('a', { status: 'open', kind: 'design' })
-    expect(lampAndWording(n, null, []).wording).toBe('needs design')
   })
 
   test('unknown status shows its raw name', () => {
@@ -207,6 +218,41 @@ describe('buildModel', () => {
     const s = snap([node('.'), node('a', { status: 'merged' }), node('b', { deps: ['a'] })])
     const m = buildModel(s)
     expect(m.nodes.get('b')!.blockedBy).toEqual([])
+  })
+
+  test('holdsUp lists the nodes still blocked by this one', () => {
+    const s = snap([node('.'), node('a', { status: 'planned' }), node('b', { deps: ['a'] }), node('c', { deps: ['a'] })])
+    const m = buildModel(s)
+    expect(m.nodes.get('a')!.holdsUp).toEqual(['b', 'c'])
+  })
+
+  test('alertBelow marks every ancestor of a node that waits on you, and not the node', () => {
+    const s = snap([
+      node('.', { status: 'parked' }),
+      node('a', { status: 'parked' }),
+      node('a.x', { status: 'parked', event: { kind: 'parked', seq: 1 } }),
+      node('b', { status: 'open' }),
+    ])
+    const m = buildModel(s)
+    expect(m.nodes.get('.')!.alertBelow).toBe('hold')
+    expect(m.nodes.get('a')!.alertBelow).toBe('hold')
+    expect(m.nodes.get('a.x')!.alertBelow).toBe(null)
+    expect(m.nodes.get('a.x')!.lamp).toBe('hold')
+    expect(m.nodes.get('b')!.alertBelow).toBe(null)
+  })
+
+  test('a node that needs design needs you, and so marks its ancestors', () => {
+    const s = snap([node('.', { status: 'parked' }), node('a', { status: 'planned' }), node('a.x', { status: 'open' })])
+    const m = buildModel(s)
+    expect(m.nodes.get('.')!.alertBelow).toBe('hold')
+    expect(m.nodes.get('a')!.alertBelow).toBe('hold')
+    expect(m.nodes.get('.')!.facts).toEqual(['1 need design'])
+  })
+
+  test('holdsUp is empty once this node is done', () => {
+    const s = snap([node('.'), node('a', { status: 'merged' }), node('b', { deps: ['a'] })])
+    const m = buildModel(s)
+    expect(m.nodes.get('a')!.holdsUp).toEqual([])
   })
 
   test('blockedBy drops a dependency the snapshot does not carry', () => {
@@ -320,27 +366,6 @@ describe('buildModel', () => {
     ])
     const m = buildModel(s)
     expect(m.counts).toEqual({ working: 2, merged: 3, queued: 1, needDesign: 1 })
-  })
-})
-
-describe('afterEdges', () => {
-  test('after edges in and out', () => {
-    const s = snap([
-      node('.'),
-      node('a', { deps: ['c', 'b'] }),
-      node('b'),
-      node('c'),
-      node('e', { deps: ['a'] }),
-      node('d', { deps: ['a'] }),
-    ])
-    const r = afterEdges(s, 'a')
-    expect(r.incoming).toEqual(['b', 'c'])
-    expect(r.outgoing).toEqual(['d', 'e'])
-  })
-
-  test('missing deps are dropped', () => {
-    const s = snap([node('.'), node('a', { deps: ['ghost', 'b'] }), node('b')])
-    expect(afterEdges(s, 'a').incoming).toEqual(['b'])
   })
 })
 
