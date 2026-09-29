@@ -425,6 +425,10 @@ Narrow (under 900 px, the usual size of the pane beside the chat):
 └──────────────────────────────────┘
 ```
 
+In wide mode the outline's right edge is a drag handle. The outline starts at 250 px and can be
+dragged between 160 and 560 px. The arrow keys move the focused handle 16 px at a time, and Home
+or a double-click resets it. The width is remembered per browser in `localStorage`, like the theme.
+
 In narrow mode the outline opens as a drawer from the List button, the pickers drop their
 "Project" and "Effort" prefixes, and the cost and the counts line are hidden. Long picker labels
 end with an ellipsis.

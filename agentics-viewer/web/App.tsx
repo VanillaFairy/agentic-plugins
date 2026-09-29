@@ -12,6 +12,8 @@ import { Annunciator } from './Annunciator.tsx'
 import { Outline } from './Outline.tsx'
 import { Board } from './Board.tsx'
 import { Detail } from './Detail.tsx'
+import { Splitter } from './Splitter.tsx'
+import { loadRailWidth, saveRailWidth } from './rail-width.ts'
 
 function projectDisplayName(project: string | null): string {
   if (project === null) return ''
@@ -34,6 +36,7 @@ export function App(): JSX.Element {
   const [listOpen, setListOpen] = useState(false)
   const [openProjectOpen, setOpenProjectOpen] = useState(false)
   const [theme, setTheme] = useState<Theme>(() => loadTheme() ?? systemTheme())
+  const [railWidth, setRailWidth] = useState(loadRailWidth)
 
   function toggleTheme(): void {
     const next: Theme = theme === 'dark' ? 'light' : 'dark'
@@ -229,8 +232,9 @@ export function App(): JSX.Element {
           selected={selected}
         />
       )}
-      <div class="main">
+      <div class="main" style={{ '--rail-width': `${railWidth}px` }}>
         {model !== null && (!narrow || listOpen) && <Outline model={model} selected={selected} onSelect={selectNode} />}
+        {model !== null && !narrow && <Splitter width={railWidth} onChange={setRailWidth} onCommit={saveRailWidth} />}
         <div class="board-col">
           {bars}
           {boardContent}
