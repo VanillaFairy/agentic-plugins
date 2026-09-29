@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'vitest'
 import { node, snap } from './snapshot-fixture.ts'
 import { buildModel } from '../web/model.ts'
-import { layoutTree, routeDeps, BLOCK } from '../web/layout.ts'
+import { layoutTree, routeDeps, BLOCK, STACK_MAX } from '../web/layout.ts'
 
 describe('layoutTree', () => {
   test('every node is placed', () => {
@@ -11,34 +11,72 @@ describe('layoutTree', () => {
     for (const id of m.order) expect(placed.has(id)).toBe(true)
   })
 
-  test("children sit one depth to the right", () => {
-    const s = snap([node('.'), node('a'), node('a.x')])
-    const m = buildModel(s)
-    const { placed } = layoutTree(m)
-    const parent = placed.get('a')!
-    const child = placed.get('a.x')!
-    expect(child.x).toBe(parent.x + BLOCK.w + BLOCK.depthGap)
+  // Ten groups of one to eight leaves each, like an effort's foundations.
+  const wide = snap([
+    node('.'),
+    ...Array.from({ length: 10 }, (_, g) => [
+      node(`g${g}`, { kind: 'composite' }),
+      ...Array.from({ length: 1 + (g % 8) }, (_, l) => node(`g${g}.l${l}`)),
+    ]).flat(),
+  ])
+
+  test('no two blocks overlap', () => {
+    for (const aspect of [0.5, 16 / 10, 4]) {
+      const blocks = [...layoutTree(buildModel(wide), BLOCK.h, aspect).placed.values()]
+      for (let i = 0; i < blocks.length; i++) {
+        for (let j = i + 1; j < blocks.length; j++) {
+          const [a, b] = [blocks[i], blocks[j]]
+          const apart = a.x + BLOCK.w <= b.x || b.x + BLOCK.w <= a.x || a.y + BLOCK.h <= b.y || b.y + BLOCK.h <= a.y
+          expect(apart, `${a.id} and ${b.id} at aspect ${aspect}`).toBe(true)
+        }
+      }
+    }
   })
 
-  test('blocks at one depth never overlap', () => {
-    const s = snap([node('.'), node('a'), node('b'), node('c')])
-    const m = buildModel(s)
+  test('every child sits below its parent and to its right', () => {
+    const m = buildModel(wide)
     const { placed } = layoutTree(m)
-    const siblings = ['a', 'b', 'c'].map((id) => placed.get(id)!)
-    for (let i = 0; i < siblings.length; i++) {
-      for (let j = i + 1; j < siblings.length; j++) {
-        expect(Math.abs(siblings[i].y - siblings[j].y)).toBeGreaterThanOrEqual(BLOCK.h + BLOCK.rowGap)
+    for (const id of m.order) {
+      const parent = placed.get(id)!
+      for (const kid of m.nodes.get(id)!.children) {
+        expect(placed.get(kid)!.y).toBeGreaterThanOrEqual(parent.y + BLOCK.h)
+        expect(placed.get(kid)!.x).toBeGreaterThan(parent.x)
       }
+    }
+  })
+
+  test('leaves under one parent stack in a column, then start another', () => {
+    const leaves = (n: number) => snap([node('.'), ...Array.from({ length: n }, (_, i) => node(`l${i}`))])
+    const columns = (n: number) => new Set([...layoutTree(buildModel(leaves(n))).placed.values()].filter((p) => p.id !== '.').map((p) => p.x)).size
+    expect(columns(STACK_MAX)).toBe(1)
+    expect(columns(STACK_MAX + 1)).toBe(2)
+  })
+
+  test('a taller viewport gets a narrower tree', () => {
+    const m = buildModel(wide)
+    const tall = layoutTree(m, BLOCK.h, 0.5)
+    const flat = layoutTree(m, BLOCK.h, 4)
+    expect(tall.width / tall.height).toBeLessThan(flat.width / flat.height)
+  })
+
+  test('every parent-child pair gets a track from the parent to the child', () => {
+    const m = buildModel(wide)
+    const { placed, links } = layoutTree(m)
+    const pairs = m.order.flatMap((id) => m.nodes.get(id)!.children.map((kid) => `${id}>${kid}`))
+    expect(links.map((l) => `${l.parent}>${l.child}`).sort()).toEqual(pairs.sort())
+    const inside = ([x, y]: [number, number], p: { x: number; y: number }) =>
+      x >= p.x && x <= p.x + BLOCK.w && y >= p.y && y <= p.y + BLOCK.h
+    for (const l of links) {
+      expect(inside(l.points[0], placed.get(l.parent)!)).toBe(true)
+      expect(inside(l.points[l.points.length - 1], placed.get(l.child)!)).toBe(true)
     }
   })
 
   test('orphans hang from the root', () => {
     const s = snap([node('.'), node('a', { parent: 'ghost' })])
     const m = buildModel(s)
-    const { placed } = layoutTree(m)
-    const root = placed.get('.')!
-    const orphan = placed.get('a')!
-    expect(orphan.x).toBe(root.x + BLOCK.w + BLOCK.depthGap)
+    const { links } = layoutTree(m)
+    expect(links).toContainEqual(expect.objectContaining({ parent: '.', child: 'a' }))
   })
 
   test('the layout starts at the origin and reports its size', () => {

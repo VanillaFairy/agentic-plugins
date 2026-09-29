@@ -1,5 +1,5 @@
 import type { JSX } from 'preact'
-import { useEffect, useMemo, useRef } from 'preact/hooks'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'preact/hooks'
 import { subtreeDone } from './model.ts'
 import type { BoardModel, NodeView } from './model.ts'
 import type { Snapshot } from '../shared/snapshot.ts'
@@ -59,33 +59,50 @@ function neededHeight(t: BlockText): number {
   return Math.max(BLOCK.h, bottom + BOTTOM_PAD)
 }
 
-// A horizontal-vertical-horizontal elbow, its two corners rounded with a quadratic bezier
-// whose control point sits at the sharp corner it replaces — smooth, and tangent to both the
-// horizontal and vertical legs on either side. Falls back to a straight line when the two
-// points share a y, and to a plain sharp elbow when there's no room for a rounded one.
-function roundedHVH(x1: number, y1: number, midX: number, y2: number, x2: number, r: number): string {
-  if (y1 === y2) return `M${x1} ${y1} L${x2} ${y2}`
-  const vDir = y2 > y1 ? 1 : -1
-  const h1Dir = midX >= x1 ? 1 : -1
-  const h2Dir = x2 >= midX ? 1 : -1
-  const rr = Math.max(0, Math.min(r, Math.abs(y2 - y1) / 2, Math.abs(midX - x1), Math.abs(x2 - midX)))
-  if (rr === 0) return `M${x1} ${y1} H${midX} V${y2} H${x2}`
-  const turn1X = midX - rr * h1Dir
-  const turn1Y = y1 + rr * vDir
-  const turn2Y = y2 - rr * vDir
-  const turn2X = midX + rr * h2Dir
-  return `M${x1} ${y1} L${turn1X} ${y1} Q${midX} ${y1} ${midX} ${turn1Y} L${midX} ${turn2Y} Q${midX} ${y2} ${turn2X} ${y2} L${x2} ${y2}`
-}
-
-function trackPath(parent: Placed, child: Placed, blockH: number): string {
-  const midX = parent.x + BLOCK.w + BLOCK.depthGap / 2
-  const parentY = parent.y + blockH / 2
-  const childY = child.y + blockH / 2
-  return roundedHVH(parent.x + BLOCK.w, parentY, midX, childY, child.x, CORNER_R)
+// An orthogonal polyline, each corner rounded with a quadratic bezier whose control point sits at
+// the sharp corner it replaces, so the curve is tangent to both legs. A corner's radius shrinks
+// to fit the legs beside it, half of a leg it shares with another corner; zero-length legs and
+// straight-through points are dropped.
+function roundedPath(points: [number, number][], r: number): string {
+  const pts = points.filter(([x, y], i) => {
+    if (i === 0) return true
+    const [px, py] = points[i - 1]
+    return x !== px || y !== py
+  })
+  const corners = pts.filter(([x, y], i) => {
+    if (i === 0 || i === pts.length - 1) return true
+    const [px, py] = pts[i - 1]
+    const [nx, ny] = pts[i + 1]
+    return !((px === x && x === nx) || (py === y && y === ny))
+  })
+  let d = `M${corners[0][0]} ${corners[0][1]}`
+  for (let i = 1; i < corners.length - 1; i++) {
+    const [px, py] = corners[i - 1]
+    const [x, y] = corners[i]
+    const [nx, ny] = corners[i + 1]
+    const inLen = Math.abs(x - px) + Math.abs(y - py)
+    const outLen = Math.abs(nx - x) + Math.abs(ny - y)
+    const rr = Math.min(r, i === 1 ? inLen : inLen / 2, i === corners.length - 2 ? outLen : outLen / 2)
+    const ux = Math.sign(x - px)
+    const uy = Math.sign(y - py)
+    const vx = Math.sign(nx - x)
+    const vy = Math.sign(ny - y)
+    d += ` L${x - ux * rr} ${y - uy * rr} Q${x} ${y} ${x + vx * rr} ${y + vy * rr}`
+  }
+  const [lx, ly] = corners[corners.length - 1]
+  return `${d} L${lx} ${ly}`
 }
 
 function afterPath(from: Placed, to: Placed, r: DepRoute): string {
-  return roundedHVH(from.x + BLOCK.w, r.fromY, r.railX, r.toY, to.x + BLOCK.w + 2, CORNER_R)
+  return roundedPath(
+    [
+      [from.x + BLOCK.w, r.fromY],
+      [r.railX, r.fromY],
+      [r.railX, r.toY],
+      [to.x + BLOCK.w + 2, r.toY],
+    ],
+    CORNER_R,
+  )
 }
 
 export function Board(props: {
@@ -114,9 +131,23 @@ export function Board(props: {
     return h
   }, [texts])
 
-  const layout = useMemo(() => layoutTree(model, blockH), [model, blockH])
-
   const wrapRef = useRef<HTMLDivElement>(null)
+  const [aspect, setAspect] = useState(16 / 10)
+  useLayoutEffect(() => {
+    const wrap = wrapRef.current
+    if (wrap === null) return
+    const measure = (): void => {
+      const { width, height } = wrap.getBoundingClientRect()
+      if (width > 0 && height > 0) setAspect(width / height)
+    }
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(wrap)
+    return () => observer.disconnect()
+  }, [])
+
+  const layout = useMemo(() => layoutTree(model, blockH, aspect), [model, blockH, aspect])
+
   const svgRef = useRef<SVGSVGElement>(null)
   const layerRef = useRef<SVGGElement>(null)
   const zoomRef = useRef<ZoomControl | null>(null)
@@ -146,20 +177,16 @@ export function Board(props: {
     const box = wrapRef.current.getBoundingClientRect()
     const visible = narrow ? new DOMRect(box.left, box.top, box.width, box.height * NARROW_VISIBLE_FRACTION) : box
     // Keep the blocking arrows' rails, in the gap right of the block, in view too.
-    zoomRef.current.panTo(placed.x + BLOCK.w / 2, placed.y + blockH / 2, visible, BLOCK.depthGap)
+    zoomRef.current.panTo(placed.x + BLOCK.w / 2, placed.y + blockH / 2, visible, BLOCK.colGap)
   }, [selected, narrow])
 
-  const tracks: JSX.Element[] = []
-  for (const id of model.order) {
-    const view = model.nodes.get(id)!
-    if (view.children.length === 0) continue
-    const parent = layout.placed.get(id)!
-    const cls = subtreeDone(model, id) ? 'track q' : 'track'
-    for (const childId of view.children) {
-      const child = layout.placed.get(childId)!
-      tracks.push(<path key={`t:${id}>${childId}`} class={cls} d={trackPath(parent, child, blockH)} />)
-    }
-  }
+  const tracks = layout.links.map((l) => (
+    <path
+      key={`t:${l.parent}>${l.child}`}
+      class={subtreeDone(model, l.parent) ? 'track q' : 'track'}
+      d={roundedPath(l.points, CORNER_R)}
+    />
+  ))
 
   const routes = useMemo(
     () => routeDeps(snapshot.nodes.flatMap((n) => n.deps.map((d) => ({ from: d, to: n.id }))), layout.placed, blockH),

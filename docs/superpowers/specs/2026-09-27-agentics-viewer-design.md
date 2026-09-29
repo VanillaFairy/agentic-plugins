@@ -23,7 +23,7 @@ The user's rulings from the design conversation. They bind the plan.
 | D1 | A local web app with a rendered tree ("A local web app with a rendered tree is great"). |
 | D2 | A separate tool, navigated to any local project folder, with an Open project button. |
 | D3 | The tool gets status from agentics' CLI: agentics gains a read-only `snapshot` command and stays the only code that derives status. |
-| D4 | The tree is a node-link tree diagram, left to right, with an outline list beside it. "After" edges show only for the selected node. |
+| D4 | The tree is a node-link tree diagram, top down and compact (leaves stack, groups wrap to the viewport's shape), with an outline list beside it. "After" edges show only for the selected node. |
 | D5 | Open project lists projects found under configured roots, recent projects, and a Browse button that opens the native Windows folder dialog. |
 | D6 | Clicking a node opens a detail panel with its details, and links that open its files in VS Code. |
 | D7 | A node that newly parks or escalates is highlighted on the page and raises a Windows toast. |
@@ -406,7 +406,7 @@ Wide (at least 900 px):
 │ [  What idleness is exactly: …  ] [  Verify failed after… ]                │
 ├────────────┬─────────────────────────────────────────┬───────────────────┤
 │ Find a node│                                         │ foundations/idle-  │
-│ ● reshape  │      board: tree, left to right,        │ rules, task, …     │
+│ ● reshape  │      board: tree, top down, compact,    │ rules, task, …     │
 │  ● found…  │      pan and zoom, [+][−][fit]          │ idle-rules         │
 │   ● entity │                                         │ title (serif)      │
 │   ● action │                                         │ ▌Waiting on you    │
@@ -472,9 +472,16 @@ most recently active first), cost ("412k tokens over 23 dispatches", with "and 2
 
 **Board.**
 
-- Layout: `d3-hierarchy` `tree()` with a fixed node size (about 170 by 48 px blocks, 60 px
-  between rows, 230 px between depths), left to right. Tracks are orthogonal elbows, drawn in
-  SVG by Preact.
+- Layout: a compact tree, top down, computed in `web/layout.ts` (170 px wide blocks, all one
+  height per render). Children sit below their parent, indented 28 px:
+  - leaf children stack in a band of columns of up to 6, entered from the side;
+  - children with subtrees of their own flow left to right after that band, wrapping into
+    another row, entered from the top.
+
+  Of every row width that changes where rows wrap, the layout takes the one that fits the
+  board's current shape at the largest scale, and lays out again when the board is resized.
+  Tracks run from a spine down the parent's left edge, as orthogonal elbows with rounded
+  corners, drawn in SVG by Preact.
 - Scale: 1:1 by default, centered. The fit button fits the whole tree and never scales above 1.
   Zoom and pan use `d3-zoom` on the SVG.
 - Blocks: an 8 px radius, the name, the status badge, then the facts, one per line.
@@ -638,7 +645,6 @@ Pinned exact, no ranges. Versions checked against npm on 2026-09-27.
 | package | version | licence | why |
 |---|---|---|---|
 | preact | 10.29.8 | MIT | UI (D9) |
-| d3-hierarchy | 3.1.2 | ISC | tree layout |
 | d3-zoom | 3.0.0 | ISC | pan and zoom |
 | d3-selection | 3.0.0 | ISC | d3-zoom's binding to the SVG |
 | d3-transition | 3.0.1 | ISC | the animated pan to a selected node |
@@ -649,10 +655,10 @@ Pinned exact, no ranges. Versions checked against npm on 2026-09-27.
 | typescript (dev) | 7.0.2 | Apache-2.0 | typecheck |
 | vitest (dev) | 5.0.2 | MIT | tests |
 | @types/node (dev) | 26.6.3 | MIT | types |
-| @types/d3-hierarchy, -zoom, -selection, -transition (dev) | 3.1.7, 3.0.8, 3.0.12, 3.0.9 | MIT | types |
+| @types/d3-zoom, -selection, -transition (dev) | 3.0.8, 3.0.12, 3.0.9 | MIT | types |
 
 The server has no runtime dependencies. Each library sits behind one module of ours:
-`web/layout.ts` for d3-hierarchy, `web/zoom.ts` for d3-zoom, d3-selection and d3-transition, and
+`web/zoom.ts` for d3-zoom, d3-selection and d3-transition, and
 `web/markdown.ts` for marked and DOMPurify. Swapping one is a one-file change.
 
 ## 12. Open questions

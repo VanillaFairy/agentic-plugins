@@ -1,14 +1,21 @@
-import { hierarchy, tree } from 'd3-hierarchy'
 import type { BoardModel } from './model.ts'
 
 export interface Placed {
   id: string
-  x: number // across depth
-  y: number // down
+  x: number
+  y: number
+}
+
+/** A parent-to-child track as a polyline of orthogonal legs, parent end first. */
+export interface Link {
+  parent: string
+  child: string
+  points: [number, number][]
 }
 
 export interface Layout {
   placed: Map<string, Placed>
+  links: Link[]
   width: number
   height: number
 }
@@ -17,37 +24,118 @@ export interface Layout {
 // comfortable padding. A subtitle that genuinely needs more room (status text is never
 // trimmed) grows every block in that render uniformly — see Board.tsx's blockHeightFor — so
 // blocks stay the same size as each other, just not always this exact one.
-export const BLOCK = { w: 170, h: 72, rowGap: 26, depthGap: 70 }
+// indent: how far a parent's children sit right of it; its track runs down the middle of that.
+// levelGap: from a parent's bottom to its first row of children, and between wrapped rows.
+export const BLOCK = { w: 170, h: 72, rowGap: 26, colGap: 48, indent: 28, levelGap: 36 }
 
-export function layoutTree(model: BoardModel, blockH: number = BLOCK.h): Layout {
-  const root = hierarchy(model.root, (id) => model.nodes.get(id)?.children ?? [])
-  tree<string>().nodeSize([blockH + BLOCK.rowGap, BLOCK.w + BLOCK.depthGap])(root)
+// Leaves under one parent stack in a column this tall at most, then start another beside it.
+export const STACK_MAX = 6
 
-  const nodes = root.descendants()
-  let minAcross = Infinity
-  let minDown = Infinity
-  for (const n of nodes) {
-    minAcross = Math.min(minAcross, n.y!)
-    minDown = Math.min(minDown, n.x!)
+// A child's place relative to its parent. Its track leaves the parent's spine, crosses to the
+// child's lane (a vertical in the gap left of the child's column) and enters the child from the
+// side, or from a bus over the child's row and in at the top.
+interface Kid {
+  sub: Sub
+  dx: number
+  dy: number
+  laneDx: number
+  entry: 'side' | 'top'
+}
+
+interface Sub {
+  id: string
+  w: number
+  h: number
+  kids: Kid[]
+}
+
+/**
+ * Children sit below their parent, indented. Leaf children stack in a band of columns of up to
+ * STACK_MAX, entered from the side. Children with subtrees of their own flow left to right after
+ * that band, wrapping into another row past maxW, entered from the top.
+ */
+function measure(model: BoardModel, id: string, blockH: number, maxW: number): Sub {
+  const ids = model.nodes.get(id)?.children ?? []
+  if (ids.length === 0) return { id, w: BLOCK.w, h: blockH, kids: [] }
+  const subs = ids.map((k) => measure(model, k, blockH, maxW - BLOCK.indent))
+  const top = blockH + BLOCK.levelGap
+  const kids: Kid[] = []
+  let w = 0
+  let h = 0
+
+  const leaves = subs.filter((s) => s.kids.length === 0)
+  if (leaves.length > 0) {
+    const cols = Math.ceil(leaves.length / STACK_MAX)
+    const rows = Math.ceil(leaves.length / cols)
+    leaves.forEach((sub, i) => {
+      const dx = BLOCK.indent + Math.floor(i / rows) * (BLOCK.w + BLOCK.colGap)
+      kids.push({ sub, dx, dy: top + (i % rows) * (blockH + BLOCK.rowGap), laneDx: dx - BLOCK.indent / 2, entry: 'side' })
+    })
+    w = BLOCK.indent + cols * BLOCK.w + (cols - 1) * BLOCK.colGap
+    h = top + rows * blockH + (rows - 1) * BLOCK.rowGap
   }
 
-  const placed = new Map<string, Placed>()
-  let width = 0
-  let height = 0
-  for (const n of nodes) {
-    const x = n.y! - minAcross
-    const y = n.x! - minDown
-    placed.set(n.data, { id: n.data, x, y })
-    width = Math.max(width, x + BLOCK.w)
-    height = Math.max(height, y + blockH)
+  const x0 = leaves.length > 0 ? w + BLOCK.colGap : BLOCK.indent
+  let x = x0
+  let rowTop = top
+  let rowH = 0
+  for (const sub of subs.filter((s) => s.kids.length > 0)) {
+    if (x > x0 && x + sub.w > maxW) {
+      x = x0
+      rowTop += rowH + BLOCK.levelGap
+      rowH = 0
+    }
+    kids.push({ sub, dx: x, dy: rowTop, laneDx: x0 - BLOCK.indent / 2, entry: 'top' })
+    w = Math.max(w, x + sub.w)
+    rowH = Math.max(rowH, sub.h)
+    h = Math.max(h, rowTop + rowH)
+    x += sub.w + BLOCK.colGap
   }
+  return { id, w, h, kids }
+}
 
-  return { placed, width, height }
+function place(sub: Sub, x: number, y: number, blockH: number, out: Layout): void {
+  out.placed.set(sub.id, { id: sub.id, x, y })
+  const spineX = x + BLOCK.indent / 2
+  const bottom = y + blockH
+  const busY = bottom + BLOCK.levelGap / 2
+  for (const { sub: kid, dx, dy, laneDx, entry } of sub.kids) {
+    const cx = x + dx
+    const cy = y + dy
+    const laneX = x + laneDx
+    const toLane: [number, number][] = [[spineX, bottom], [spineX, busY], [laneX, busY]]
+    const rowBusY = cy - BLOCK.levelGap / 2
+    const midX = cx + BLOCK.w / 2
+    const midY = cy + blockH / 2
+    const points: [number, number][] =
+      entry === 'side'
+        ? [...toLane, [laneX, midY], [cx, midY]]
+        : [...toLane, [laneX, rowBusY], [midX, rowBusY], [midX, cy]]
+    out.links.push({ parent: sub.id, child: kid.id, points })
+    place(kid, cx, cy, blockH, out)
+  }
+}
+
+/**
+ * Lays the tree out to fit a viewport of the given width-to-height ratio: of every row width
+ * that changes where rows wrap, the one whose layout fits that viewport at the largest scale.
+ */
+export function layoutTree(model: BoardModel, blockH: number = BLOCK.h, aspect: number = 16 / 10): Layout {
+  const widest = measure(model, model.root, blockH, Infinity)
+  let best = widest
+  const fitScale = (s: Sub): number => Math.min(aspect / s.w, 1 / s.h)
+  for (let maxW = BLOCK.indent + BLOCK.w; maxW < widest.w; maxW += BLOCK.w + BLOCK.colGap) {
+    const s = measure(model, model.root, blockH, maxW)
+    if (fitScale(s) > fitScale(best)) best = s
+  }
+  const out: Layout = { placed: new Map(), links: [], width: best.w, height: best.h }
+  place(best, 0, 0, blockH, out)
+  return out
 }
 
 // Rails run in the gap right of a column: the first this far from the blocks, then every `step`
 // further out, squeezed when a gap holds more rails than fit.
-export const DEP_RAIL = { margin: 20, step: 8 }
+export const DEP_RAIL = { margin: 14, step: 8 }
 const RAIL_CLEARANCE = 4
 
 export interface DepEdge {
@@ -114,7 +202,7 @@ export function routeDeps(edges: DepEdge[], placed: Map<string, Placed>, blockH:
       rails[rail].push([lo, hi])
       railOf.set(e, rail)
     }
-    const step = Math.min(DEP_RAIL.step, (BLOCK.depthGap - 2 * DEP_RAIL.margin) / Math.max(1, rails.length - 1))
+    const step = Math.min(DEP_RAIL.step, (BLOCK.colGap - 2 * DEP_RAIL.margin) / Math.max(1, rails.length - 1))
     for (const e of list) railX.set(e, gap + BLOCK.w + DEP_RAIL.margin + railOf.get(e)! * step)
   }
 
