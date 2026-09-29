@@ -400,8 +400,9 @@ export function tileKey(project: string, effort: string, t: Tile): string {
   return `${project}|${effort}|${t.node}|${t.seq}`
 }
 
-export function tabTitle(tiles: Tile[]): string {
-  return tiles.length === 0 ? 'agentics viewer' : `(${tiles.length}) agentics viewer`
+export function tabTitle(tiles: Tile[], effort: string | null): string {
+  const name = effort ? `Agentics Viewer: ${effort}` : 'Agentics Viewer'
+  return tiles.length === 0 ? name : `(${tiles.length}) ${name}`
 }
 
 export function staleText(p: Problem, since: Date): string {

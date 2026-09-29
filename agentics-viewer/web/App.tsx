@@ -114,8 +114,8 @@ export function App(): JSX.Element {
   const model = built !== null && built.order.length > 0 ? built : null
 
   useEffect(() => {
-    document.title = tabTitle(model?.tiles ?? [])
-  }, [model])
+    document.title = tabTitle(model?.tiles ?? [], url.effort)
+  }, [model, url.effort])
 
   const projectName = useMemo(() => projectDisplayName(url.project), [url.project])
 
