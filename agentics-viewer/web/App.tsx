@@ -110,7 +110,8 @@ export function App(): JSX.Element {
     return close
   }, [url.project, url.effort])
 
-  const model = useMemo(() => (snapshot ? buildModel(snapshot) : null), [snapshot])
+  const built = useMemo(() => (snapshot ? buildModel(snapshot) : null), [snapshot])
+  const model = built !== null && built.order.length > 0 ? built : null
 
   useEffect(() => {
     document.title = tabTitle(model?.tiles ?? [])
@@ -195,6 +196,8 @@ export function App(): JSX.Element {
     )
   } else if (list !== null && list.efforts.length === 0) {
     boardContent = <p class="msg">{noEffortsText(projectName)}</p>
+  } else if (snapshot !== null && model === null) {
+    boardContent = <p class="msg">{TEXT.noTree}</p>
   } else if (model !== null && snapshot !== null) {
     boardContent = (
       <Board

@@ -560,6 +560,7 @@ A partial result never looks whole.
 | `project_gone` | "This project folder is gone: `<path>`", with Open project. |
 | no project yet | "Open a project to watch its efforts.", with Open project. |
 | project without efforts | "No efforts in `<project name>` yet. Start one with /agentics:design." |
+| an effort with no nodes (still in design, nothing compiled) | In place of the board, with no outline: "This effort has no tasks yet. They appear once its design is approved." |
 | an effort with only its root | The root block, worded from its folder's approval state. |
 | Browse fails | In the dialog: "Couldn't open the folder dialog: `<reason>`." |
 | toast fails | Nothing on the page. The server logs it. |

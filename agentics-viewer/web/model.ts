@@ -256,7 +256,8 @@ export function buildModel(s: Snapshot): BoardModel {
     order.push(id)
     for (const c of childrenOf.get(id) ?? []) visit(c, d + 1)
   }
-  visit('.', 0)
+  // An effort still in design has no nodes at all, so no root to walk from.
+  if (byId.has('.')) visit('.', 0)
 
   const nodes = new Map<string, NodeView>()
   for (const id of order) {
@@ -426,6 +427,7 @@ export function browseErrorText(error: string): string {
 
 export const TEXT = {
   noProject: 'Open a project to watch its efforts.',
+  noTree: 'This effort has no tasks yet. They appear once its design is approved.',
   lostServer: 'Lost the viewer server. Reconnecting.',
   browseWaiting: 'The folder dialog is open. It may be behind this window.',
 }

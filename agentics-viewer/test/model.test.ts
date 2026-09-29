@@ -647,3 +647,10 @@ describe('tabTitle and tileKey', () => {
     expect(tileKey('proj', 'eff', t)).toBe('proj|eff|n1|4')
   })
 })
+
+test('an effort still in design, with no nodes, builds an empty model instead of throwing', () => {
+  const m = buildModel(snap([]))
+  expect(m.order).toEqual([])
+  expect(m.nodes.size).toBe(0)
+  expect(m.tiles).toEqual([])
+})
