@@ -353,11 +353,11 @@ export function attentionPrompt(s: Snapshot, n: SnapshotNode): string | null {
     lines.push(`Use agentics:design on the folder \`${n.id}\` of ${where}.`)
   } else if (need === 'hold') {
     const ret = n.event?.return ?? ''
-    lines.push(`Use agentics:develop to answer the parked node \`${n.id}\` of ${where}.`)
+    lines.push(`Use agentics:develop to ask me about the parked node \`${n.id}\` of ${where}; relaunch only once I've answered.`)
     if (ret !== '') lines.push(`Return: \`${ret}\` (${returnInWords(ret)})`)
     if (n.event?.question) lines.push(`Question: ${n.event.question}`)
   } else {
-    lines.push(`Use agentics:develop to deal with the escalated node \`${n.id}\` of ${where}.`)
+    lines.push(`Use agentics:develop to ask me about the escalated node \`${n.id}\` of ${where}; relaunch only once I've answered.`)
     if (n.event?.reason) lines.push(`Reason: ${n.event.reason}`)
     if (n.event?.detail) lines.push(`Detail: ${n.event.detail}`)
   }
