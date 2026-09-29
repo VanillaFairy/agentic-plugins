@@ -1,2 +1,4 @@
-.claude/
+.claude/*
+!.claude/launch.json
 TODO.md
+.worktrees/

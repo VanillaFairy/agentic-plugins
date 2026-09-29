@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Effort board</title>
+<style>
+:root {
+  --board: #D6D9D2; --panel: #EEF0EB; --ink: #2B3035; --ink-2: #5E655F; --rule: #B9BEB6;
+  --quiet: #8C928A; --work: #2F6DB5; --hold: #E0A21B; --hold-lit: #F2C14E; --hold-ink: #3A2A00;
+  --stop: #C4372E; --stop-ink: #FFFFFF;
+  --sys: "Bahnschrift", "DIN Alternate", system-ui, sans-serif;
+  --prose: "Sitka Text", "Iowan Old Style", Georgia, serif;
+  --code: "Cascadia Mono", Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --board: #1D2124; --panel: #262B2F; --ink: #DADFD8; --ink-2: #9AA29A; --rule: #3A4146;
+    --quiet: #6E766F; --work: #6FA6E6; --hold: #F2B63A; --hold-lit: #E8A92A; --stop: #E0564C;
+  }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body { background: var(--board); color: var(--ink); font: 400 14px/1.4 var(--sys); font-variant-numeric: tabular-nums; }
+button { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--work); outline-offset: 2px; }
+
+.app { display: grid; grid-template-rows: auto auto 1fr; height: 100vh; }
+
+/* header */
+.top { display: flex; align-items: center; gap: 8px; padding: 8px 14px; background: var(--panel); border-bottom: 1px solid var(--rule); }
+.pick { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--rule); background: transparent; border-radius: 4px; padding: 5px 10px; cursor: pointer; }
+.pick .k { color: var(--ink-2); }
+.pick.effort { font-weight: 600; max-width: 46ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.top .spacer { flex: 1; }
+.cost { color: var(--ink-2); }
+.cost b { color: var(--ink); font-weight: 600; }
+.open { border: 1px solid var(--ink); background: var(--ink); color: var(--panel); border-radius: 4px; padding: 5px 12px; cursor: pointer; }
+
+/* annunciator */
+.ann { display: flex; gap: 6px; padding: 8px 14px; border-bottom: 1px solid var(--rule); align-items: stretch; flex-wrap: wrap; }
+.tile { display: grid; grid-template-columns: auto 1fr; column-gap: 8px; min-width: 220px; max-width: 360px; padding: 7px 12px 8px 10px; border-radius: 3px; text-align: left; border: 0; cursor: pointer; }
+.tile .who { font-weight: 600; font-stretch: 87.5%; }
+.tile .why { grid-column: 2; font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; opacity: .9; }
+.tile.hold { background: var(--hold-lit); color: var(--hold-ink); }
+.tile.stop { background: var(--stop); color: var(--stop-ink); }
+.tile.unack { animation: flash 1.1s steps(1, end) infinite; }
+@keyframes flash { 50% { filter: brightness(1.18) saturate(1.2); box-shadow: inset 0 0 0 2px currentColor; } }
+@media (prefers-reduced-motion: reduce) { .tile.unack { animation: none; box-shadow: inset 0 0 0 2px currentColor; } }
+.tile .glyph { grid-row: span 2; align-self: center; width: 10px; height: 10px; border-radius: 50%; background: currentColor; }
+.calm { align-self: center; margin-left: auto; color: var(--ink-2); display: flex; gap: 14px; }
+.calm span { display: inline-flex; align-items: center; gap: 6px; }
+
+/* body */
+.main { display: grid; grid-template-columns: 250px 1fr 360px; min-height: 0; }
+.rail { background: var(--panel); border-right: 1px solid var(--rule); overflow: auto; padding: 10px 0; }
+.find { margin: 0 12px 8px; width: calc(100% - 24px); padding: 6px 9px; border: 1px solid var(--rule); border-radius: 4px; background: var(--board); color: var(--ink); font: inherit; }
+.row { display: grid; grid-template-columns: 12px 1fr auto; align-items: center; gap: 7px; padding: 4px 12px; cursor: pointer; }
+.row:hover { background: color-mix(in srgb, var(--board) 60%, transparent); }
+.row.sel { background: var(--board); box-shadow: inset 3px 0 0 var(--ink); }
+.row .nm { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.row .st { color: var(--ink-2); font-size: 12.5px; }
+.row.done .nm { color: var(--ink-2); }
+
+.lamp { width: 10px; height: 10px; border-radius: 50%; display: inline-block; flex: none; }
+.l-work { background: var(--work); }
+.l-hold { background: var(--hold); }
+.l-stop { background: var(--stop); }
+.l-done { background: var(--quiet); }
+.l-idle { background: transparent; box-shadow: inset 0 0 0 1.5px var(--quiet); }
+.l-open { background: transparent; box-shadow: inset 0 0 0 1.5px var(--quiet); border: 1.5px dashed var(--quiet); box-shadow: none; }
+
+.boardwrap { position: relative; overflow: hidden; display: grid; place-items: center; }
+.boardwrap svg { display: block; max-width: none; }
+.zoom { position: absolute; right: 12px; bottom: 12px; display: flex; gap: 4px; }
+.zoom button { width: 30px; height: 30px; border: 1px solid var(--rule); background: var(--panel); border-radius: 4px; cursor: pointer; }
+
+/* svg board */
+.track { stroke: var(--ink); stroke-width: 2; fill: none; }
+.track.q { stroke: var(--quiet); stroke-width: 1.5; }
+.after { stroke: var(--work); stroke-width: 1.5; stroke-dasharray: 5 4; fill: none; }
+.blk rect.b { fill: var(--panel); stroke: var(--rule); stroke-width: 1; }
+.blk text { fill: var(--ink); font-family: var(--sys); }
+.blk .n { font-size: 14px; font-weight: 600; font-stretch: 87.5%; }
+.blk .s { font-size: 12px; fill: var(--ink-2); }
+.blk.done rect.b { fill: var(--board); stroke: var(--quiet); }
+.blk.done .n { fill: var(--ink-2); font-weight: 400; }
+.blk.open rect.b { fill: transparent; stroke: var(--quiet); stroke-dasharray: 4 3; }
+.blk.hold rect.b { stroke: var(--hold); stroke-width: 2.5; }
+.blk.stop rect.b { stroke: var(--stop); stroke-width: 2.5; }
+.blk.work rect.b { stroke: var(--work); stroke-width: 1.5; }
+.blk.sel rect.b { stroke: var(--ink); stroke-width: 2.5; }
+.blk.sel.hold rect.b { stroke: var(--hold); }
+.blk.comp .n { font-size: 15px; }
+
+/* detail */
+.detail { background: var(--panel); border-left: 1px solid var(--rule); overflow: auto; padding: 16px 18px 24px; }
+.d-id { color: var(--ink-2); font-size: 12.5px; }
+.d-name { font-size: 20px; font-weight: 600; font-stretch: 87.5%; margin: 2px 0 6px; }
+.d-title { font-family: var(--prose); font-size: 15px; line-height: 1.55; margin: 0 0 14px; }
+.state { border-left: 4px solid var(--hold); background: color-mix(in srgb, var(--hold) 7%, var(--panel)); padding: 10px 12px; margin: 0 0 16px; border-radius: 0 3px 3px 0; }
+.state .h { font-weight: 600; display: flex; align-items: center; gap: 7px; }
+.state p { font-family: var(--prose); font-size: 15px; line-height: 1.55; margin: 6px 0 0; }
+.sec { font-weight: 600; margin: 16px 0 6px; }
+.prose { font-family: var(--prose); font-size: 15px; line-height: 1.6; margin: 0; max-width: 62ch; }
+.crit { list-style: none; padding: 0; margin: 0; }
+.crit li { display: grid; grid-template-columns: 16px 1fr; gap: 8px; padding: 4px 0; font-family: var(--prose); font-size: 14.5px; line-height: 1.5; }
+.crit .box { width: 12px; height: 12px; border: 1.5px solid var(--quiet); border-radius: 2px; margin-top: 4px; }
+.crit code { font-family: var(--code); font-size: 12px; color: var(--ink-2); display: block; }
+.crit .you { font-family: var(--sys); font-size: 12px; color: var(--hold-ink); background: var(--hold-lit); border-radius: 2px; padding: 0 5px; margin-right: 4px; }
+.links { display: flex; flex-direction: column; gap: 2px; }
+.links a { color: var(--work); text-decoration: none; padding: 3px 0; display: flex; justify-content: space-between; }
+.links a:hover { text-decoration: underline; }
+.links a span { color: var(--ink-2); }
+.meta { display: grid; grid-template-columns: auto 1fr; gap: 3px 12px; color: var(--ink-2); }
+.meta b { color: var(--ink); font-weight: 400; }
+
+@media (max-width: 900px) {
+  .main { grid-template-columns: 1fr; position: relative; }
+  .rail { display: none; }
+  .detail { position: absolute; left: 0; right: 0; bottom: 0; height: 52%; border-left: 0; border-top: 1px solid var(--rule); box-shadow: 0 -1px 0 var(--rule); }
+  .pick .k { display: none; }
+  .pick.effort { max-width: 22ch; }
+  .cost { display: none; }
+  .calm { display: none; }
+  .tile { min-width: 0; flex: 1 1 200px; }
+  .listbtn { display: inline-flex !important; }
+}
+.listbtn { display: none; }
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <button class="pick listbtn" aria-label="Show the node list">List</button>
+    <button class="pick"><span class="k">Project</span> eva-plays-2</button>
+    <button class="pick effort"><span class="k">Effort</span> Reshape pets onto entities, action queues and brains</button>
+    <span class="spacer"></span>
+    <span class="cost"><b>412k</b> tokens over 23 dispatches</span>
+    <button class="open">Open project</button>
+  </header>
+
+  <section class="ann" aria-label="Needs you">
+    <button class="tile hold unack"><span class="glyph"></span><span class="who">idle-rules is waiting on you</span><span class="why">What idleness is exactly: D29 says no action and no interaction; D52 says…</span></button>
+    <button class="tile stop"><span class="glyph"></span><span class="who">features escalated</span><span class="why">Verify failed after merge: 3 tests in entities.test.ts</span></button>
+    <div class="calm"><span><i class="lamp l-work"></i>2 working</span><span><i class="lamp l-done"></i>1 merged</span><span><i class="lamp l-idle"></i>1 queued</span><span><i class="lamp l-open"></i>3 need design</span></div>
+  </section>
+
+  <div class="main">
+    <nav class="rail" aria-label="Nodes">
+      <input class="find" placeholder="Find a node">
+      <div class="row"><i class="lamp l-work"></i><span class="nm">reshape-pets</span><span class="st"></span></div>
+      <div class="row" style="padding-left:24px"><i class="lamp l-work"></i><span class="nm">foundations</span><span class="st">1 of 5</span></div>
+      <div class="row done" style="padding-left:36px"><i class="lamp l-done"></i><span class="nm">entity-store</span><span class="st">merged</span></div>
+      <div class="row" style="padding-left:36px"><i class="lamp l-work"></i><span class="nm">action-queue</span><span class="st">fix round 2</span></div>
+      <div class="row" style="padding-left:36px"><i class="lamp l-work"></i><span class="nm">brains</span><span class="st">writing tests</span></div>
+      <div class="row" style="padding-left:36px"><i class="lamp l-stop"></i><span class="nm">features</span><span class="st">escalated</span></div>
+      <div class="row sel" style="padding-left:36px"><i class="lamp l-hold"></i><span class="nm">idle-rules</span><span class="st">waiting on you</span></div>
+      <div class="row" style="padding-left:24px"><i class="lamp l-open"></i><span class="nm">wire</span><span class="st">needs design</span></div>
+      <div class="row" style="padding-left:24px"><i class="lamp l-open"></i><span class="nm">drop</span><span class="st">needs design</span></div>
+      <div class="row" style="padding-left:24px"><i class="lamp l-open"></i><span class="nm">story</span><span class="st">needs design</span></div>
+    </nav>
+
+    <div class="boardwrap">
+      <svg width="680" height="510" viewBox="0 0 680 510" role="img" aria-label="Effort tree">
+        <defs><marker id="ah" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M1 1L9 5L1 9" fill="none" stroke="context-stroke" stroke-width="1.6"/></marker></defs>
+        <!-- tracks root -> parts -->
+        <path class="track" d="M178 272 H206 V120 H232 M206 272 V470 M206 350 H232 M206 410 H232 M206 470 H232"/>
+        <!-- tracks foundations -> tasks -->
+        <path class="track q" d="M402 120 H430 V40 H456"/>
+        <path class="track" d="M430 40 V280 M430 100 H456 M430 160 H456 M430 220 H456 M430 280 H456"/>
+        <!-- after edge shown for selected node: idle-rules after entity-store -->
+        <path class="after" d="M620 40 H650 V270 H626" marker-end="url(#ah)"/>
+
+        <g class="blk comp work"><rect class="b" x="20" y="248" width="158" height="48" rx="3"/><circle cx="36" cy="263" r="5" fill="var(--work)"/><text class="n" x="48" y="268">reshape-pets</text><text class="s" x="32" y="287">2 of 4 parts moving</text></g>
+
+        <g class="blk comp work"><rect class="b" x="232" y="96" width="170" height="48" rx="3"/><circle cx="248" cy="111" r="5" fill="var(--work)"/><text class="n" x="260" y="116">foundations</text><text class="s" x="244" y="135">1 of 5 merged</text></g>
+        <g class="blk open"><rect class="b" x="232" y="326" width="170" height="48" rx="3"/><circle cx="248" cy="341" r="4.5" fill="none" stroke="var(--quiet)" stroke-dasharray="2 2"/><text class="n" x="260" y="346">wire</text><text class="s" x="244" y="365">needs design, 1 blocking</text></g>
+        <g class="blk open"><rect class="b" x="232" y="386" width="170" height="48" rx="3"/><circle cx="248" cy="401" r="4.5" fill="none" stroke="var(--quiet)" stroke-dasharray="2 2"/><text class="n" x="260" y="406">drop</text><text class="s" x="244" y="425">needs design</text></g>
+        <g class="blk open"><rect class="b" x="232" y="446" width="170" height="48" rx="3"/><circle cx="248" cy="461" r="4.5" fill="none" stroke="var(--quiet)" stroke-dasharray="2 2"/><text class="n" x="260" y="466">story</text><text class="s" x="244" y="485">needs design</text></g>
+
+        <g class="blk done"><rect class="b" x="456" y="16" width="164" height="48" rx="3"/><circle cx="472" cy="31" r="5" fill="var(--quiet)"/><text class="n" x="484" y="36">entity-store</text><text class="s" x="468" y="55">merged</text></g>
+        <g class="blk work"><rect class="b" x="456" y="76" width="164" height="48" rx="3"/><circle cx="472" cy="91" r="5" fill="var(--work)"/><text class="n" x="484" y="96">action-queue</text><text class="s" x="468" y="115">fix round 2, 3 commits</text></g>
+        <g class="blk work"><rect class="b" x="456" y="136" width="164" height="48" rx="3"/><circle cx="472" cy="151" r="5" fill="var(--work)"/><text class="n" x="484" y="156">brains</text><text class="s" x="468" y="175">writing tests, 1 commit</text></g>
+        <g class="blk stop"><rect class="b" x="456" y="196" width="164" height="48" rx="3"/><circle cx="472" cy="211" r="5" fill="var(--stop)"/><text class="n" x="484" y="216">features</text><text class="s" x="468" y="235">escalated</text></g>
+        <g class="blk hold sel"><rect class="b" x="456" y="256" width="164" height="48" rx="3"/><circle cx="472" cy="271" r="5" fill="var(--hold)"/><text class="n" x="484" y="276">idle-rules</text><text class="s" x="468" y="295">waiting on you</text></g>
+      </svg>
+      <div class="zoom"><button aria-label="Zoom in">+</button><button aria-label="Zoom out">−</button><button aria-label="Fit the tree">⤢</button></div>
+    </div>
+
+    <aside class="detail" aria-label="Selected node">
+      <div class="d-id">foundations/idle-rules, task, tdd-pair</div>
+      <div class="d-name">idle-rules</div>
+      <p class="d-title">Decide when a pet counts as idle and fire onIdleStart and onIdleFinish from the brain.</p>
+      <div class="state">
+        <div class="h"><i class="lamp l-hold"></i>Waiting on you: needs a decision</div>
+        <p>What idleness is exactly: D29 says no action and no interaction; D52 says interacting or being interacted with. Whether a walk alone keeps a pet from idle decides when onIdleStart fires.</p>
+      </div>
+      <div class="sec">Context</div>
+      <p class="prose">Idleness drives nothing in wishes or States. The brain only needs the two events, fired once per transition, and a test that walks a pet without interaction.</p>
+      <div class="sec">Criteria</div>
+      <ul class="crit">
+        <li><span class="box"></span><span>A pet that walks with no interaction for 30 s fires onIdleStart once<code>npx vitest run brain/idle</code></span></li>
+        <li><span class="box"></span><span>Interaction ends idleness and fires onIdleFinish<code>npx vitest run brain/idle</code></span></li>
+        <li><span class="box"></span><span><span class="you">You decide</span>The idle threshold feels right in play</span></li>
+      </ul>
+      <div class="sec">Files</div>
+      <div class="links">
+        <a href="#">Spec entry in foundations/DESIGN.md <span>line 88</span></a>
+        <a href="#">Brief, implementer round 1</a>
+        <a href="#">Report, implementer round 1</a>
+        <a href="#">Worktree</a>
+      </div>
+      <div class="sec">Writes</div>
+      <div class="meta"><b>src/brain/idle.ts</b><span></span><b>src/brain/idle.test.ts</b><span></span></div>
+      <div class="sec">Spend</div>
+      <div class="meta">Tokens<b>38k over 3 dispatches</b></div>
+    </aside>
+  </div>
+</div>
+</body>
+</html>
