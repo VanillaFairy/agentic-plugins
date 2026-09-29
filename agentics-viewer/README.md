@@ -5,9 +5,11 @@ change on disk. [CLAUDE.md](CLAUDE.md) says how its version moves.
 
 ## Running it
 
-Double-click `agentics-viewer.cmd`. It installs dependencies on first run, starts the viewer in
-that window and opens `http://127.0.0.1:5181` in your default browser. If the viewer is already
-running, it only opens the page. Close the window or press Ctrl+C to stop the viewer.
+Double-click `agentics-viewer.cmd`, or open it from a file manager. It opens a console of its own
+that stays open, installs dependencies on first run, starts the viewer there and opens
+`http://127.0.0.1:5181` in your default browser. Run from a console you already have, it uses that
+one and keeps it until the viewer stops. If the viewer is already running, it only opens the page.
+Close the console or press Ctrl+C to stop the viewer.
 
 From a terminal, the same thing is:
 

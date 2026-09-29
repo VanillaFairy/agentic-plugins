@@ -208,7 +208,10 @@ extensions, so Node can run the server without a build.
 - `npm start` builds the page with Vite when `web/` is newer than `dist/`, then runs
   `node server/main.ts`.
 - `agentics-viewer.cmd`, or `npm run app`, runs it with `--open`: the page also opens in the
-  default browser, and when the viewer already runs, only the page opens.
+  default browser, and when the viewer already runs, only the page opens. Opened from Explorer or
+  a file manager (cmd started it with the file's own path), the `.cmd` reopens itself in a console
+  of its own with `cmd /k`, so the console and any error stay on screen after the server stops;
+  run from an existing console, it runs there and holds it.
 - The server binds `127.0.0.1:<port>` (default 5181). `GET /api/health` answers
   `{app: 'agentics-viewer', version}`.
 - If the port is taken and `/api/health` answers as the viewer, the new process prints the URL
