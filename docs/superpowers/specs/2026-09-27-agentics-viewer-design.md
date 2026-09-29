@@ -23,7 +23,7 @@ The user's rulings from the design conversation. They bind the plan.
 | D1 | A local web app with a rendered tree ("A local web app with a rendered tree is great"). |
 | D2 | A separate tool, navigated to any local project folder, with an Open project button. |
 | D3 | The tool gets status from agentics' CLI: agentics gains a read-only `snapshot` command and stays the only code that derives status. |
-| D4 | The tree is a node-link tree diagram, top down and compact (leaves stack, groups wrap to the viewport's shape), with an outline list beside it. "After" edges show only for the selected node. |
+| D4 | The tree is a node-link tree diagram, top down and compact (leaves stack, groups wrap to the viewport's shape), with an outline list beside it. "After" edges show only for the selected or hovered node. |
 | D5 | Open project lists projects found under configured roots, recent projects, and a Browse button that opens the native Windows folder dialog. |
 | D6 | Clicking a node opens a detail panel with its details, and links that open its files in VS Code. |
 | D7 | A node that newly parks or escalates is highlighted on the page and raises a Windows toast. |
@@ -491,8 +491,10 @@ most recently active first), cost ("412k tokens over 23 dispatches", with "and 2
   - the board pans the node, and the rail gap beside it, into the visible area: the strip above
     the bottom sheet in narrow mode, and the area between the outline and the detail panel in
     wide mode. The pan animates over 250 ms, or jumps with reduced motion.
-- Dependencies: every `deps` edge is always drawn, blocker to blocked, as a solid arrow in the
-  track colour (`--quiet` once the blocker is done), its head on the blocked end. It leaves the
+- Dependencies: only the edges of the selected node and of the node under the pointer are
+  drawn; the waits-on badge carries the count for the rest. Each is drawn blocker to blocked,
+  as a solid arrow in the track colour (`--quiet` once the blocker is done), its head on the
+  blocked end. It leaves the
   blocker's right side from the lower half and enters the blocked node's right side in the upper
   half, each edge at its own point, and runs on a rail in the gap right of the rightmost column it
   touches. In one gap, edges that overlap vertically take separate rails, a contained edge inside

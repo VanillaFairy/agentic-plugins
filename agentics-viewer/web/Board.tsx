@@ -147,6 +147,7 @@ export function Board(props: {
   }, [])
 
   const layout = useMemo(() => layoutTree(model, blockH, aspect), [model, blockH, aspect])
+  const [hovered, setHovered] = useState<string | null>(null)
 
   const svgRef = useRef<SVGSVGElement>(null)
   const layerRef = useRef<SVGGElement>(null)
@@ -188,10 +189,16 @@ export function Board(props: {
     />
   ))
 
-  const routes = useMemo(
-    () => routeDeps(snapshot.nodes.flatMap((n) => n.deps.map((d) => ({ from: d, to: n.id }))), layout.placed, blockH),
-    [snapshot, layout, blockH],
-  )
+  // Only the selected and the hovered node's edges are drawn, so they route among themselves.
+  const routes = useMemo(() => {
+    const focus = new Set([selected, hovered].filter((id) => id !== null))
+    const edges = snapshot.nodes.flatMap((n) => n.deps.map((d) => ({ from: d, to: n.id })))
+    return routeDeps(
+      edges.filter((e) => focus.has(e.from) || focus.has(e.to)),
+      layout.placed,
+      blockH,
+    )
+  }, [snapshot, layout, blockH, selected, hovered])
   // The selected node's edges go last, so they draw over the rest.
   const touchesSelected = (r: DepRoute): boolean => r.from === selected || r.to === selected
   const afterPaths = [...routes.filter((r) => !touchesSelected(r)), ...routes.filter(touchesSelected)].map((r) => {
@@ -235,6 +242,8 @@ export function Board(props: {
             : `${view.name}, ${view.wording}`
         }
         onClick={() => onSelect(id)}
+        onMouseEnter={() => setHovered(id)}
+        onMouseLeave={() => setHovered((h) => (h === id ? null : h))}
         onKeyDown={(e) => {
           if (e.key === 'Enter') onSelect(id)
         }}
