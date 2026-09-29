@@ -510,8 +510,13 @@ most recently active first), cost ("412k tokens over 23 dispatches", with "and 2
 - "Waits on `n`" and "Holds up `n`": the unmet dependencies and the nodes this one still blocks,
   one row each with the name and the status badge. A row selects that node. Past five rows the rest
   fold behind "and `n` more".
-- A state block for a node that itself is parked or escalated: a 4 px left bar in `--hold` or
-  `--stop`, and a 7 % tint of that colour on `--panel`.
+- A state block for a node that itself is parked, escalated or open: a 4 px left bar in `--hold`
+  or `--stop`, and a 7 % tint of that colour on `--panel`. It ends in "Prompt for Claude Code"
+  with a copy button that behaves like the file ones. The prompt names the skill to use
+  (`agentics:design` for an open folder, `agentics:develop` otherwise), the node, the effort and
+  the repo, the return and question or the reason and detail, and the node's spec. The viewer is
+  read-only, so this is how you act on what it shows.
+  - Open: heading "Needs design".
   - Parked: heading "Waiting on you" with the `return` in words ("needs a decision",
     "needs design", "needs the spec fixed", "can't tell from the evidence"), then the question in
     full, in serif.

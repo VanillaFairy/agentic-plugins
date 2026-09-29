@@ -341,6 +341,33 @@ export function returnInWords(ret: string): string {
   }
 }
 
+// What to paste into a Claude Code session opened in the project to act on a node that itself
+// needs you; null for every other node. The viewer is read-only, so this is its only hand-off.
+export function attentionPrompt(s: Snapshot, n: SnapshotNode): string | null {
+  const need = needsYou(n)
+  if (need === null) return null
+  const repo = s.store.replace(/\/\.agentics\/?$/, '')
+  const where = `the agentics effort \`${s.effort}\` in \`${repo}\``
+  const lines: string[] = []
+  if (n.status === 'open') {
+    lines.push(`Use agentics:design on the folder \`${n.id}\` of ${where}.`)
+  } else if (need === 'hold') {
+    const ret = n.event?.return ?? ''
+    lines.push(`Use agentics:develop to answer the parked node \`${n.id}\` of ${where}.`)
+    if (ret !== '') lines.push(`Return: \`${ret}\` (${returnInWords(ret)})`)
+    if (n.event?.question) lines.push(`Question: ${n.event.question}`)
+  } else {
+    lines.push(`Use agentics:develop to deal with the escalated node \`${n.id}\` of ${where}.`)
+    if (n.event?.reason) lines.push(`Reason: ${n.event.reason}`)
+    if (n.event?.detail) lines.push(`Detail: ${n.event.detail}`)
+  }
+  if (n.files.spec.path !== '') {
+    const line = n.files.spec.line !== null ? `:${n.files.spec.line}` : ''
+    lines.push(`Spec: \`${n.files.spec.path}${line}\``)
+  }
+  return lines.join('\n')
+}
+
 export function problemText(p: Problem): string {
   switch (p.code) {
     case 'agentics_missing':

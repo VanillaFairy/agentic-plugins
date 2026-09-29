@@ -6,6 +6,7 @@ import {
   buildModel,
   lampAndWording,
   returnInWords,
+  attentionPrompt,
   problemText,
   ago,
   vscodeLink,
@@ -399,6 +400,38 @@ describe('returnInWords', () => {
   })
   test('an unknown return reads as words', () => {
     expect(returnInWords('some_thing')).toBe('some thing')
+  })
+})
+
+describe('attentionPrompt', () => {
+  const s = snap([], { store: '/repo/.agentics', effort: 'auth' })
+  const spec = { spec: { path: '/repo/.agentics/auth/DESIGN.md', line: 12 }, briefs: [], reports: [] }
+
+  test('nothing for a node that does not need you', () => {
+    expect(attentionPrompt(s, node('a', { status: 'active' }))).toBeNull()
+    expect(attentionPrompt(s, node('a', { status: 'parked' }))).toBeNull()
+  })
+  test('an open folder asks for design, naming the repo and not the store', () => {
+    const p = attentionPrompt(s, node('api', { kind: 'design', status: 'open' }))!
+    expect(p).toContain('agentics:design')
+    expect(p).toContain('`api`')
+    expect(p).toContain('`auth` in `/repo`')
+  })
+  test('a parked node carries its return and question', () => {
+    const event = { kind: 'parked', seq: 3, return: 'needs_decision', question: 'Keep the cache?' }
+    const p = attentionPrompt(s, node('api.cache', { status: 'parked', event, files: spec }))!
+    expect(p).toContain('agentics:develop')
+    expect(p).toContain(returnInWords('needs_decision'))
+    expect(p).toContain('Keep the cache?')
+    expect(p).toContain(`${spec.spec.path}:${spec.spec.line}`)
+  })
+  test('an escalated node carries its reason and detail', () => {
+    const event = { kind: 'escalated', seq: 4, reason: 'tests red', detail: 'three failures' }
+    const p = attentionPrompt(s, node('api.cache', { status: 'escalated', event }))!
+    expect(p).toContain('escalated')
+    expect(p).toContain('tests red')
+    expect(p).toContain('three failures')
+    expect(p).not.toContain('Spec:')
   })
 })
 

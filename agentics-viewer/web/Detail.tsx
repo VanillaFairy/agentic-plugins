@@ -1,7 +1,7 @@
 import type { JSX } from 'preact'
 import { useEffect, useRef, useState } from 'preact/hooks'
 import type { BoardModel, NodeView } from './model.ts'
-import { kindWord, fileLabel, returnInWords, ago, spendText, vscodeLink, needsYou } from './model.ts'
+import { kindWord, fileLabel, returnInWords, ago, spendText, vscodeLink, needsYou, attentionPrompt } from './model.ts'
 import { inlineMarkdown } from './markdown.ts'
 import type { Approval, Snapshot, SnapshotNode } from '../shared/snapshot.ts'
 import './detail.css'
@@ -35,13 +35,13 @@ const COPIED_MS = 1500
 
 // Turns green with "Copied" only once the clipboard write succeeded; the select-text fallback
 // copies nothing, so it leaves the button as it was.
-function CopyButton(props: { path: string; copy: (path: string) => Promise<boolean> }): JSX.Element {
+function CopyButton(props: { text: string; label: string; copy: (text: string) => Promise<boolean> }): JSX.Element {
   const [copied, setCopied] = useState(false)
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
   useEffect(() => () => clearTimeout(timer.current ?? undefined), [])
 
   function onClick(): void {
-    void props.copy(props.path).then((ok) => {
+    void props.copy(props.text).then((ok) => {
       if (!ok) return
       setCopied(true)
       clearTimeout(timer.current ?? undefined)
@@ -52,7 +52,7 @@ function CopyButton(props: { path: string; copy: (path: string) => Promise<boole
   return (
     <>
       {copied && <span class="copied">Copied</span>}
-      <button class={`copy${copied ? ' done' : ''}`} aria-label="Copy path" onClick={onClick}>
+      <button class={`copy${copied ? ' done' : ''}`} aria-label={props.label} onClick={onClick}>
         <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" aria-hidden="true">
           <rect x="3.5" y="3.5" width="8" height="8" rx="1" />
           <path d="M8.5 3.5v-2a1 1 0 0 0-1-1h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2" />
@@ -128,25 +128,25 @@ export function Detail(props: {
   const node = view.node
   const fallbackRef = useRef<HTMLInputElement | null>(null)
 
-  function copyPath(path: string): Promise<boolean> {
+  function copyText(text: string): Promise<boolean> {
     const clipboard = navigator.clipboard
     if (clipboard && typeof clipboard.writeText === 'function') {
-      return clipboard.writeText(path).then(
+      return clipboard.writeText(text).then(
         () => true,
         () => {
-          selectFallback(path)
+          selectFallback(text)
           return false
         },
       )
     }
-    selectFallback(path)
+    selectFallback(text)
     return Promise.resolve(false)
   }
 
-  function selectFallback(path: string): void {
+  function selectFallback(text: string): void {
     const input = fallbackRef.current
     if (input === null) return
-    input.value = path
+    input.value = text
     input.select()
   }
 
@@ -154,6 +154,8 @@ export function Detail(props: {
 
   const isParked = node.status === 'parked' && needsYou(node) === 'hold'
   const isEscalated = needsYou(node) === 'stop'
+  const needsDesign = node.status === 'open'
+  const prompt = attentionPrompt(snapshot, node)
   const rolledUp = (node.status === 'parked' || node.status === 'escalated') && needsYou(node) === null
   const event = node.event
 
@@ -186,14 +188,20 @@ export function Detail(props: {
       <div class="d-name">{view.name}</div>
       {node.title !== '' && <p class="d-title">{node.title}</p>}
 
-      {(isParked || isEscalated) && (
+      {(isParked || isEscalated || needsDesign) && (
         <div class={isEscalated ? 'state stop' : 'state'}>
           <div class="h">
-            {isParked ? `Waiting on you: ${returnInWords(event?.return ?? '')}` : 'Escalated'}
+            {isParked ? `Waiting on you: ${returnInWords(event?.return ?? '')}` : isEscalated ? 'Escalated' : 'Needs design'}
           </div>
           {isParked && event?.question && <p>{event.question}</p>}
           {isEscalated && event?.reason && <p>{event.reason}</p>}
           {isEscalated && event?.detail && <p>{event.detail}</p>}
+          {prompt !== null && (
+            <div class="prompt-row" title={prompt}>
+              <span>Prompt for Claude Code</span>
+              <CopyButton key={prompt} text={prompt} label="Copy prompt for Claude Code" copy={copyText} />
+            </div>
+          )}
         </div>
       )}
 
@@ -240,24 +248,24 @@ export function Detail(props: {
             <span>Spec in {specLabel}</span>
             {node.files.spec.line !== null && <span>line {node.files.spec.line}</span>}
           </a>
-          <CopyButton key={node.files.spec.path} path={node.files.spec.path} copy={copyPath} />
+          <CopyButton key={node.files.spec.path} text={node.files.spec.path} label="Copy path" copy={copyText} />
         </div>
         {node.files.briefs.map((path) => (
           <div class="linkrow" key={path}>
             <a href={vscodeLink(path)}>{fileLabel(path, 'brief')}</a>
-            <CopyButton path={path} copy={copyPath} />
+            <CopyButton text={path} label="Copy path" copy={copyText} />
           </div>
         ))}
         {node.files.reports.map((path) => (
           <div class="linkrow" key={path}>
             <a href={vscodeLink(path)}>{fileLabel(path, 'report')}</a>
-            <CopyButton path={path} copy={copyPath} />
+            <CopyButton text={path} label="Copy path" copy={copyText} />
           </div>
         ))}
         {node.worktree !== null && (
           <div class="linkrow">
             <a href={vscodeLink(node.worktree)}>Worktree</a>
-            <CopyButton key={node.worktree} path={node.worktree} copy={copyPath} />
+            <CopyButton key={node.worktree} text={node.worktree} label="Copy path" copy={copyText} />
           </div>
         )}
       </div>
