@@ -8,6 +8,7 @@ import {
   lampAndWording,
   returnInWords,
   claudePrompt,
+  cardFacts,
   problemText,
   ago,
   vscodeLink,
@@ -471,6 +472,33 @@ describe('claudePrompt', () => {
     expect(p).toContain(returnInWords('needs_decision'))
     expect(p).toContain('Keep the cache?')
     expect(p).toContain(`${spec.spec.path}:${spec.spec.line}`)
+  })
+  test('an unfinished node carries its card: every fact, then how to relaunch it', () => {
+    const card = {
+      next: { action: 'verify', why: 'a finished series left unmeasured' },
+      behind: 3,
+      report: { path: '/r.md', lead: 'Two worldgen tests time out.' },
+      notes: [{ seq: 9, by: 'session', text: 'rebased onto the folder branch' }, { seq: 7, by: 'session', text: 'the base lacks the fix' }],
+      relaunch: { execution: '20260929-075434', root: 'api', retry_escalated: ['api.cache'] },
+    }
+    const n = node('api.cache', { status: 'escalated', event: { kind: 'escalated', seq: 4, reason: 'tests red' }, card })
+    const p = claudePrompt(s, n)!
+    const facts = cardFacts(n)
+    expect(facts.map((f) => f.label)).toEqual(['Next', 'Behind', 'Last report', 'Note', 'Note'])
+    for (const f of facts) expect(p).toContain(`${f.label}: ${f.text}`)
+    for (const said of [card.next.action, card.next.why, String(card.behind), card.report.lead, ...card.notes.map((x) => x.text)]) {
+      expect(facts.some((f) => f.text.includes(said))).toBe(true)
+    }
+    expect(p).toContain(card.relaunch.execution)
+    expect(p).toContain(`\`${card.relaunch.root}\``)
+    expect(p).toContain(JSON.stringify(card.relaunch.retry_escalated))
+  })
+  test('an empty card adds nothing, and a branch that is level is not called behind', () => {
+    const bare = node('api.cache', { status: 'planned' })
+    expect(cardFacts(bare)).toEqual([])
+    expect(claudePrompt(s, bare)).not.toContain('Relaunch')
+    const level = node('api.cache', { card: { ...bare.card, behind: 0 } })
+    expect(cardFacts(level)).toEqual([])
   })
   test('an escalated node carries its reason and detail', () => {
     const event = { kind: 'escalated', seq: 4, reason: 'tests red', detail: 'three failures' }

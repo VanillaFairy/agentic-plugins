@@ -353,6 +353,32 @@ function waitingBelow(s: Snapshot, id: string): SnapshotNode[] {
   return s.nodes.filter((n) => needsYou(n) !== null && isBelow(n))
 }
 
+export interface CardFact {
+  label: string
+  text: string
+}
+
+// The node's card in plain words, one fact each: what a relaunch would do next, how far its
+// branch trails its folder's, what its last agent led with, and what earlier sessions noted.
+export function cardFacts(n: SnapshotNode): CardFact[] {
+  const c = n.card
+  const facts: CardFact[] = []
+  if (c.next !== null) facts.push({ label: 'Next', text: `${c.next.action}: ${c.next.why}` })
+  if (c.behind !== null && c.behind > 0) {
+    facts.push({ label: 'Behind', text: `its branch lacks ${c.behind} ${c.behind === 1 ? 'commit' : 'commits'} of its folder's branch` })
+  }
+  if (c.report !== null && c.report.lead !== '') facts.push({ label: 'Last report', text: c.report.lead })
+  for (const note of c.notes) facts.push({ label: 'Note', text: note.text })
+  return facts
+}
+
+function relaunchLine(n: SnapshotNode): string | null {
+  const r = n.card.relaunch
+  if (r === null) return null
+  const retry = r.retry_escalated.length > 0 ? `, retry_escalated ${JSON.stringify(r.retry_escalated)}` : ''
+  return `Relaunch: execution \`${r.execution}\`, root \`${r.root}\`${retry}`
+}
+
 // What to paste into a Claude Code session opened in the project to move an unfinished node
 // on; null for a finished one. The viewer is read-only, so this is its only hand-off. An
 // integrated node is finished unless it is the root, which still waits for the go to land.
@@ -391,6 +417,9 @@ export function claudePrompt(s: Snapshot, n: SnapshotNode): string | null {
     const line = n.files.spec.line !== null ? `:${n.files.spec.line}` : ''
     lines.push(`Spec: \`${n.files.spec.path}${line}\``)
   }
+  for (const fact of cardFacts(n)) lines.push(`${fact.label}: ${fact.text}`)
+  const relaunch = relaunchLine(n)
+  if (relaunch !== null) lines.push(relaunch)
   return lines.join('\n')
 }
 

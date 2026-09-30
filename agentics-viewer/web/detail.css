@@ -74,6 +74,27 @@
   min-width: 0;
 }
 
+.card {
+  margin: 0 0 4px;
+}
+.card > div {
+  display: grid;
+  grid-template-columns: 84px 1fr;
+  gap: 8px;
+  margin: 0 0 6px;
+}
+.card dt {
+  color: var(--ink-2);
+  font-size: 12.5px;
+}
+.card dd {
+  margin: 0;
+  font-family: var(--prose);
+  font-size: 15px;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
 .prompt-row {
   display: flex;
   align-items: center;

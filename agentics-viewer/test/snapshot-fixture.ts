@@ -27,6 +27,7 @@ export function node(id: string, partial: Partial<SnapshotNode> = {}): SnapshotN
     worktree: null,
     commits: null,
     files: { spec: { path: '', line: null }, briefs: [], reports: [] },
+    card: { next: null, behind: null, report: null, notes: [], relaunch: null },
   }
   return { ...base, ...partial }
 }

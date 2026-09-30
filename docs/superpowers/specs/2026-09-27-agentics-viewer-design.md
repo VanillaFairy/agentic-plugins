@@ -114,7 +114,7 @@ a submodule). `snapshot` carries the same field.
 
 ```ts
 {
-  format: 2,
+  format: 3,
   store: string,                        // absolute .agentics/ path agentics read
   effort: string, about: string, seq_max: number, malformed: number,
   folders: Array<{
@@ -132,12 +132,19 @@ a submodule). `snapshot` carries the same field.
     locus: string[], deps: string[],    // deps = the compiled "after" edges
     acceptance: Array<{ text: string, check: string }>,
     status: string,                     // deriveStatus, passed through unchanged
-    event: null | { kind: string, seq: number, reason?: string, detail?: string, return?: string, question?: string },
+    event: null | { kind: string, seq: number, reason?: string, detail?: string, return?: string, question?: string, said?: string },
     stage: string | null,               // todoFor's activeForm for in-progress items, else null
     branch: string,
     worktree: string | null,            // only when the directory exists
     commits: null | { count: number, last_subject: string, last_at: string },
-    files: { spec: { path: string, line: number | null }, briefs: string[], reports: string[] }
+    files: { spec: { path: string, line: number | null }, briefs: string[], reports: string[] },
+    card: {
+      next: { action: string, why: string } | null,
+      behind: number | null,
+      report: { path: string, lead: string } | null,
+      notes: Array<{ seq: number, by: string, text: string }>,
+      relaunch: { execution: string, root: string, retry_escalated: string[] } | null
+    }
   }>,
   cost: Spend & { per_leaf: Record<string, Spend> }
 }
@@ -191,7 +198,7 @@ Spend = {
 ```
 agentics-viewer/
   package.json  package-lock.json  tsconfig.json  vite.config.ts  README.md
-  shared/snapshot.ts        the payload type and FORMAT = 2; imported by server and page
+  shared/snapshot.ts        the payload type and FORMAT = 3; imported by server and page
   server/main.ts            the entry: runs serve.ts and starts it again after an update
   server/serve.ts           start, health, build, the version watch
   server/agentics.ts        find agentics, run status.mjs, check the envelope and format
@@ -548,6 +555,10 @@ output and cost; "23 dispatches, tokens not reported" when no usage was recorded
   - Escalated: heading "Escalated" and the reason, with the detail beneath.
 - For active tasks, a line with the stage and "3 commits, last 4 min ago: `<subject>`". The
   "ago" is computed on the page from `last_at` and refreshes every 30 s.
+- On every unfinished node, its card (`cardFacts`), one labelled line per fact that exists:
+  "Next" (the action a relaunch would take and why), "Behind" (the commits of its folder's branch
+  its own lacks, when there are any), "Last report" (the lead of its latest report) and one "Note"
+  per note an earlier session left, newest first.
 - "Prompt for Claude Code" with a copy button that behaves like the file ones, on every
   unfinished node: any status but merged, integrated or landed, plus an integrated root. The
   viewer is read-only, so this is how you act on what it shows. The snapshot does not say whether
@@ -561,6 +572,9 @@ output and cost; "23 dispatches, tokens not reported" when no usage was recorded
   - Planned, active or approved: `agentics:develop` to resume the effort from where it stopped,
     with the node, its status and its stage.
   - Integrated root: `agentics:develop` to walk its result and land it on your go.
+
+  Every prompt ends with the card's facts as the panel shows them, and a "Relaunch" line with the
+  open execution, its root and `retry_escalated` when agentics gives one.
 - **Context**, in serif. Intent and context are rendered as inline markdown through `marked`, then
   sanitised by DOMPurify.
 - **Criteria**: a checklist. Each item's `check` command is shown in Cascadia Mono beneath it.
@@ -599,7 +613,7 @@ A partial result never looks whole.
 |---|---|
 | `agentics_missing` | In place of the board: "The viewer can't find agentics. It looked at `<path>`. Install agentics, or set `agentics_path` in `~/.agentics-viewer/state.json`." |
 | `agentics_too_old` | "agentics `<version>` at `<path>` has no snapshot command. It arrives in agentics 4.0.0." |
-| `format_mismatch` | "This viewer reads snapshot format 2. agentics at `<path>` writes format `<n>`. Update agentics-viewer." (or "Update agentics." when `<n>` is the older one) |
+| `format_mismatch` | "This viewer reads snapshot format 3. agentics at `<path>` writes format `<n>`. Update agentics-viewer." (or "Update agentics." when `<n>` is the older one) |
 | `snapshot_failed` with a board already shown | The board stays, with a slim bar above it: "Showing the board from `<hh:mm>`. The last refresh failed: `<error>`." The next change retries. |
 | `snapshot_failed` with no board yet | In place of the board: "The first refresh failed: `<error>`." |
 | `malformed > 0` | A slim bar: "`<n>` lines in the logs couldn't be read, so the board may be missing nodes." It clears when a later snapshot reads clean. |

@@ -1,7 +1,7 @@
 import type { JSX } from 'preact'
 import { useEffect, useRef, useState } from 'preact/hooks'
 import type { BoardModel, NodeView } from './model.ts'
-import { kindWord, fileLabel, returnInWords, ago, vscodeLink, needsYou, claudePrompt } from './model.ts'
+import { kindWord, fileLabel, returnInWords, ago, vscodeLink, needsYou, claudePrompt, cardFacts } from './model.ts'
 import { inlineMarkdown } from './markdown.ts'
 import { Spend } from './Spend.tsx'
 import type { Approval, Snapshot, SnapshotNode } from '../shared/snapshot.ts'
@@ -158,6 +158,7 @@ export function Detail(props: {
   const isEscalated = needsYou(node) === 'stop'
   const needsDesign = node.status === 'open'
   const prompt = claudePrompt(snapshot, node)
+  const facts = cardFacts(node)
   const rolledUp = (node.status === 'parked' || node.status === 'escalated') && needsYou(node) === null
   const event = node.event
 
@@ -208,6 +209,17 @@ export function Detail(props: {
 
       {activeLine !== null && <p class="d-sub">{activeLine}</p>}
       {approvalParts.length > 0 && <p class="d-sub">{approvalParts.join(', ')}</p>}
+
+      {prompt !== null && facts.length > 0 && (
+        <dl class="card">
+          {facts.map((fact, i) => (
+            <div key={i}>
+              <dt>{fact.label}</dt>
+              <dd>{fact.text}</dd>
+            </div>
+          ))}
+        </dl>
+      )}
 
       {prompt !== null && (
         <div class="prompt-row" title={prompt}>

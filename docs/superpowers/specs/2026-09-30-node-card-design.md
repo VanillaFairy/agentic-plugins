@@ -19,31 +19,25 @@ Three things, in this order.
 
 ### 1. The card, computed
 
-One pure function, `cardOf`, in `lib/status.mjs`, builds a node's card from the tree, the events,
-the execution's journal and git. Nothing stores it; GP5 stands.
+`cardOf` in `lib/status.mjs` builds a node's card from the tree, the events, the journals and git.
+Nothing stores it; GP5 stands. The snapshot's `status`, `stage` and `event` stay where they are
+(`event` gains `said`, its author's file); the card is what is new beside them.
 
 | field | holds | from |
 |---|---|---|
-| `status`, `stage` | as the snapshot has them today | `deriveStatus`, `todoFor` |
-| `stop` | the last `escalated` or `parked` event while the node is in that status: `{kind, seq, reason or return, text, said}` — `text` through `saidOf`, `said` the file's path | events |
-| `next` | for a leaf: `{action, why}`, `action` one of resume's `ACTIONS`, `why` the row of the resume table that matched. Null for anything that is not a leaf | `nextActionFor` in `lib/resume.mjs` |
-| `behind` | how many commits the parent's integration branch has that the leaf's branch lacks; null when either branch is missing | `git rev-list --count leaf..parent` |
-| `report` | `{path, lead}`: the latest implementer report of the node and its first paragraph; null when there is none | `.state/reports/` |
+| `next` | for an unmerged leaf: `{action, why}`, the resume ladder's row. Null otherwise | `resumeLeaves` in `lib/resume.mjs` |
+| `behind` | how many commits the folder's branch has that the leaf's lacks; null unless the leaf is unmerged and both branches exist | `git rev-list --count leaf..folder` |
+| `report` | `{path, lead}`: the report of the node's latest dispatch that left one, and its first paragraph of prose | `.state/reports/` |
 | `notes` | every `noted` event of the node, newest first: `{seq, by, text}` | events |
-| `relaunch` | `{execution, root, retry_escalated}`: the open execution that holds the node, its root, and the node's id in `retry_escalated` when its status is `escalated`. Null when no open execution holds it | `executionSummary` |
+| `relaunch` | `{execution, root, retry_escalated}`: the latest open execution whose root is the node or above it, and the node's id in `retry_escalated` when it escalated itself. Null when none holds it | `executionSummary` |
 
-The git parts (`next`, `behind`) are computed only for a leaf that is not merged and has a branch,
-the same economy `commitsOf` keeps.
+Two readers, one shape:
 
-Two readers:
+- `node lib/status.mjs node --repo <r> --effort <e> --node <id> [--json]` prints one node's entry
+  of the snapshot. The text form ends with the relaunch arguments.
+- `snapshotOf` carries `card` on every node; the format is 3.
 
-- `node lib/status.mjs node --repo <r> --effort <e> --node <id> [--json]` prints one card. The text
-  form is what a session reads; it ends with the relaunch arguments as develop's step 3 takes them.
-- `snapshotOf` carries `card` on every node. `event` and `stage` move inside it; the snapshot format
-  goes up by one.
-
-`nextActionFor` needs `gitFacts` per leaf. `cardOf` calls `resumeLeaves` once for the snapshot's
-unfinished leaves, never once per node.
+The resume ladder is asked once for all the unfinished leaves of a read, never once per node.
 
 ### 2. Notes, recorded
 
@@ -63,14 +57,16 @@ When a session writes one (develop skill, step 4):
 
 ### 3. Every stop reaches the log
 
-Today a stop the workflow decides between two boundaries is carried by the next `schedule` or by
-`postflight`. When postflight fails, the stop is lost: the node reads `planned` and the viewer draws
-it queued while nothing runs. A card built on that log would say the same wrong thing.
+A stop the workflow decides rides to disk in the next `schedule` or in `postflight`. When the
+couriers fail at the end of a run, the stop stayed in the workflow's result and reached no disk:
+the node read `planned` and the viewer drew it queued while nothing ran.
 
-Requirement: a stop the workflow decides is on disk before the workflow returns, whatever channel
-fails. The mechanism is settled in the plan, after reading the record-carrying path in
-`execute-approved-plan-in-worktrees.workflow.js` (`records`, `CARRIES_RECORDS`, the postflight
-catch). It removes the window; it does not add a second place that remembers stops.
+The workflow has no filesystem, but the session that launched it has a shell. So:
+
+- records a boundary refused, or that no courier carried, go back on the pending list;
+- when postflight cannot be carried, the result holds its command whole, in
+  `coverage.resumable.postflight`, and develop's step 4 runs it first, as it stands. The records
+  land under the same digest and the same ids.
 
 ## Who uses the card
 
@@ -94,19 +90,16 @@ Each edits its entry in `agentics/docs/DESIGN.md#data-contracts` and every copy 
 the same commit series:
 
 - Node record and events: `noted`; `EVENT_KINDS`; `deriveStatus` skips it.
-- Snapshot: `card`, the format number; `agentics-viewer/shared/snapshot.ts`.
-- Boundary payloads: `note`.
+- Snapshot: `card`, `event.said`, the format number; `agentics-viewer/shared/snapshot.ts`.
+- Boundary payloads: `note`. Coverage block: `resumable.postflight`.
 - GP5's text gains one sentence: a note is an observation, recorded by its actor.
 - `skills/develop/SKILL.md` within its size budget.
 
-## Order of work
+## Landed
 
-`agentics` is on `feat/usage-cost` with uncommitted edits to `lib/status.mjs`, the snapshot tests
-and the viewer's `shared/snapshot.ts`, `web/model.ts` and `web/Detail.tsx` — the same files. The
-card is built on top of that work once it is committed, not beside it.
-
-`fix/leaf-follows-parent` (worktree `agentics-leaf-follows`) is separate and unmerged. `behind` makes
-the condition it fixes visible; it does not replace the fix.
+agentics 4.9.0 and agentics-viewer 3.0.0. `fix/leaf-follows-parent` (worktree
+`agentics-leaf-follows`) is separate and still unmerged: `behind` makes the condition it fixes
+visible, and does not replace the fix.
 
 ## Tests
 

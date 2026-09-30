@@ -1,4 +1,4 @@
-export const FORMAT = 2
+export const FORMAT = 3
 
 export type Approval = 'none' | 'approved' | 'prepared' | 'edited'
 
@@ -9,6 +9,16 @@ export interface SnapshotEvent {
   detail?: string
   return?: string
   question?: string
+  said?: string                   // the file its author wrote in full; empty when there is none
+}
+
+// What a session needs to move a node on, computed by agentics on every read.
+export interface NodeCard {
+  next: { action: string; why: string } | null   // an unmerged leaf's next action on a relaunch
+  behind: number | null                          // commits of its folder's branch the leaf's lacks
+  report: { path: string; lead: string } | null
+  notes: Array<{ seq: number; by: string; text: string }>   // newest first
+  relaunch: { execution: string; root: string; retry_escalated: string[] } | null
 }
 
 export interface SnapshotFolder {
@@ -39,6 +49,7 @@ export interface SnapshotNode {
   worktree: string | null
   commits: { count: number; last_subject: string; last_at: string } | null
   files: { spec: { path: string; line: number | null }; briefs: string[]; reports: string[] }
+  card: NodeCard
 }
 
 export interface ModelUsage {

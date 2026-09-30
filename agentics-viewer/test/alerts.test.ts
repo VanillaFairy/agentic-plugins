@@ -23,6 +23,7 @@ function node(id: string, status: string, event: SnapshotEvent | null): Snapshot
     worktree: null,
     commits: null,
     files: { spec: { path: '', line: null }, briefs: [], reports: [] },
+    card: { next: null, behind: null, report: null, notes: [], relaunch: null },
   }
 }
 
