@@ -405,7 +405,9 @@ Amber and red mean the node itself needs you: it is parked with its own event, e
 in the same colour and no fill (red wins when both are below), so the path to it is traceable.
 
 A node with unmet `deps` shows a waits-on badge: an hourglass and the count of unmet
-dependencies, the same size for any count, at the top right of its block and at the end of its
+dependencies. A dependency is met once it is merged, or, when it is the node's cycle predecessor
+(red before green, green before audit, same rigor), once it is approved: agentics cuts the next
+member from it then. The badge is drawn the same size for any count, at the top right of its block and at the end of its
 outline row. Being blocked is not a call for attention, so the badge is `--ink-2`.
 
 A folder whose whole subtree is merged draws its tracks in `--quiet` at 1.5 px. Live tracks are `--ink` at

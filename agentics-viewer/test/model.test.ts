@@ -225,6 +225,30 @@ describe('buildModel', () => {
     expect(m.nodes.get('b')!.blockedBy).toEqual([])
   })
 
+  test('an approved cycle predecessor no longer blocks the next member', () => {
+    const s = snap([
+      node('.'),
+      node('r', { kind: 'leaf', role: 'red', rigor: 'tdd-triad', status: 'approved' }),
+      node('g', { kind: 'leaf', role: 'green', rigor: 'tdd-triad', status: 'approved', deps: ['r'] }),
+      node('a', { kind: 'leaf', role: 'audit', rigor: 'tdd-triad', status: 'active', deps: ['g'] }),
+    ])
+    const m = buildModel(s)
+    expect(m.nodes.get('g')!.blockedBy).toEqual([])
+    expect(m.nodes.get('a')!.blockedBy).toEqual([])
+  })
+
+  test('an approved leaf outside the dependant\'s cycle still blocks it', () => {
+    const s = snap([
+      node('.'),
+      node('r', { kind: 'leaf', role: 'red', rigor: 'tdd-pair', status: 'approved' }),
+      node('g', { kind: 'leaf', role: 'green', rigor: 'tdd-triad', deps: ['r'] }),
+      node('x', { kind: 'leaf', role: 'none', rigor: 'tdd-pair', deps: ['r'] }),
+    ])
+    const m = buildModel(s)
+    expect(m.nodes.get('g')!.blockedBy).toEqual(['r'])
+    expect(m.nodes.get('x')!.blockedBy).toEqual(['r'])
+  })
+
   test('holdsUp lists the nodes still blocked by this one', () => {
     const s = snap([node('.'), node('a', { status: 'planned' }), node('b', { deps: ['a'] }), node('c', { deps: ['a'] })])
     const m = buildModel(s)

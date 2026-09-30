@@ -171,6 +171,15 @@ function blockingOrder(ids: string[], byId: Map<string, SnapshotNode>): string[]
   return result
 }
 
+// agentics cuts green from red's approved branch and audit from green's, so within a cycle
+// approval meets the dependency; everywhere else only a merge does.
+function depMet(n: SnapshotNode, dep: SnapshotNode, depLamp: Lamp | undefined): boolean {
+  if (depLamp === 'done') return true
+  const cyclePredecessor = n.rigor === dep.rigor &&
+    ((n.role === 'green' && dep.role === 'red') || (n.role === 'audit' && dep.role === 'green'))
+  return cyclePredecessor && dep.status === 'approved'
+}
+
 export function buildModel(s: Snapshot): BoardModel {
   const byId = new Map<string, SnapshotNode>()
   for (const n of s.nodes) byId.set(n.id, n)
@@ -237,7 +246,7 @@ export function buildModel(s: Snapshot): BoardModel {
   }
   const blockedByOf = new Map<string, string[]>()
   for (const n of s.nodes) {
-    const unmet = n.deps.filter((d) => byId.has(d) && lampWordingOf.get(d)?.lamp !== 'done').sort()
+    const unmet = n.deps.filter((d) => byId.has(d) && !depMet(n, byId.get(d)!, lampWordingOf.get(d)?.lamp)).sort()
     if (unmet.length > 0) blockedByOf.set(n.id, unmet)
   }
   const holdsUpOf = new Map<string, string[]>()
