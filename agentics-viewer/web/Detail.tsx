@@ -1,7 +1,7 @@
 import type { JSX } from 'preact'
 import { useEffect, useRef, useState } from 'preact/hooks'
 import type { BoardModel, NodeView } from './model.ts'
-import { kindWord, fileLabel, returnInWords, ago, vscodeLink, needsYou, claudePrompt, claudeCodeLink, projectPath, cardFacts } from './model.ts'
+import { kindWord, fileLabel, returnInWords, ago, vscodeLink, needsYou, claudePrompt, claudeCodeLink, projectPath, cardFacts, subtreeSpend } from './model.ts'
 import { inlineMarkdown } from './markdown.ts'
 import { Spend } from './Spend.tsx'
 import type { Approval, Snapshot, SnapshotNode } from '../shared/snapshot.ts'
@@ -179,7 +179,7 @@ export function Detail(props: {
   const context = node.context.trim()
   const showContext = intent !== '' || context !== ''
 
-  const spend = snapshot.cost.per_leaf[view.id] ?? null
+  const spend = subtreeSpend(model, snapshot.cost.per_leaf, view.id)
 
   const specFolder = view.folder !== null ? view.id : (node.parent ?? '.')
   const specLabel = specFolder === '.' ? 'DESIGN.md' : `${specFolder}/DESIGN.md`
@@ -317,7 +317,7 @@ export function Detail(props: {
 
       {spend !== null && (
         <>
-          <div class="sec">Spend</div>
+          <div class="sec">{view.children.length > 0 ? 'Spend, all tasks below' : 'Spend'}</div>
           <Spend spend={spend} tip="above" />
         </>
       )}

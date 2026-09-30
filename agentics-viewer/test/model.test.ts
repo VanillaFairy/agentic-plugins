@@ -29,6 +29,7 @@ import {
   visibleRows,
   moveSelection,
   subtreeDone,
+  subtreeSpend,
 } from '../web/model.ts'
 
 // Depth-first pre-order over a node list, read from each node's own `.parent`
@@ -799,6 +800,35 @@ describe('spend view', () => {
 
   test('no figures when no usage was recorded', () => {
     expect(spendView(spend({ dispatches: 20, tokens_unreported: 20 }))).toEqual({ cost: null, tokens: null, dispatches: '20 dispatches, tokens not reported', rows: [] })
+  })
+
+  test('a composite sums every leaf below it, per model too', () => {
+    const leaves: Record<string, Spend> = {
+      'a.x': spend({ dispatches: 2, tokens: 100, usd: 1, usage: { opus: usage(10, 20, 30, 40, 1) } }),
+      'a.b.y': spend({ dispatches: 3, tokens: 200, usd: 2, tokens_unreported: 1, usage: { opus: usage(1, 2, 3, 4, 2), next: usage(5, 0, 0, 0, null) } }),
+      z: spend({ dispatches: 7, tokens: 999, usd: 9 }),
+    }
+    const m = buildModel(snap([node('.', { kind: 'composite' }), node('a', { kind: 'composite' }), node('a.x'), node('a.b', { kind: 'composite' }), node('a.b.y'), node('z')]))
+    const s = subtreeSpend(m, leaves, 'a')!
+    const [x, y] = [leaves['a.x'], leaves['a.b.y']]
+    expect([s.dispatches, s.tokens, s.usd, s.tokens_unreported]).toEqual([
+      x.dispatches + y.dispatches, x.tokens + y.tokens, x.usd + y.usd, x.tokens_unreported + y.tokens_unreported,
+    ])
+    expect(s.usage.opus).toEqual(usage(11, 22, 33, 44, 3))
+    expect(s.usage.next).toEqual(y.usage.next)
+    expect(subtreeSpend(m, leaves, 'a.x')).toEqual(x)
+    expect(subtreeSpend(m, leaves, '.')!.dispatches).toBe(x.dispatches + y.dispatches + leaves.z.dispatches)
+  })
+
+  test('a model priced in one leaf and not in another has no price in the sum', () => {
+    const leaves = { 'a.x': spend({ usage: { m: usage(1, 0, 0, 0, 1) } }), 'a.y': spend({ usage: { m: usage(1, 0, 0, 0, null) } }) }
+    const m = buildModel(snap([node('.', { kind: 'composite' }), node('a', { kind: 'composite' }), node('a.x'), node('a.y')]))
+    expect(subtreeSpend(m, leaves, 'a')!.usage.m.usd).toBeNull()
+  })
+
+  test('no spend when nothing below a node has any', () => {
+    const m = buildModel(snap([node('.', { kind: 'composite' }), node('a', { kind: 'composite' }), node('a.x')]))
+    expect(subtreeSpend(m, {}, 'a')).toBeNull()
   })
 
   test('counts just under a million round up to it', () => {

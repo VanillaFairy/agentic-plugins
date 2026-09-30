@@ -595,8 +595,10 @@ output and cost; "23 dispatches, tokens not reported" when no usage was recorded
   - I'm not sure the desktop app's Browser pane hands `vscode://` links to VS Code. The copy
     button is the fallback.
 - **Writes**: the locus paths.
-- **Spend**: the node's own figures from `cost.per_leaf`, in the header's form and with the same
-  per-model table on the tokens.
+- **Spend**: a leaf's own figures from `cost.per_leaf`; for a node with children, the sum of
+  every `per_leaf` entry in its subtree, recursively, under "Spend, all tasks below". Per-model
+  figures add up too, and a model unpriced in any of them stays unpriced. Shown in the header's
+  form and with the same per-model table on the tokens.
 - Folder nodes also show their spec's approval state in words, and the count of blocking
   questions.
 

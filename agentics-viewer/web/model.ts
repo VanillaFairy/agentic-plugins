@@ -528,6 +528,39 @@ export function spendView(s: Spend): SpendView {
   }
 }
 
+function addSpend(into: Spend, s: Spend): void {
+  into.dispatches += s.dispatches
+  into.tokens += s.tokens
+  into.usd += s.usd
+  into.tokens_unreported += s.tokens_unreported
+  for (const [model, u] of Object.entries(s.usage)) {
+    const had = into.usage[model]
+    into.usage[model] = had === undefined ? { ...u } : {
+      input: had.input + u.input,
+      cache_write: had.cache_write + u.cache_write,
+      cache_read: had.cache_read + u.cache_read,
+      output: had.output + u.output,
+      usd: had.usd === null || u.usd === null ? null : had.usd + u.usd,
+    }
+  }
+}
+
+/** A node's spend: its own, plus every node's below it in the drawn tree; null when none has any. */
+export function subtreeSpend(model: BoardModel, perLeaf: Record<string, Spend>, id: string): Spend | null {
+  const total: Spend = { dispatches: 0, tokens: 0, usd: 0, tokens_unreported: 0, usage: {} }
+  let found = false
+  function visit(nodeId: string): void {
+    const own = perLeaf[nodeId]
+    if (own !== undefined) {
+      addSpend(total, own)
+      found = true
+    }
+    for (const c of model.nodes.get(nodeId)?.children ?? []) visit(c)
+  }
+  visit(id)
+  return found ? total : null
+}
+
 export function tileKey(project: string, effort: string, t: Tile): string {
   return `${project}|${effort}|${t.node}|${t.seq}`
 }
