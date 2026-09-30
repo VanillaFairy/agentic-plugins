@@ -12,6 +12,9 @@ export function startDecision(health: unknown, portFree: boolean): StartDecision
   return portFree ? 'run' : 'port-taken'
 }
 
+// serve.ts exits with this when package.json's version moved; main.ts starts it again.
+export const RESTART_EXIT_CODE = 75
+
 export function needsBuild(newestWebMtime: number, distIndexMtime: number | null): boolean {
   return distIndexMtime === null || distIndexMtime < newestWebMtime
 }

@@ -29,6 +29,8 @@ export interface StreamHandlers {
   problem(p: Problem): void
   stale(p: Problem): void
   connection(up: boolean): void
+  // The server came back as another version than the one this stream first met.
+  updated(): void
 }
 
 export interface EventSourceLike {
@@ -45,6 +47,12 @@ export function openStream(
   let url = `/api/stream?project=${encodeURIComponent(project)}`
   if (effort !== null) url += `&effort=${encodeURIComponent(effort)}`
   const source = make(url)
+  let serverVersion: string | null = null
+  source.addEventListener('hello', (e) => {
+    const { version } = JSON.parse(e.data!) as { version: string }
+    if (serverVersion === null) serverVersion = version
+    else if (version !== serverVersion) h.updated()
+  })
   source.addEventListener('open', () => h.connection(true))
   source.addEventListener('error', () => h.connection(false))
   source.addEventListener('efforts', (e) => h.efforts(JSON.parse(e.data!)))

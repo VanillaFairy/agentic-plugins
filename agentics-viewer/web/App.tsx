@@ -106,6 +106,9 @@ export function App(): JSX.Element {
       connection(up) {
         setConnected(up)
       },
+      updated() {
+        location.reload()
+      },
     })
     return close
   }, [url.project, url.effort])

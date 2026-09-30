@@ -28,7 +28,7 @@ export interface AppDeps {
 }
 
 const HERE = fileURLToPath(new URL('.', import.meta.url))
-const PACKAGE_VERSION = (JSON.parse(readFileSync(join(HERE, '..', 'package.json'), 'utf8')) as { version: string }).version
+export const PACKAGE_VERSION = (JSON.parse(readFileSync(join(HERE, '..', 'package.json'), 'utf8')) as { version: string }).version
 
 const MIME: Record<string, string> = {
   '.html': 'text/html; charset=utf-8',
@@ -171,6 +171,7 @@ export function createApp(deps: AppDeps): { server: http.Server; close(): Promis
     res.writeHead(200, SSE_HEADERS)
     const conn: StreamConn = { res, hasSnapshot: false }
     allStreams.add(conn)
+    sendEvent(res, 'hello', { version: PACKAGE_VERSION })
 
     let cleanupDone = false
     let disposeFn: (() => void) | undefined

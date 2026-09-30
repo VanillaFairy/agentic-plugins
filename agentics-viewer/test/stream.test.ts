@@ -27,6 +27,7 @@ function noopHandlers(): StreamHandlers {
     problem() {},
     stale() {},
     connection() {},
+    updated() {},
   }
 }
 
@@ -120,6 +121,18 @@ describe('openStream', () => {
     source.fire('open')
     source.fire('error')
     expect(states).toEqual([true, false])
+  })
+
+  test('a reconnect to another server version reports an update, the same version does not', () => {
+    let updates = 0
+    const h = { ...noopHandlers(), updated: () => { updates++ } }
+    let source!: FakeEventSource
+    openStream('p', null, h, (url) => (source = new FakeEventSource(url)))
+    source.fire('hello', JSON.stringify({ version: '1.0.0' }))
+    source.fire('hello', JSON.stringify({ version: '1.0.0' }))
+    expect(updates).toBe(0)
+    source.fire('hello', JSON.stringify({ version: '1.1.0' }))
+    expect(updates).toBe(1)
   })
 
   test('the close function closes the source', () => {

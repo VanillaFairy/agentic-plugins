@@ -187,7 +187,8 @@ a submodule). `snapshot` carries the same field.
 agentics-viewer/
   package.json  package-lock.json  tsconfig.json  vite.config.ts  README.md
   shared/snapshot.ts        the payload type and FORMAT = 1; imported by server and page
-  server/main.ts            start, health, routes, static files
+  server/main.ts            the entry: runs serve.ts and starts it again after an update
+  server/serve.ts           start, health, build, the version watch
   server/agentics.ts        find agentics, run status.mjs, check the envelope and format
   server/projects.ts        discovery, recent projects, the Browse dialog
   server/watch.ts           per-project watcher and the refresh scheduler
@@ -207,6 +208,10 @@ extensions, so Node can run the server without a build.
 
 - `npm start` builds the page with Vite when `web/` is newer than `dist/`, then runs
   `node server/main.ts`.
+- A running viewer updates itself. The server checks `package.json` every 2 s; when its version
+  differs from the one it started as, it closes and exits with code 75, and `main.ts` starts it
+  again, which rebuilds the page. Every stream opens with a `hello` event carrying the server's
+  version; a page that reconnects to a different version than it first met reloads.
 - `agentics-viewer.cmd`, or `npm run app`, runs it with `--open`: the page also opens in the
   default browser, and when the viewer already runs, only the page opens. Opened from Explorer or
   a file manager (cmd started it with the file's own path), the `.cmd` reopens itself in a console

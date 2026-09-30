@@ -11,6 +11,10 @@ that stays open, installs dependencies on first run, starts the viewer there and
 one and keeps it until the viewer stops. If the viewer is already running, it only opens the page.
 Close the console or press Ctrl+C to stop the viewer.
 
+A running viewer updates itself. When `package.json`'s version changes on disk, after a
+`git pull` or a local bump, the server restarts, rebuilds the page and the open tabs reload. If
+the update changed the dependencies, stop it and run `npm install` first.
+
 From a terminal, the same thing is:
 
 ```
