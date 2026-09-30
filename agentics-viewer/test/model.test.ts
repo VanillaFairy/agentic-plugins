@@ -6,7 +6,7 @@ import {
   buildModel,
   lampAndWording,
   returnInWords,
-  attentionPrompt,
+  claudePrompt,
   problemText,
   ago,
   vscodeLink,
@@ -411,23 +411,61 @@ describe('returnInWords', () => {
   })
 })
 
-describe('attentionPrompt', () => {
+describe('claudePrompt', () => {
   const s = snap([], { store: '/repo/.agentics', effort: 'auth' })
   const spec = { spec: { path: '/repo/.agentics/auth/DESIGN.md', line: 12 }, briefs: [], reports: [] }
 
-  test('nothing for a node that does not need you', () => {
-    expect(attentionPrompt(s, node('a', { status: 'active' }))).toBeNull()
-    expect(attentionPrompt(s, node('a', { status: 'parked' }))).toBeNull()
+  test('nothing for a finished node', () => {
+    for (const status of ['merged', 'integrated', 'landed']) {
+      expect(claudePrompt(s, node('a', { status }))).toBeNull()
+    }
+    expect(claudePrompt(s, node('.', { status: 'landed' }))).toBeNull()
+  })
+  test('an unfinished node resumes the effort, naming itself and where it stopped', () => {
+    for (const status of ['planned', 'active', 'approved']) {
+      const p = claudePrompt(s, node('api.cache', { status, stage: 'fix round 2', files: spec }))!
+      expect(p).toContain('agentics:develop')
+      expect(p).toContain('`auth` in `/repo`')
+      expect(p).toContain('`api.cache`')
+      expect(p).toContain(status)
+      expect(p).toContain('fix round 2')
+      expect(p).toContain(spec.spec.path)
+    }
+  })
+  test('a node parked only through its descendants names the ones that wait', () => {
+    const event = { kind: 'parked', seq: 3, return: 'needs_decision', question: 'Keep the cache?' }
+    const nodes = [
+      node('.', { kind: 'composite', status: 'parked' }),
+      node('api', { kind: 'composite', status: 'parked' }),
+      node('api.cache', { status: 'parked', event }),
+      node('api.ttl', { status: 'active' }),
+      node('web', { kind: 'design', status: 'open' }),
+    ]
+    const tree = snap(nodes, { store: '/repo/.agentics', effort: 'auth' })
+    const api = claudePrompt(tree, nodes[1])!
+    expect(api).toContain('agentics:develop')
+    expect(api).toContain('`api.cache`')
+    expect(api).not.toContain('`api.ttl`')
+    expect(api).not.toContain('`web`')
+    const root = claudePrompt(tree, nodes[0])!
+    expect(root).toContain('`api.cache`')
+    expect(root).toContain('`web`')
+  })
+  test('an integrated root asks to land the effort', () => {
+    const p = claudePrompt(s, node('.', { kind: 'composite', status: 'integrated' }))!
+    expect(p).toContain('agentics:develop')
+    expect(p).toContain('land')
+    expect(p).toContain('`auth` in `/repo`')
   })
   test('an open folder asks for design, naming the repo and not the store', () => {
-    const p = attentionPrompt(s, node('api', { kind: 'design', status: 'open' }))!
+    const p = claudePrompt(s, node('api', { kind: 'design', status: 'open' }))!
     expect(p).toContain('agentics:design')
     expect(p).toContain('`api`')
     expect(p).toContain('`auth` in `/repo`')
   })
   test('a parked node carries its return and question', () => {
     const event = { kind: 'parked', seq: 3, return: 'needs_decision', question: 'Keep the cache?' }
-    const p = attentionPrompt(s, node('api.cache', { status: 'parked', event, files: spec }))!
+    const p = claudePrompt(s, node('api.cache', { status: 'parked', event, files: spec }))!
     expect(p).toContain('agentics:develop')
     expect(p).toContain(returnInWords('needs_decision'))
     expect(p).toContain('Keep the cache?')
@@ -435,7 +473,7 @@ describe('attentionPrompt', () => {
   })
   test('an escalated node carries its reason and detail', () => {
     const event = { kind: 'escalated', seq: 4, reason: 'tests red', detail: 'three failures' }
-    const p = attentionPrompt(s, node('api.cache', { status: 'escalated', event }))!
+    const p = claudePrompt(s, node('api.cache', { status: 'escalated', event }))!
     expect(p).toContain('escalated')
     expect(p).toContain('tests red')
     expect(p).toContain('three failures')

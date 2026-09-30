@@ -533,11 +533,7 @@ most recently active first), cost ("412k tokens over 23 dispatches", with "and 2
   one row each with the name and the status badge. A row selects that node. Past five rows the rest
   fold behind "and `n` more".
 - A state block for a node that itself is parked, escalated or open: a 4 px left bar in `--hold`
-  or `--stop`, and a 7 % tint of that colour on `--panel`. It ends in "Prompt for Claude Code"
-  with a copy button that behaves like the file ones. The prompt names the skill to use
-  (`agentics:design` for an open folder, `agentics:develop` otherwise), the node, the effort and
-  the repo, the return and question or the reason and detail, and the node's spec. The viewer is
-  read-only, so this is how you act on what it shows.
+  or `--stop`, and a 7 % tint of that colour on `--panel`.
   - Open: heading "Needs design".
   - Parked: heading "Waiting on you" with the `return` in words ("needs a decision",
     "needs design", "needs the spec fixed", "can't tell from the evidence"), then the question in
@@ -545,6 +541,19 @@ most recently active first), cost ("412k tokens over 23 dispatches", with "and 2
   - Escalated: heading "Escalated" and the reason, with the detail beneath.
 - For active tasks, a line with the stage and "3 commits, last 4 min ago: `<subject>`". The
   "ago" is computed on the page from `last_at` and refreshes every 30 s.
+- "Prompt for Claude Code" with a copy button that behaves like the file ones, on every
+  unfinished node: any status but merged, integrated or landed, plus an integrated root. The
+  viewer is read-only, so this is how you act on what it shows. The snapshot does not say whether
+  a session is driving the effort, so a node being worked on shows the prompt too. Every prompt
+  names the skill, the effort, the repo and the node's spec, and then:
+  - Open: `agentics:design` on the folder.
+  - Parked or escalated itself: `agentics:develop` to ask you about the node, with the return and
+    question or the reason and detail.
+  - Parked or escalated only through descendants: `agentics:develop` to ask you about what waits
+    under it, listing those descendants.
+  - Planned, active or approved: `agentics:develop` to resume the effort from where it stopped,
+    with the node, its status and its stage.
+  - Integrated root: `agentics:develop` to walk its result and land it on your go.
 - **Context**, in serif. Intent and context are rendered as inline markdown through `marked`, then
   sanitised by DOMPurify.
 - **Criteria**: a checklist. Each item's `check` command is shown in Cascadia Mono beneath it.

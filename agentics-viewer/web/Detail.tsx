@@ -1,7 +1,7 @@
 import type { JSX } from 'preact'
 import { useEffect, useRef, useState } from 'preact/hooks'
 import type { BoardModel, NodeView } from './model.ts'
-import { kindWord, fileLabel, returnInWords, ago, spendText, vscodeLink, needsYou, attentionPrompt } from './model.ts'
+import { kindWord, fileLabel, returnInWords, ago, spendText, vscodeLink, needsYou, claudePrompt } from './model.ts'
 import { inlineMarkdown } from './markdown.ts'
 import type { Approval, Snapshot, SnapshotNode } from '../shared/snapshot.ts'
 import './detail.css'
@@ -156,7 +156,7 @@ export function Detail(props: {
   const isParked = node.status === 'parked' && needsYou(node) === 'hold'
   const isEscalated = needsYou(node) === 'stop'
   const needsDesign = node.status === 'open'
-  const prompt = attentionPrompt(snapshot, node)
+  const prompt = claudePrompt(snapshot, node)
   const rolledUp = (node.status === 'parked' || node.status === 'escalated') && needsYou(node) === null
   const event = node.event
 
@@ -202,17 +202,18 @@ export function Detail(props: {
           {isParked && event?.question && <p>{event.question}</p>}
           {isEscalated && event?.reason && <p>{event.reason}</p>}
           {isEscalated && event?.detail && <p>{event.detail}</p>}
-          {prompt !== null && (
-            <div class="prompt-row" title={prompt}>
-              <span>Prompt for Claude Code</span>
-              <CopyButton key={prompt} text={prompt} label="Copy prompt for Claude Code" copy={copyText} />
-            </div>
-          )}
         </div>
       )}
 
       {activeLine !== null && <p class="d-sub">{activeLine}</p>}
       {approvalParts.length > 0 && <p class="d-sub">{approvalParts.join(', ')}</p>}
+
+      {prompt !== null && (
+        <div class="prompt-row" title={prompt}>
+          <span>Prompt for Claude Code</span>
+          <CopyButton key={prompt} text={prompt} label="Copy prompt for Claude Code" copy={copyText} />
+        </div>
+      )}
 
       <Relations key={`w:${view.id}`} title="Waits on" ids={view.blockedBy} model={model} onSelect={onSelect} onHighlight={onHighlight} />
       <Relations key={`h:${view.id}`} title="Holds up" ids={view.holdsUp} model={model} onSelect={onSelect} onHighlight={onHighlight} />

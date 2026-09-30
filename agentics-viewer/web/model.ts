@@ -343,15 +343,38 @@ export function returnInWords(ret: string): string {
   }
 }
 
-// What to paste into a Claude Code session opened in the project to act on a node that itself
-// needs you; null for every other node. The viewer is read-only, so this is its only hand-off.
-export function attentionPrompt(s: Snapshot, n: SnapshotNode): string | null {
+function waitingBelow(s: Snapshot, id: string): SnapshotNode[] {
+  const byId = new Map(s.nodes.map((n) => [n.id, n]))
+  const isBelow = (n: SnapshotNode): boolean => {
+    for (let p = n.parent; p !== null; p = byId.get(p)?.parent ?? null) if (p === id) return true
+    return false
+  }
+  return s.nodes.filter((n) => needsYou(n) !== null && isBelow(n))
+}
+
+// What to paste into a Claude Code session opened in the project to move an unfinished node
+// on; null for a finished one. The viewer is read-only, so this is its only hand-off. An
+// integrated node is finished unless it is the root, which still waits for the go to land.
+export function claudePrompt(s: Snapshot, n: SnapshotNode): string | null {
+  const landable = n.id === '.' && n.status === 'integrated'
+  if (MERGED_STATUSES.has(n.status) && !landable) return null
   const need = needsYou(n)
-  if (need === null) return null
   const repo = s.store.replace(/\/\.agentics\/?$/, '')
   const where = `the agentics effort \`${s.effort}\` in \`${repo}\``
   const lines: string[] = []
-  if (n.status === 'open') {
+  if (landable) {
+    lines.push(`Use agentics:develop on ${where}: it is integrated, so walk me through its result and land it on my go.`)
+  } else if (need === null) {
+    const waiting = n.status === 'parked' || n.status === 'escalated' ? waitingBelow(s, n.id) : []
+    if (waiting.length > 0) {
+      lines.push(`Use agentics:develop to ask me about what waits on me under \`${n.id}\` of ${where}; relaunch only once I've answered.`)
+      lines.push(`Waiting: ${waiting.map((w) => `\`${w.id}\` (${w.status})`).join(', ')}`)
+    } else {
+      const stage = n.stage !== null ? `, stage \`${n.stage}\`` : ''
+      lines.push(`Use agentics:develop to resume ${where} from where it stopped.`)
+      lines.push(`Unfinished: \`${n.id}\` (${n.status}${stage})`)
+    }
+  } else if (n.status === 'open') {
     lines.push(`Use agentics:design on the folder \`${n.id}\` of ${where}.`)
   } else if (need === 'hold') {
     const ret = n.event?.return ?? ''
