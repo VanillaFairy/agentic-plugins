@@ -458,8 +458,9 @@ most recently active first), cost ("412k tokens over 23 dispatches", with "and 2
 - Clicking a tile selects its node.
 - To the right, on wide screens: counts ("2 working", "1 merged", "1 queued", "3 need design").
 - With no tiles, only the counts line shows.
-- The tab title names the effort and carries the count of lit tiles: "(2) Agentics Viewer:
-  <effort>"; with no effort chosen it is "Agentics Viewer".
+- The tab title names the effort and carries the count of lit tiles, after the viewer's
+  version: "(2) Agentics Viewer 1.6.0: <effort>"; with no effort chosen it is "Agentics Viewer
+  1.6.0".
 
 **Outline.**
 

@@ -429,8 +429,9 @@ export function tileKey(project: string, effort: string, t: Tile): string {
   return `${project}|${effort}|${t.node}|${t.seq}`
 }
 
-export function tabTitle(tiles: Tile[], effort: string | null): string {
-  const name = effort ? `Agentics Viewer: ${effort}` : 'Agentics Viewer'
+export function tabTitle(tiles: Tile[], effort: string | null, version: string): string {
+  const app = `Agentics Viewer ${version}`
+  const name = effort ? `${app}: ${effort}` : app
   return tiles.length === 0 ? name : `(${tiles.length}) ${name}`
 }
 

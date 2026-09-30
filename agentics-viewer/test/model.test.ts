@@ -675,13 +675,13 @@ describe('cost text', () => {
 
 describe('tabTitle and tileKey', () => {
   test('tab title names the effort and counts tiles', () => {
-    expect(tabTitle([], null)).toBe('Agentics Viewer')
-    expect(tabTitle([], 'eff')).toBe('Agentics Viewer: eff')
+    expect(tabTitle([], null, '1.2.3')).toBe('Agentics Viewer 1.2.3')
+    expect(tabTitle([], 'eff', '1.2.3')).toBe('Agentics Viewer 1.2.3: eff')
     const tiles: Tile[] = [
       { node: 'a', kind: 'stop', seq: 1, title: 't', why: 'w' },
       { node: 'b', kind: 'hold', seq: 2, title: 't', why: 'w' },
     ]
-    expect(tabTitle(tiles, 'eff')).toBe('(2) Agentics Viewer: eff')
+    expect(tabTitle(tiles, 'eff', '1.2.3')).toBe('(2) Agentics Viewer 1.2.3: eff')
   })
 
   test('tile key', () => {
