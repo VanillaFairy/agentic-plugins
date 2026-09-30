@@ -34,6 +34,7 @@ export interface SnapshotNode {
   label?: string                  // the visible name; absent from agentics before 4.7.1
   parent: string | null           // null only for the root '.'
   kind: string                    // 'design' | 'composite' | 'leaf', passed through
+  author?: string                 // 'you' | 'planner'; absent from agentics before 4.16.0, read as 'you'
   title: string
   intent: string
   context: string

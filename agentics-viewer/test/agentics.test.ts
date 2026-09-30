@@ -112,6 +112,21 @@ describe('runSnapshot', () => {
     }
   })
 
+  test('a design the planner writes is queued; one you write, or of unknown author, still needs design', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'agentics-viewer-'))
+    const nodes = [
+      { id: 'p', kind: 'design', author: 'planner', status: 'open' },
+      { id: 'y', kind: 'design', author: 'you', status: 'open' },
+      { id: 'old', kind: 'design', status: 'open' },
+    ]
+    fakeAgentics(dir, okBody.replace('nodes: []', `nodes: ${JSON.stringify(nodes)}`))
+    const result = await runSnapshot({ path: dir, version: '4.16.0' }, 'proj', 'e')
+    expect(result.ok).toBe(true)
+    if (result.ok) {
+      expect(Object.fromEntries(result.payload.nodes.map((n) => [n.id, n.status]))).toEqual({ p: 'planned', y: 'open', old: 'open' })
+    }
+  })
+
   test('an old agentics is agentics_too_old', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'agentics-viewer-'))
     fakeAgentics(dir, tooOldBody, '1.0.0')

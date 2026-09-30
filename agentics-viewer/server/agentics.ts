@@ -82,11 +82,18 @@ function interpret<T>(loc: AgenticsLocation, stdout: string, timedOut: boolean, 
   return { ok: false, problem: { code: 'snapshot_failed', path: loc.path, version: loc.version, detail: stdout } }
 }
 
+// A design develop's planner writes waits on nobody: the regular process takes it, and anything
+// it can't settle comes back as a park. So it is queued, like any node not yet started.
+function queuePlannerDesigns(s: Snapshot): Snapshot {
+  return { ...s, nodes: s.nodes.map((n) => (n.status === 'open' && n.author === 'planner' ? { ...n, status: 'planned' } : n)) }
+}
+
 export function runSnapshot(loc: AgenticsLocation, project: string, effort: string, opts: { timeoutMs?: number } = {}): Promise<RunResult<Snapshot>> {
   const timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS
-  return execStatus(loc, ['snapshot', '--repo', project, '--effort', effort], timeoutMs).then((r) =>
-    interpret<Snapshot>(loc, r.stdout, r.timedOut, true),
-  )
+  return execStatus(loc, ['snapshot', '--repo', project, '--effort', effort], timeoutMs).then((r) => {
+    const result = interpret<Snapshot>(loc, r.stdout, r.timedOut, true)
+    return result.ok ? { ...result, payload: queuePlannerDesigns(result.payload) } : result
+  })
 }
 
 export function runList(loc: AgenticsLocation, project: string, opts: { timeoutMs?: number } = {}): Promise<RunResult<EffortsList>> {

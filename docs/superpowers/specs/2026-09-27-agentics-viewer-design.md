@@ -397,8 +397,8 @@ the detail panel's first line. Hovering a block or row shows status and facts in
 | `escalated`, with its own event | `--stop` border and a 16 % `--stop` fill | "escalated" | none |
 | `parked` or `escalated` with no event (agentics rolls a descendant's status up to every ancestor) | `--rule` border | none: the border says it | what is below: "1 escalated", "2 waiting on you", "4 need design" |
 | `merged`, `integrated`, `landed` | `--good` border and a 12 % `--good` fill | "merged", "integrated", "landed" | none |
-| `planned` | `--rule` border | "queued" | "`n` of `m` merged" for a folder |
-| `open` (a design node) | dashed `--hold` border and a 16 % `--hold` fill: it needs you to design it | "needs design" | "`n` blocking questions" from its folder's DESIGN.md; "not approved" or "edited since approval"; "design not started" when it has no folder of its own yet |
+| `planned`, or `open` with `author: planner` | `--rule` border | "queued" | "`n` of `m` merged" for a folder |
+| `open` (a design node you write) | dashed `--hold` border and a 16 % `--hold` fill: it needs you to design it | "needs design" | "`n` blocking questions" from its folder's DESIGN.md; "not approved" or "edited since approval"; "design not started" when it has no folder of its own yet |
 | anything else | `--rule` border | the raw status | none |
 
 Amber and red mean the node itself needs you: it is parked with its own event, escalated with its own event, or a design node. Every ancestor of such a node gets a 1.5 px border
