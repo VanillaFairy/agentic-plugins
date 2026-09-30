@@ -173,7 +173,8 @@ export function Detail(props: {
     if (view.folder.blocking > 0) approvalParts.push(`${view.folder.blocking} blocking questions`)
   }
 
-  const intent = node.intent.trim()
+  // agentics gives a plan entry its title as its intent; the title line above already shows it.
+  const intent = node.intent.trim() === node.title.trim() ? '' : node.intent.trim()
   const context = node.context.trim()
   const showContext = intent !== '' || context !== ''
 

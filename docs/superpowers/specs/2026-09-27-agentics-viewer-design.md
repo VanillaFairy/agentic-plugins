@@ -576,7 +576,8 @@ output and cost; "23 dispatches, tokens not reported" when no usage was recorded
   Every prompt ends with the card's facts as the panel shows them, and a "Relaunch" line with the
   open execution, its root and `retry_escalated` when agentics gives one.
 - **Context**, in serif. Intent and context are rendered as inline markdown through `marked`, then
-  sanitised by DOMPurify.
+  sanitised by DOMPurify. An intent that only repeats the title is left out, and the section with
+  it when there is no context either.
 - **Criteria**: a checklist. Each item's `check` command is shown in Cascadia Mono beneath it.
   `HUMAN:` items drop the prefix and carry a "You decide" tag.
 - **Files**, each a `vscode://file/` link with a copy-path button beside it:
