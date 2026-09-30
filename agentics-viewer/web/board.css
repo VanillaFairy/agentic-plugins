@@ -104,12 +104,8 @@
   fill: var(--ink-2);
 }
 .blk.done rect.b {
-  fill: var(--board);
-  stroke: var(--quiet);
-}
-.blk.done .n {
-  fill: var(--ink-2);
-  font-weight: 400;
+  fill: color-mix(in srgb, var(--good) 12%, var(--panel));
+  stroke: var(--good);
 }
 .blk.open rect.b {
   fill: color-mix(in srgb, var(--hold) 16%, var(--panel));

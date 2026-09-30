@@ -337,8 +337,8 @@ A missing or unreadable file means defaults, and the server logs it.
 
 The board borrows from control-room mimic panels and annunciators. High-performance HMI practice
 (ISA-101) says grey is normal and colour is reserved for what needs a person. Alarms that nobody
-has acknowledged flash until someone looks. Done is the normal end state, so merged work goes
-quiet grey, not green. The page's first job is "does anything need me, and what's moving?" at a
+has acknowledged flash until someone looks. Done work is the exception to grey: it is green, so
+what is finished reads apart from what is only queued. The page's first job is "does anything need me, and what's moving?" at a
 glance. Its second job is "why is this node where it is?".
 
 The one loud element is the annunciator strip. Everything else stays quiet.
@@ -352,12 +352,12 @@ The one loud element is the annunciator strip. Everything else stays quiet.
 | `--ink` | `#2B3035` | `#DADFD8` | text, live tracks |
 | `--ink-2` | `#5E655F` | `#9AA29A` | secondary text |
 | `--rule` | `#B9BEB6` | `#3A4146` | borders |
-| `--quiet` | `#8C928A` | `#6E766F` | done borders and badges, quiet tracks and arrows |
+| `--quiet` | `#8C928A` | `#6E766F` | queued badges, quiet tracks and arrows |
 | `--work` | `#2F6DB5` | `#6FA6E6` | working borders and badges, links, focus ring |
 | `--hold` | `#D48A00` | `#F2B63A` | what needs you: borders, fills and badges |
 | `--hold-lit` / `--hold-ink` | `#F2C14E` / `#3A2A00` | `#E8A92A` / `#3A2A00` | a lit waiting tile |
 | `--stop` / `--stop-ink` | `#C2203A` / `#FFFFFF` | `#E0564C` / `#FFFFFF` | escalated borders, fills and badges, a lit escalation tile |
-| `--good` | `#3E7D1F` | `#7FC75A` | a done status word, a copied path |
+| `--good` | `#3E7D1F` | `#7FC75A` | done borders, fills and badges, a done status word, a copied path |
 | `--dep` | `#6B4FC8` | `#A992F2` | the selected node's dependency arrows, a highlighted blocker |
 
 The page follows `prefers-color-scheme`, and gives `body` an explicit background.
@@ -389,7 +389,7 @@ the detail panel's first line. Hovering a block or row shows status and facts in
 | `parked`, with its own event | `--hold` border and a 16 % `--hold` fill | "waiting on you" | none |
 | `escalated`, with its own event | `--stop` border and a 16 % `--stop` fill | "escalated" | none |
 | `parked` or `escalated` with no event (agentics rolls a descendant's status up to every ancestor) | `--rule` border | none: the border says it | what is below: "1 escalated", "2 waiting on you", "4 need design" |
-| `merged`, `integrated`, `landed` | recessed: `--board` fill, `--quiet` border, name in `--ink-2` | "merged", "integrated", "landed" | none |
+| `merged`, `integrated`, `landed` | `--good` border and a 12 % `--good` fill | "merged", "integrated", "landed" | none |
 | `planned` | `--rule` border | "queued" | "`n` of `m` merged" for a folder |
 | `open` (a design node) | dashed `--hold` border and a 16 % `--hold` fill: it needs you to design it | "needs design" | "`n` blocking questions" from its folder's DESIGN.md; "not approved" or "edited since approval"; "design not started" when it has no folder of its own yet |
 | anything else | `--rule` border | the raw status | none |

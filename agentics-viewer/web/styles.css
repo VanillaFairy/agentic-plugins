@@ -63,7 +63,9 @@
 .t-orphan {
   --tone: var(--stop);
 }
-.t-done,
+.t-done {
+  --tone: var(--good);
+}
 .t-idle,
 .t-unknown {
   --tone: var(--quiet);
