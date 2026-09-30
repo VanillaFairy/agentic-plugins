@@ -575,6 +575,12 @@ output and cost; "23 dispatches, tokens not reported" when no usage was recorded
 
   Every prompt ends with the card's facts as the panel shows them, and a "Relaunch" line with the
   open execution, its root and `retry_escalated` when agentics gives one.
+
+  Beside the copy button, an "Open in Claude Code" link,
+  `claude://code/new?q=<prompt>&folder=<repo>`, which the browser hands to the Claude desktop app:
+  a new Code session in the project with the prompt in its composer. The app asks before it uses
+  the folder, and you send the prompt yourself; the link cannot submit it. The app takes about
+  14,000 characters of prompt, so a longer one shows the copy button alone.
 - **Context**, in serif. Intent and context are rendered as inline markdown through `marked`, then
   sanitised by DOMPurify. An intent that only repeats the title is left out, and the section with
   it when there is no context either.

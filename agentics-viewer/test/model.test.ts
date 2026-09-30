@@ -8,6 +8,8 @@ import {
   lampAndWording,
   returnInWords,
   claudePrompt,
+  claudeCodeLink,
+  CLAUDE_LINK_PROMPT_MAX,
   cardFacts,
   problemText,
   ago,
@@ -713,6 +715,24 @@ describe('vscodeLink', () => {
 
   test('no line, no suffix', () => {
     expect(vscodeLink('C:\\My Work\\a b\\DESIGN.md', null)).toBe('vscode://file/C:/My%20Work/a%20b/DESIGN.md')
+  })
+})
+
+describe('claudeCodeLink', () => {
+  const repo = 'C:/My Work/a&b'
+  const prompt = 'Use agentics:develop on `x` & go?\nSpec: `C:/My Work/DESIGN.md:12`'
+
+  test('the desktop app gets the prompt and the folder back unchanged', () => {
+    const url = new URL(claudeCodeLink(repo, prompt)!)
+    expect(url.protocol).toBe('claude:')
+    expect(url.host + url.pathname).toBe('code/new')
+    expect(url.searchParams.get('q')).toBe(prompt)
+    expect(url.searchParams.get('folder')).toBe(repo)
+  })
+
+  test('no link for a prompt the app would cut short', () => {
+    expect(claudeCodeLink(repo, 'a'.repeat(CLAUDE_LINK_PROMPT_MAX))).not.toBeNull()
+    expect(claudeCodeLink(repo, 'a'.repeat(CLAUDE_LINK_PROMPT_MAX + 1))).toBeNull()
   })
 })
 

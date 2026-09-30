@@ -379,6 +379,10 @@ function relaunchLine(n: SnapshotNode): string | null {
   return `Relaunch: execution \`${r.execution}\`, root \`${r.root}\`${retry}`
 }
 
+export function projectPath(s: Snapshot): string {
+  return s.store.replace(/\/\.agentics\/?$/, '')
+}
+
 // What to paste into a Claude Code session opened in the project to move an unfinished node
 // on; null for a finished one. The viewer is read-only, so this is its only hand-off. An
 // integrated node is finished unless it is the root, which still waits for the go to land.
@@ -386,8 +390,7 @@ export function claudePrompt(s: Snapshot, n: SnapshotNode): string | null {
   const landable = n.id === '.' && n.status === 'integrated'
   if (MERGED_STATUSES.has(n.status) && !landable) return null
   const need = needsYou(n)
-  const repo = s.store.replace(/\/\.agentics\/?$/, '')
-  const where = `the agentics effort \`${s.effort}\` in \`${repo}\``
+  const where = `the agentics effort \`${s.effort}\` in \`${projectPath(s)}\``
   const lines: string[] = []
   if (landable) {
     lines.push(`Use agentics:develop on ${where}: it is integrated, so walk me through its result and land it on my go.`)
@@ -421,6 +424,17 @@ export function claudePrompt(s: Snapshot, n: SnapshotNode): string | null {
   const relaunch = relaunchLine(n)
   if (relaunch !== null) lines.push(relaunch)
   return lines.join('\n')
+}
+
+// The desktop app cuts a longer prompt short.
+export const CLAUDE_LINK_PROMPT_MAX = 14_000
+
+// Opens a new Claude Code session of the desktop app in the project with the prompt in its
+// composer; the app asks before it uses the folder, and the prompt is sent by hand. Null when
+// the prompt would not arrive whole.
+export function claudeCodeLink(repo: string, prompt: string): string | null {
+  if (prompt.length > CLAUDE_LINK_PROMPT_MAX) return null
+  return `claude://code/new?q=${encodeURIComponent(prompt)}&folder=${encodeURIComponent(repo)}`
 }
 
 export function problemText(p: Problem): string {

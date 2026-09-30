@@ -1,7 +1,7 @@
 import type { JSX } from 'preact'
 import { useEffect, useRef, useState } from 'preact/hooks'
 import type { BoardModel, NodeView } from './model.ts'
-import { kindWord, fileLabel, returnInWords, ago, vscodeLink, needsYou, claudePrompt, cardFacts } from './model.ts'
+import { kindWord, fileLabel, returnInWords, ago, vscodeLink, needsYou, claudePrompt, claudeCodeLink, projectPath, cardFacts } from './model.ts'
 import { inlineMarkdown } from './markdown.ts'
 import { Spend } from './Spend.tsx'
 import type { Approval, Snapshot, SnapshotNode } from '../shared/snapshot.ts'
@@ -158,6 +158,7 @@ export function Detail(props: {
   const isEscalated = needsYou(node) === 'stop'
   const needsDesign = node.status === 'open'
   const prompt = claudePrompt(snapshot, node)
+  const promptLink = prompt !== null ? claudeCodeLink(projectPath(snapshot), prompt) : null
   const facts = cardFacts(node)
   const rolledUp = (node.status === 'parked' || node.status === 'escalated') && needsYou(node) === null
   const event = node.event
@@ -226,6 +227,14 @@ export function Detail(props: {
         <div class="prompt-row" title={prompt}>
           <span>Prompt for Claude Code</span>
           <CopyButton key={prompt} text={prompt} label="Copy prompt for Claude Code" copy={copyText} />
+          {promptLink !== null && (
+            <a class="copy" href={promptLink} aria-label="Open in Claude Code">
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" aria-hidden="true">
+                <path d="M5 2.5H2a1 1 0 0 0-1 1V10a1 1 0 0 0 1 1h6.5a1 1 0 0 0 1-1V7" />
+                <path d="M7 1h4v4M11 1L5.5 6.5" />
+              </svg>
+            </a>
+          )}
         </div>
       )}
 
