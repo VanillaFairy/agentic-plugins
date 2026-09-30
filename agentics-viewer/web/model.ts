@@ -4,7 +4,7 @@ export type Lamp = 'work' | 'hold' | 'stop' | 'done' | 'idle' | 'open' | 'unknow
 
 export interface NodeView {
   id: string
-  name: string // last id segment; the effort name for '.'
+  name: string // the node's label; else its last id segment, or the effort name for '.'
   parent: string | null // the drawn parent ('.' for an orphan)
   depth: number
   children: string[] // blocking order: a dependency before its dependant, ties by id
@@ -267,7 +267,7 @@ export function buildModel(s: Snapshot): BoardModel {
     const { lamp, status, facts, wording } = lampWordingOf.get(id)!
     nodes.set(id, {
       id,
-      name: id === '.' ? s.effort : lastSegment(id),
+      name: shownName(n, s.effort),
       parent: drawnParent.get(id)!,
       depth: depth.get(id)!,
       children,
@@ -289,10 +289,10 @@ export function buildModel(s: Snapshot): BoardModel {
     if (n.event === null) continue
     if (n.status === 'parked') {
       const why = n.event.question ?? returnInWords(n.event.return ?? '')
-      tiles.push({ node: n.id, kind: 'hold', seq: n.event.seq, title: `${lastSegment(n.id)} is waiting on you`, why })
+      tiles.push({ node: n.id, kind: 'hold', seq: n.event.seq, title: `${shownName(n, s.effort)} is waiting on you`, why })
     } else if (n.status === 'escalated') {
       const why = n.event.reason ?? n.event.detail ?? ''
-      tiles.push({ node: n.id, kind: 'stop', seq: n.event.seq, title: `${lastSegment(n.id)} escalated`, why })
+      tiles.push({ node: n.id, kind: 'stop', seq: n.event.seq, title: `${shownName(n, s.effort)} escalated`, why })
     }
   }
   tiles.sort((a, b) => {
@@ -315,9 +315,11 @@ export function buildModel(s: Snapshot): BoardModel {
   return { root: '.', nodes, order, tiles, counts }
 }
 
-function lastSegment(id: string): string {
-  const dot = id.lastIndexOf('.')
-  return dot === -1 ? id : id.slice(dot + 1)
+// agentics names each node with a label; one too old to send it gets the last id segment.
+function shownName(n: SnapshotNode, effort: string): string {
+  if (n.label) return n.label
+  if (n.id === '.') return effort
+  return n.id.slice(n.id.lastIndexOf('/') + 1)
 }
 
 export function returnInWords(ret: string): string {

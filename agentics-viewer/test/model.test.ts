@@ -262,12 +262,20 @@ describe('buildModel', () => {
     expect(m.nodes.get('a')!.blockedBy).toEqual([])
   })
 
-  test('names are last segments', () => {
-    const s = snap([node('.'), node('a'), node('a.b')], { effort: 'my-effort' })
+  test('a node is named by its label, else by the last segment of its path', () => {
+    const s = snap([
+      node('.'), node('world'), node('world/world-red', { parent: 'world', label: 'world-red-tests' }),
+      node('world/boot', { parent: 'world' }),
+    ], { effort: 'my-effort' })
     const m = buildModel(s)
     expect(m.nodes.get('.')!.name).toBe('my-effort')
-    expect(m.nodes.get('a')!.name).toBe('a')
-    expect(m.nodes.get('a.b')!.name).toBe('b')
+    expect(m.nodes.get('world/world-red')!.name).toBe('world-red-tests')
+    expect(m.nodes.get('world/boot')!.name).toBe('boot')
+  })
+
+  test('a tile names the node by its label', () => {
+    const s = snap([node('.'), node('world'), node('world/world-red', { parent: 'world', label: 'world-red-tests', status: 'escalated', event: { kind: 'x', seq: 1 } })])
+    expect(buildModel(s).tiles[0].title).toBe('world-red-tests escalated')
   })
 
   test('depth counts from the root', () => {

@@ -21,6 +21,7 @@ export interface SnapshotFolder {
 
 export interface SnapshotNode {
   id: string
+  label?: string                  // the visible name; absent from agentics before 4.7.1
   parent: string | null           // null only for the root '.'
   kind: string                    // 'design' | 'composite' | 'leaf', passed through
   title: string
