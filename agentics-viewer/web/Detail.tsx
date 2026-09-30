@@ -123,8 +123,9 @@ export function Detail(props: {
   now: number
   onSelect: (id: string) => void
   onHighlight: (ids: string[]) => void
+  onClose: () => void
 }): JSX.Element {
-  const { view, model, snapshot, now, onSelect, onHighlight } = props
+  const { view, model, snapshot, now, onSelect, onHighlight, onClose } = props
   const node = view.node
   const fallbackRef = useRef<HTMLInputElement | null>(null)
 
@@ -181,6 +182,11 @@ export function Detail(props: {
 
   return (
     <div class="detail" aria-label="Selected node">
+      <button type="button" class="d-close" aria-label="Close the detail panel" onClick={onClose}>
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+          <path d="M2 2l8 8M10 2l-8 8" />
+        </svg>
+      </button>
       <div class="d-id">
         {idParts.length > 0 ? `${idParts.join(', ')}, ` : ''}
         <span class={`d-status tone-${statusTone(node)}`}>{rolledUp ? view.wording : node.status}</span>

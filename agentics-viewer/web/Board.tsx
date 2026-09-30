@@ -11,7 +11,9 @@ import { sysFont, textWidth, wrapLines } from './wrap-text.ts'
 import { Hourglass } from './Hourglass.tsx'
 import './board.css'
 
+// The part of the board the detail panel leaves uncovered; selecting a node opens the panel.
 const NARROW_VISIBLE_FRACTION = 0.48
+const WIDE_DETAIL_WIDTH = 360
 const TITLE_LEFT = 12
 const SUBTITLE_LEFT = 12
 const RIGHT_MARGIN = 10
@@ -176,7 +178,9 @@ export function Board(props: {
     const placed = layoutRef.current.placed.get(selected)
     if (!placed) return
     const box = wrapRef.current.getBoundingClientRect()
-    const visible = narrow ? new DOMRect(box.left, box.top, box.width, box.height * NARROW_VISIBLE_FRACTION) : box
+    const visible = narrow
+      ? new DOMRect(box.left, box.top, box.width, box.height * NARROW_VISIBLE_FRACTION)
+      : new DOMRect(box.left, box.top, Math.max(box.width - WIDE_DETAIL_WIDTH, 0), box.height)
     // Keep the blocking arrows' rails, in the gap right of the block, in view too.
     zoomRef.current.panTo(placed.x + BLOCK.w / 2, placed.y + blockH / 2, visible, BLOCK.colGap)
   }, [selected, narrow])

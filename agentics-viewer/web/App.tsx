@@ -31,6 +31,7 @@ export function App(): JSX.Element {
   const [connected, setConnected] = useState(true)
   const [receivedAt, setReceivedAt] = useState<Date | null>(null)
   const [selected, setSelected] = useState<string | null>(() => url.node)
+  const [detailOpen, setDetailOpen] = useState(true)
   const [highlight, setHighlight] = useState<string[]>([])
   const [narrow, setNarrow] = useState(() => matchMedia('(max-width: 899px)').matches)
   const [listOpen, setListOpen] = useState(false)
@@ -124,6 +125,7 @@ export function App(): JSX.Element {
 
   function selectNode(id: string): void {
     setSelected(id)
+    setDetailOpen(true)
     if (narrow) setListOpen(false)
     setUrl((prev) => {
       const next: UrlState = { ...prev, node: id }
@@ -245,7 +247,7 @@ export function App(): JSX.Element {
           {bars}
           {boardContent}
         </div>
-        {selectedView !== null && snapshot !== null && model !== null && (
+        {detailOpen && selectedView !== null && snapshot !== null && model !== null && (
           <Detail
             view={selectedView}
             model={model}
@@ -253,6 +255,10 @@ export function App(): JSX.Element {
             now={Date.now()}
             onSelect={selectNode}
             onHighlight={setHighlight}
+            onClose={() => {
+              setDetailOpen(false)
+              setHighlight([])
+            }}
           />
         )}
       </div>

@@ -415,9 +415,12 @@ Wide (at least 900 px):
 │  ● found…  │      pan and zoom, [+][−][fit]          │ idle-rules         │
 │   ● entity │                                         │ title (serif)      │
 │   ● action │                                         │ ▌Waiting on you    │
-│ 250 px     │                                         │ 360 px             │
+│ 250 px     │                                         │ 360 px, overlay    │
 └────────────┴─────────────────────────────────────────┴───────────────────┘
 ```
+
+The board fills everything right of the outline; the detail panel lies over its right edge while
+open. The zoom buttons sit at the board's bottom left, clear of the panel in wide mode.
 
 Narrow (under 900 px, the usual size of the pane beside the chat):
 
@@ -495,8 +498,8 @@ most recently active first), cost ("412k tokens over 23 dispatches", with "and 2
   - it gets a thicker border, in `--ink`, or in its own amber or red;
   - its dependency arrows turn `--dep` (violet) and draw over the rest;
   - the board pans the node, and the rail gap beside it, into the visible area: the strip above
-    the bottom sheet in narrow mode, and the area between the outline and the detail panel in
-    wide mode. The pan animates over 250 ms, or jumps with reduced motion.
+    the bottom sheet in narrow mode, and the area left of the detail panel in wide mode. The
+    pan animates over 250 ms, or jumps with reduced motion.
 - Dependencies: only the edges of the selected node and of the node under the pointer are
   drawn; the waits-on badge carries the count for the rest. Each is drawn blocker to blocked,
   as a solid arrow in the track colour (`--quiet` once the blocker is done), its head on the
@@ -515,6 +518,10 @@ most recently active first), cost ("412k tokens over 23 dispatches", with "and 2
   badge: "parent missing: `<parent id>`".
 
 **Detail panel.**
+
+- It is open or closed. Open, it lies over the board: 360 px at the right edge in wide mode, the
+  bottom sheet in narrow mode. Closed, it takes no room and the whole board takes the pointer.
+  Selecting a node opens it; the X at its top right closes it and leaves the node selected.
 
 - First line (12.5 px, `--ink-2`): the node id, the kind, the rigor, and the raw status. For
   example: "foundations/idle-rules, task, tdd-pair, parked".
