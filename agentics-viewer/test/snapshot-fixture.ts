@@ -1,4 +1,5 @@
 import type { Snapshot, SnapshotNode } from '../shared/snapshot.ts'
+import { FORMAT } from '../shared/snapshot.ts'
 
 function parentOf(id: string): string | null {
   if (id === '.') return null
@@ -32,7 +33,7 @@ export function node(id: string, partial: Partial<SnapshotNode> = {}): SnapshotN
 
 export function snap(nodes: SnapshotNode[], extra: Partial<Snapshot> = {}): Snapshot {
   const base: Snapshot = {
-    format: 1,
+    format: FORMAT,
     store: '/store',
     effort: 'effort',
     about: '',
@@ -40,7 +41,7 @@ export function snap(nodes: SnapshotNode[], extra: Partial<Snapshot> = {}): Snap
     malformed: 0,
     folders: [],
     nodes,
-    cost: { dispatches: 0, tokens: 0, tokens_unreported: 0, per_leaf: {} },
+    cost: { dispatches: 0, tokens: 0, usd: 0, tokens_unreported: 0, usage: {}, per_leaf: {} },
   }
   return { ...base, ...extra }
 }

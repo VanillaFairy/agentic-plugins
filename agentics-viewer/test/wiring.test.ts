@@ -8,6 +8,7 @@ import { createApp } from '../server/app.ts'
 import type { AppDeps } from '../server/app.ts'
 import type { AgenticsLocation } from '../server/agentics.ts'
 import type { Snapshot } from '../shared/snapshot.ts'
+import { FORMAT } from '../shared/snapshot.ts'
 import type { FolderPick } from '../server/windows.ts'
 
 // An end-to-end wiring check: a real fixture project on disk, a real
@@ -110,7 +111,7 @@ if (cmd === 'list') {
   let lines = 0
   try { lines = readFileSync(${JSON.stringify(eventsFile)}, 'utf8').split('\\n').filter(Boolean).length } catch {}
   console.log(JSON.stringify({
-    payload: { format: 1, store: ${JSON.stringify(store)}, effort: 'eff', about: '', seq_max: lines, malformed: 0, folders: [], nodes: [], cost: { dispatches: 0, tokens: 0, tokens_unreported: 0, per_leaf: {} } },
+    payload: { format: ${FORMAT}, store: ${JSON.stringify(store)}, effort: 'eff', about: '', seq_max: lines, malformed: 0, folders: [], nodes: [], cost: { dispatches: 0, tokens: 0, usd: 0, tokens_unreported: 0, usage: {}, per_leaf: {} } },
     payload_digest: String(lines),
   }))
 }

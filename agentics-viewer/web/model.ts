@@ -1,4 +1,5 @@
-import type { Snapshot, SnapshotNode, SnapshotFolder, Problem } from '../shared/snapshot.ts'
+import type { Snapshot, SnapshotNode, SnapshotFolder, Spend, Problem } from '../shared/snapshot.ts'
+import { FORMAT } from '../shared/snapshot.ts'
 
 export type Lamp = 'work' | 'hold' | 'stop' | 'done' | 'idle' | 'open' | 'unknown' | 'orphan'
 
@@ -400,7 +401,7 @@ export function problemText(p: Problem): string {
     case 'agentics_too_old':
       return `agentics ${p.version} at ${p.path} has no snapshot command. It arrives in agentics 4.0.0.`
     case 'format_mismatch':
-      return `This viewer reads snapshot format 1. agentics at ${p.path} writes format ${p.format}. Update agentics-viewer.`
+      return `This viewer reads snapshot format ${FORMAT}. agentics at ${p.path} writes format ${p.format}. Update ${(p.format ?? 0) < FORMAT ? 'agentics' : 'agentics-viewer'}.`
     case 'snapshot_failed':
       return `The first refresh failed: ${p.detail}.`
     case 'project_gone':
@@ -434,18 +435,45 @@ export function vscodeLink(path: string, line?: number | null): string {
   return out
 }
 
-export function costText(c: Snapshot['cost']): string {
-  const tokens = c.tokens >= 1000 ? `${Math.round(c.tokens / 1000)}k tokens` : `${c.tokens} tokens`
-  const dispatches = c.dispatches === 1 ? '1 dispatch' : `${c.dispatches} dispatches`
-  let out = `${tokens} over ${dispatches}`
-  if (c.tokens_unreported > 0) out += `, and ${c.tokens_unreported} unreported`
-  return out
+export interface SpendRow { model: string; input: string; cacheWrite: string; cacheRead: string; output: string; cost: string }
+
+export interface SpendView {
+  cost: string | null // null, with tokens, when no usage was recorded at all
+  tokens: string | null
+  dispatches: string
+  rows: SpendRow[] // per model, dearest first
 }
 
-export function spendText(c: Snapshot['cost'], id: string): string | null {
-  const leaf = c.per_leaf[id]
-  if (!leaf) return null
-  return costText({ dispatches: leaf.dispatches, tokens: leaf.tokens, tokens_unreported: leaf.tokens_unreported, per_leaf: {} })
+export function compactCount(n: number): string {
+  if (n >= 999_500) return `${(n / 1_000_000).toFixed(1)}M`
+  if (n >= 1000) return `${Math.round(n / 1000)}k`
+  return String(n)
+}
+
+function dollars(usd: number): string {
+  return usd > 0 && usd < 0.005 ? '<$0.01' : '$' + usd.toFixed(2)
+}
+
+export function spendView(s: Spend): SpendView {
+  const count = s.dispatches === 1 ? '1 dispatch' : `${s.dispatches} dispatches`
+  if (s.tokens === 0) {
+    return { cost: null, tokens: null, dispatches: s.dispatches > 0 ? `${count}, tokens not reported` : count, rows: [] }
+  }
+  const models = Object.entries(s.usage).sort(([, a], [, b]) => (b.usd ?? -1) - (a.usd ?? -1))
+  const unpriced = models.some(([, u]) => u.usd === null)
+  return {
+    cost: dollars(s.usd) + (unpriced ? '+' : ''),
+    tokens: `${compactCount(s.tokens)} tokens`,
+    dispatches: s.tokens_unreported > 0 ? `${count} (${s.tokens_unreported} unreported)` : count,
+    rows: models.map(([model, u]) => ({
+      model: model.replace(/^claude-/, ''),
+      input: compactCount(u.input),
+      cacheWrite: compactCount(u.cache_write),
+      cacheRead: compactCount(u.cache_read),
+      output: compactCount(u.output),
+      cost: u.usd === null ? 'no price' : dollars(u.usd),
+    })),
+  }
 }
 
 export function tileKey(project: string, effort: string, t: Tile): string {

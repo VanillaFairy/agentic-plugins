@@ -114,7 +114,7 @@ a submodule). `snapshot` carries the same field.
 
 ```ts
 {
-  format: 1,
+  format: 2,
   store: string,                        // absolute .agentics/ path agentics read
   effort: string, about: string, seq_max: number, malformed: number,
   folders: Array<{
@@ -139,10 +139,15 @@ a submodule). `snapshot` carries the same field.
     commits: null | { count: number, last_subject: string, last_at: string },
     files: { spec: { path: string, line: number | null }, briefs: string[], reports: string[] }
   }>,
-  cost: {
-    dispatches: number, tokens: number, tokens_unreported: number,
-    per_leaf: Record<string, { dispatches: number, tokens: number, tokens_unreported: number }>
-  }
+  cost: Spend & { per_leaf: Record<string, Spend> }
+}
+
+Spend = {
+  dispatches: number,
+  tokens: number,                       // every token processed, cache reads included
+  usd: number,                          // over the models agentics has a price for
+  tokens_unreported: number,            // dispatches with no usage recorded
+  usage: Record<string, { input: number, cache_write: number, cache_read: number, output: number, usd: number | null }>
 }
 ```
 
@@ -186,7 +191,7 @@ a submodule). `snapshot` carries the same field.
 ```
 agentics-viewer/
   package.json  package-lock.json  tsconfig.json  vite.config.ts  README.md
-  shared/snapshot.ts        the payload type and FORMAT = 1; imported by server and page
+  shared/snapshot.ts        the payload type and FORMAT = 2; imported by server and page
   server/main.ts            the entry: runs serve.ts and starts it again after an update
   server/serve.ts           start, health, build, the version watch
   server/agentics.ts        find agentics, run status.mjs, check the envelope and format
@@ -447,8 +452,10 @@ end with an ellipsis.
 ### 7.5 Components
 
 **Header.** Project picker (opens Open project), effort picker (a list of the project's efforts,
-most recently active first), cost ("412k tokens over 23 dispatches", with "and 2 unreported" when
-`tokens_unreported > 0`), and the Open project button (the only filled button).
+most recently active first), spend ("$4.12 · 1.8M tokens · 23 dispatches": the dollars carry a "+" when a model has no
+price, the dispatches "(2 unreported)" when `tokens_unreported > 0`; hovering or focusing the
+tokens opens a table with one row per model, dearest first: input, cache write, cache read,
+output and cost; "23 dispatches, tokens not reported" when no usage was recorded), and the Open project button (the only filled button).
 
 **Annunciator.**
 
@@ -565,8 +572,8 @@ most recently active first), cost ("412k tokens over 23 dispatches", with "and 2
   - I'm not sure the desktop app's Browser pane hands `vscode://` links to VS Code. The copy
     button is the fallback.
 - **Writes**: the locus paths.
-- **Spend**: the node's tokens and dispatches from `cost.per_leaf`, with "and `n` unreported" when
-  some dispatches didn't report tokens.
+- **Spend**: the node's own figures from `cost.per_leaf`, in the header's form and with the same
+  per-model table on the tokens.
 - Folder nodes also show their spec's approval state in words, and the count of blocking
   questions.
 
@@ -592,7 +599,7 @@ A partial result never looks whole.
 |---|---|
 | `agentics_missing` | In place of the board: "The viewer can't find agentics. It looked at `<path>`. Install agentics, or set `agentics_path` in `~/.agentics-viewer/state.json`." |
 | `agentics_too_old` | "agentics `<version>` at `<path>` has no snapshot command. It arrives in agentics 4.0.0." |
-| `format_mismatch` | "This viewer reads snapshot format 1. agentics at `<path>` writes format `<n>`. Update agentics-viewer." |
+| `format_mismatch` | "This viewer reads snapshot format 2. agentics at `<path>` writes format `<n>`. Update agentics-viewer." (or "Update agentics." when `<n>` is the older one) |
 | `snapshot_failed` with a board already shown | The board stays, with a slim bar above it: "Showing the board from `<hh:mm>`. The last refresh failed: `<error>`." The next change retries. |
 | `snapshot_failed` with no board yet | In place of the board: "The first refresh failed: `<error>`." |
 | `malformed > 0` | A slim bar: "`<n>` lines in the logs couldn't be read, so the board may be missing nodes." It clears when a later snapshot reads clean. |

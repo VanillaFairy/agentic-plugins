@@ -1,6 +1,6 @@
 import type { JSX } from 'preact'
 import type { EffortListing, Snapshot } from '../shared/snapshot.ts'
-import { costText } from './model.ts'
+import { Spend } from './Spend.tsx'
 import type { Theme } from './theme.ts'
 
 export interface HeaderProps {
@@ -36,7 +36,11 @@ export function Header(props: HeaderProps): JSX.Element {
         ))}
       </select>
       <span class="spacer"></span>
-      {props.cost && <span class="cost">{costText(props.cost)}</span>}
+      {props.cost && (
+        <span class="cost">
+          <Spend spend={props.cost} tip="below" />
+        </span>
+      )}
       <button
         class="pick theme"
         aria-label={props.theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}

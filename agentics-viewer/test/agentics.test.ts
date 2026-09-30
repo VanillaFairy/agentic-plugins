@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, test } from 'vitest'
 import { locateAgentics, runSnapshot, runList } from '../server/agentics.ts'
+import { FORMAT } from '../shared/snapshot.ts'
 import type { AgenticsLocation } from '../server/agentics.ts'
 
 function fakeAgentics(dir: string, body: string, version = '4.0.0') {
@@ -21,8 +22,8 @@ function installedPluginsFile(dir: string, installPath: string): string {
 const okBody = `
 console.log(JSON.stringify({
   payload: {
-    format: 1, store: 's', effort: 'e', about: '', seq_max: 0, malformed: 0,
-    folders: [], nodes: [], cost: { dispatches: 0, tokens: 0, tokens_unreported: 0, per_leaf: {} },
+    format: ${FORMAT}, store: 's', effort: 'e', about: '', seq_max: 0, malformed: 0,
+    folders: [], nodes: [], cost: { dispatches: 0, tokens: 0, usd: 0, tokens_unreported: 0, usage: {}, per_leaf: {} },
     argv: process.argv.slice(2),
   },
   payload_digest: '00000000',
@@ -37,7 +38,7 @@ process.exit(1)
 function formatBody(format: number): string {
   return `
 console.log(JSON.stringify({
-  payload: { format: ${format}, store: 's', effort: 'e', about: '', seq_max: 0, malformed: 0, folders: [], nodes: [], cost: { dispatches: 0, tokens: 0, tokens_unreported: 0, per_leaf: {} } },
+  payload: { format: ${format}, store: 's', effort: 'e', about: '', seq_max: 0, malformed: 0, folders: [], nodes: [], cost: { dispatches: 0, tokens: 0, usd: 0, tokens_unreported: 0, usage: {}, per_leaf: {} } },
   payload_digest: '00000000',
 }))
 `
@@ -99,14 +100,14 @@ describe('locateAgentics', () => {
 })
 
 describe('runSnapshot', () => {
-  test('a format 1 snapshot is ok', async () => {
+  test('a snapshot in the viewer format is ok', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'agentics-viewer-'))
     fakeAgentics(dir, okBody)
     const loc: AgenticsLocation = { path: dir, version: '4.0.0' }
     const result = await runSnapshot(loc, 'proj', 'my-effort')
     expect(result.ok).toBe(true)
     if (result.ok) {
-      expect(result.payload.format).toBe(1)
+      expect(result.payload.format).toBe(FORMAT)
       expect(result.digest).toBe('00000000')
     }
   })
@@ -124,19 +125,19 @@ describe('runSnapshot', () => {
 
   test('another format is format_mismatch', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'agentics-viewer-'))
-    fakeAgentics(dir, formatBody(2))
+    fakeAgentics(dir, formatBody(FORMAT + 1))
     const loc: AgenticsLocation = { path: dir, version: '4.0.0' }
     const result = await runSnapshot(loc, 'proj', 'e')
     expect(result.ok).toBe(false)
     if (!result.ok) {
       expect(result.problem.code).toBe('format_mismatch')
-      expect(result.problem.format).toBe(2)
+      expect(result.problem.format).toBe(FORMAT + 1)
     }
   })
 
   test('a format mismatch names the install', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'agentics-viewer-'))
-    fakeAgentics(dir, formatBody(2))
+    fakeAgentics(dir, formatBody(FORMAT + 1))
     const loc: AgenticsLocation = { path: dir, version: '4.0.0' }
     const result = await runSnapshot(loc, 'proj', 'e')
     expect(result.ok).toBe(false)

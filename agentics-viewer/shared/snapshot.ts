@@ -1,4 +1,4 @@
-export const FORMAT = 1
+export const FORMAT = 2
 
 export type Approval = 'none' | 'approved' | 'prepared' | 'edited'
 
@@ -41,6 +41,22 @@ export interface SnapshotNode {
   files: { spec: { path: string; line: number | null }; briefs: string[]; reports: string[] }
 }
 
+export interface ModelUsage {
+  input: number
+  cache_write: number
+  cache_read: number
+  output: number
+  usd: number | null // null when agentics has no price for the model
+}
+
+export interface Spend {
+  dispatches: number
+  tokens: number
+  usd: number
+  tokens_unreported: number // dispatches with no usage recorded
+  usage: Record<string, ModelUsage>
+}
+
 export interface Snapshot {
   format: number
   store: string
@@ -50,12 +66,7 @@ export interface Snapshot {
   malformed: number
   folders: SnapshotFolder[]
   nodes: SnapshotNode[]
-  cost: {
-    dispatches: number
-    tokens: number
-    tokens_unreported: number
-    per_leaf: Record<string, { dispatches: number; tokens: number; tokens_unreported: number }>
-  }
+  cost: Spend & { per_leaf: Record<string, Spend> }
 }
 
 export interface EffortListing {

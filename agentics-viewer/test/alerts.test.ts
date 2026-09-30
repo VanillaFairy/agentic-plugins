@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'vitest'
 import { diffAlerts } from '../server/alerts.ts'
 import type { Snapshot, SnapshotEvent, SnapshotNode } from '../shared/snapshot.ts'
+import { FORMAT } from '../shared/snapshot.ts'
 
 function node(id: string, status: string, event: SnapshotEvent | null): SnapshotNode {
   return {
@@ -27,7 +28,7 @@ function node(id: string, status: string, event: SnapshotEvent | null): Snapshot
 
 function snapshot(nodes: SnapshotNode[], seq_max: number): Snapshot {
   return {
-    format: 1,
+    format: FORMAT,
     store: '.agentics',
     effort: 'my-effort',
     about: '',
@@ -35,7 +36,7 @@ function snapshot(nodes: SnapshotNode[], seq_max: number): Snapshot {
     malformed: 0,
     folders: [],
     nodes,
-    cost: { dispatches: 0, tokens: 0, tokens_unreported: 0, per_leaf: {} },
+    cost: { dispatches: 0, tokens: 0, usd: 0, tokens_unreported: 0, usage: {}, per_leaf: {} },
   }
 }
 

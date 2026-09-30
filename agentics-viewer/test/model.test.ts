@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'vitest'
 import { node, snap } from './snapshot-fixture.ts'
-import type { SnapshotFolder, SnapshotNode } from '../shared/snapshot.ts'
+import type { SnapshotFolder, SnapshotNode, Spend } from '../shared/snapshot.ts'
+import { FORMAT } from '../shared/snapshot.ts'
 import type { Tile } from '../web/model.ts'
 import {
   buildModel,
@@ -10,8 +11,8 @@ import {
   problemText,
   ago,
   vscodeLink,
-  costText,
-  spendText,
+  compactCount,
+  spendView,
   tileKey,
   tabTitle,
   staleText,
@@ -493,9 +494,10 @@ describe('problemText', () => {
     )
   })
   test('format_mismatch sentence', () => {
-    expect(problemText({ code: 'format_mismatch', path: '/opt/agentics', format: 2 })).toBe(
-      'This viewer reads snapshot format 1. agentics at /opt/agentics writes format 2. Update agentics-viewer.',
+    expect(problemText({ code: 'format_mismatch', path: '/opt/agentics', format: FORMAT + 1 })).toBe(
+      `This viewer reads snapshot format ${FORMAT}. agentics at /opt/agentics writes format ${FORMAT + 1}. Update agentics-viewer.`,
     )
+    expect(problemText({ code: 'format_mismatch', path: '/opt/agentics', format: FORMAT - 1 })).toMatch(/Update agentics.$/)
   })
   test('snapshot_failed sentence', () => {
     expect(problemText({ code: 'snapshot_failed', detail: 'ECONNREFUSED' })).toBe('The first refresh failed: ECONNREFUSED.')
@@ -686,28 +688,49 @@ describe('vscodeLink', () => {
   })
 })
 
-describe('cost text', () => {
-  test('cost in thousands', () => {
-    expect(costText({ dispatches: 23, tokens: 412345, tokens_unreported: 0, per_leaf: {} })).toBe('412k tokens over 23 dispatches')
+describe('spend view', () => {
+  const usage = (input: number, cache_write: number, cache_read: number, output: number, usd: number | null) =>
+    ({ input, cache_write, cache_read, output, usd })
+  const spend = (extra: Partial<Spend>): Spend => ({ dispatches: 0, tokens: 0, usd: 0, tokens_unreported: 0, usage: {}, ...extra })
+
+  test('cost, tokens and dispatches, with a row per model, dearest first', () => {
+    const v = spendView(spend({
+      dispatches: 23,
+      tokens: 1_840_000,
+      usd: 4.123,
+      usage: {
+        'claude-haiku-4-5': usage(480, 231_585, 818_153, 20_257, 0.47),
+        'claude-sonnet-5': usage(152, 220_941, 3_104_462, 7274, 3.653),
+      },
+    }))
+    expect([v.cost, v.tokens, v.dispatches]).toEqual(['$4.12', '1.8M tokens', '23 dispatches'])
+    expect(v.rows).toEqual([
+      { model: 'sonnet-5', input: '152', cacheWrite: '221k', cacheRead: '3.1M', output: '7k', cost: '$3.65' },
+      { model: 'haiku-4-5', input: '480', cacheWrite: '232k', cacheRead: '818k', output: '20k', cost: '$0.47' },
+    ])
   })
 
-  test('small cost and one dispatch', () => {
-    expect(costText({ dispatches: 1, tokens: 800, tokens_unreported: 0, per_leaf: {} })).toBe('800 tokens over 1 dispatch')
+  test('one dispatch, and a cost under a cent', () => {
+    const v = spendView(spend({ dispatches: 1, tokens: 800, usd: 0.001 }))
+    expect([v.cost, v.tokens, v.dispatches]).toEqual(['<$0.01', '800 tokens', '1 dispatch'])
   })
 
   test('unreported dispatches are named', () => {
-    expect(costText({ dispatches: 5, tokens: 2000, tokens_unreported: 2, per_leaf: {} })).toBe('2k tokens over 5 dispatches, and 2 unreported')
+    expect(spendView(spend({ dispatches: 5, tokens: 2000, usd: 0.5, tokens_unreported: 2 })).dispatches).toBe('5 dispatches (2 unreported)')
   })
 
-  test('no spend for unmeasured nodes', () => {
-    const c = {
-      dispatches: 5,
-      tokens: 2000,
-      tokens_unreported: 0,
-      per_leaf: { present: { dispatches: 2, tokens: 900, tokens_unreported: 0 } },
-    }
-    expect(spendText(c, 'missing')).toBeNull()
-    expect(spendText(c, 'present')).toBe('900 tokens over 2 dispatches')
+  test('a model with no price is said, and the total is marked as partial', () => {
+    const v = spendView(spend({ dispatches: 2, tokens: 3000, usd: 1, usage: { 'claude-next': usage(1000, 0, 0, 0, null), 'claude-opus-5-5': usage(2000, 0, 0, 0, 1) } }))
+    expect(v.cost).toBe('$1.00+')
+    expect(v.rows.map((r) => [r.model, r.cost])).toEqual([['opus-5-5', '$1.00'], ['next', 'no price']])
+  })
+
+  test('no figures when no usage was recorded', () => {
+    expect(spendView(spend({ dispatches: 20, tokens_unreported: 20 }))).toEqual({ cost: null, tokens: null, dispatches: '20 dispatches, tokens not reported', rows: [] })
+  })
+
+  test('counts just under a million round up to it', () => {
+    expect([compactCount(999), compactCount(1499), compactCount(999_960), compactCount(2_449_000)]).toEqual(['999', '1k', '1.0M', '2.4M'])
   })
 })
 

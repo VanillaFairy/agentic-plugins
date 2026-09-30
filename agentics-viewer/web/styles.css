@@ -142,9 +142,59 @@ select {
 .cost {
   color: var(--ink-2);
 }
-.cost b {
+.spend {
+  position: relative;
+  display: inline-flex;
+  gap: 6px 14px;
+  flex-wrap: wrap;
+  color: var(--ink-2);
+}
+.spend b {
   color: var(--ink);
   font-weight: 600;
+}
+.spend-tokens {
+  cursor: default;
+  border-bottom: 1px dotted var(--quiet);
+}
+.spend-tip {
+  display: none;
+  position: absolute;
+  z-index: 20;
+  border-collapse: collapse;
+  white-space: nowrap;
+  background: var(--panel);
+  color: var(--ink);
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.18);
+}
+.spend-tip.below {
+  top: calc(100% + 6px);
+  right: 0;
+}
+.spend-tip.above {
+  bottom: calc(100% + 6px);
+  left: 0;
+}
+.spend-tokens:hover .spend-tip,
+.spend-tokens:focus .spend-tip {
+  display: table;
+}
+.spend-tip th,
+.spend-tip td {
+  padding: 4px 6px;
+  text-align: right;
+  font-weight: 400;
+}
+.spend-tip th:first-child {
+  text-align: left;
+}
+.spend-tip thead th {
+  white-space: normal;
+  vertical-align: bottom;
+  color: var(--ink-2);
+  border-bottom: 1px solid var(--rule);
 }
 .open {
   border: 1px solid var(--ink);
