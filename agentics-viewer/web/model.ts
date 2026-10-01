@@ -114,7 +114,10 @@ export function lampAndWording(
     case 'active': {
       if (n.kind === 'leaf') {
         const count = n.commits?.count ?? 0
-        return worded('work', n.stage ?? 'working', count === 0 ? [] : [count === 1 ? '1 commit' : `${count} commits`])
+        const facts = count === 0 ? [] : [count === 1 ? '1 commit' : `${count} commits`]
+        const items = n.progress?.items ?? []
+        if (items.length > 0) facts.push(`${items.filter((it) => it.state === 'done').length} of ${items.length} done`)
+        return worded('work', n.stage ?? 'working', facts)
       }
       return worded('work', 'working', [mergedFact(childStatuses)])
     }

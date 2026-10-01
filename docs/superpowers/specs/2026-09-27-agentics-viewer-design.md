@@ -137,6 +137,7 @@ a submodule). `snapshot` carries the same field.
     branch: string,
     worktree: string | null,            // only when the directory exists
     commits: null | { count: number, last_subject: string, last_at: string },
+    progress?: null | { path: string, items: Array<{ name: string, state: 'pending' | 'working' | 'done' }> | null, error: string | null },
     files: { spec: { path: string, line: number | null }, briefs: string[], reports: string[] },
     card: {
       next: { action: string, why: string } | null,
@@ -167,6 +168,11 @@ Spend = {
   folder's integration branch (`branchOf(effort, parentOf(id))`) to the leaf's branch, giving the
   count, the last subject and the last committer date (ISO). It is null when either branch is
   missing. Commit times are the only timestamps in the payload, since agentics orders by `seq`.
+- **`progress`** is an unfinished leaf's progress file, the one its latest dispatch wrote: the
+  pieces the executor split its work into, each `pending`, `working` or `done`, rewritten as it
+  works. `items` is null and `error` says why when the file could not be read. Null for anything
+  else; absent from agentics before 4.17.0, read as null. It is a view: agentics derives nothing
+  from it.
 - **`files.spec`** is the folder's own `DESIGN.md` for a folder node, with a null line. For a task
   it is the parent folder's `DESIGN.md` at the task entry's line from `parseSpec`.
 - **`files.briefs` / `files.reports`** list only files that exist, found by agentics' own naming
@@ -557,6 +563,10 @@ output and cost; "23 dispatches, tokens not reported" when no usage was recorded
   - Escalated: heading "Escalated" and the reason, with the detail beneath.
 - For active tasks, a line with the stage and "3 commits, last 4 min ago: `<subject>`". The
   "ago" is computed on the page from `last_at` and refreshes every 30 s.
+- For a task with a progress file, one row per piece: a green check when done, a turning blue ring
+  and a "working" badge while working (still under reduced motion), an empty ring when pending.
+  An unreadable file shows "Progress file unreadable: `<why>`" instead. The board block adds
+  "`n` of `m` done" to an active task's facts.
 - On every unfinished node, its card (`cardFacts`), one labelled line per fact that exists:
   "Next" (the action a relaunch would take and why), "Behind" (the commits of its folder's branch
   its own lacks, when there are any), "Last report" (the lead of its latest report) and one "Note"

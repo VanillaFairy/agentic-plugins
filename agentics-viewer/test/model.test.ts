@@ -60,6 +60,14 @@ describe('lampAndWording', () => {
     expect(r.wording).toBe('fix round 2, 3 commits')
   })
 
+  test("active leaf counts its progress file's finished pieces", () => {
+    const items = [{ name: 'A', state: 'done' as const }, { name: 'B', state: 'working' as const }, { name: 'C', state: 'pending' as const }]
+    const n = node('a', { status: 'active', kind: 'leaf', stage: 'x', commits: { count: 1, last_subject: '', last_at: '' }, progress: { path: 'p', items, error: null } })
+    expect(lampAndWording(n, null, []).wording).toBe('x, 1 commit, 1 of 3 done')
+    const unreadable = node('a', { status: 'active', kind: 'leaf', stage: 'x', commits: null, progress: { path: 'p', items: null, error: 'not JSON' } })
+    expect(lampAndWording(unreadable, null, []).wording).toBe('x')
+  })
+
   test('one commit is singular', () => {
     const n = node('a', { status: 'active', kind: 'leaf', stage: 'reviewing', commits: { count: 1, last_subject: '', last_at: '' } })
     expect(lampAndWording(n, null, []).wording).toBe('reviewing, 1 commit')

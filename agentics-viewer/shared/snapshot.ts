@@ -21,6 +21,16 @@ export interface NodeCard {
   relaunch: { execution: string; root: string; retry_escalated: string[] } | null
 }
 
+export type ProgressState = 'pending' | 'working' | 'done'
+
+// The executor's own account of the pieces its leaf splits into, rewritten as it works. A view:
+// agentics derives nothing from it. `items` is null when the file could not be read, `error` says why.
+export interface Progress {
+  path: string
+  items: Array<{ name: string; state: ProgressState }> | null
+  error: string | null
+}
+
 export interface SnapshotFolder {
   id: string                      // '.' for the root folder
   title: string
@@ -49,6 +59,7 @@ export interface SnapshotNode {
   branch: string
   worktree: string | null
   commits: { count: number; last_subject: string; last_at: string } | null
+  progress?: Progress | null      // an unfinished leaf's; absent from agentics before 4.17.0
   files: { spec: { path: string; line: number | null }; briefs: string[]; reports: string[] }
   card: NodeCard
 }
