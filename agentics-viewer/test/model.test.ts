@@ -413,6 +413,26 @@ describe('buildModel', () => {
     const m = buildModel(s)
     expect(m.counts).toEqual({ working: 2, merged: 3, queued: 1, needDesign: 1 })
   })
+
+  test('a folder\'s integration review is its own node, drawn after the work it reviews', () => {
+    const review = (status: string, stage: string | null = null) =>
+      node('f/@review', { parent: 'f', kind: 'review', status, stage, role: '', rigor: '' })
+    const tree = (r: SnapshotNode) => snap([
+      node('.', { kind: 'composite', status: 'active' }),
+      node('f', { kind: 'composite', status: 'reviewing' }),
+      node('f.b', { parent: 'f', status: 'merged' }),
+      r,
+      node('f.a', { parent: 'f', status: 'merged' }),
+    ])
+    const m = buildModel(tree(review('pending', 'in review')))
+    expect(m.nodes.get('f')!.children).toEqual(['f.a', 'f.b', 'f/@review'])
+    expect([m.nodes.get('f')!.status, m.nodes.get('f')!.facts]).toEqual(['awaiting review', ['2 of 2 merged']])
+    expect([m.nodes.get('f/@review')!.lamp, m.nodes.get('f/@review')!.status]).toEqual(['work', 'in review'])
+    expect(buildModel(tree(review('pending'))).nodes.get('f/@review')!.status).toBe('queued')
+    expect(buildModel(tree(review('done'))).nodes.get('f/@review')!.lamp).toBe('done')
+    expect(buildModel(tree(review('not_earned'))).nodes.get('f/@review')!.status).toBe('not earned')
+    expect(claudePrompt(tree(review('pending')), review('pending'))).toBeNull()
+  })
 })
 
 describe('returnInWords', () => {

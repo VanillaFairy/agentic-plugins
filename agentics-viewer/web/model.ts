@@ -106,6 +106,12 @@ export function lampAndWording(
   childStatuses: string[],
   below: Below = NOTHING_BELOW,
 ): Wording {
+  if (n.kind === 'review') {
+    // A folder's integration review: its own step after the folder's children have merged.
+    if (n.status === 'done') return worded('done', 'reviewed')
+    if (n.status === 'not_earned') return worded('done', 'not earned')
+    return n.stage !== null ? worded('work', n.stage) : worded('idle', 'queued')
+  }
   if ((n.status === 'parked' || n.status === 'escalated') && needsYou(n) === null) {
     // No status of its own: its border says something below needs you, its facts say what.
     return worded('idle', '', belowFacts(below))
@@ -123,6 +129,8 @@ export function lampAndWording(
     }
     case 'approved':
       return worded('work', n.stage ?? 'awaiting merge')
+    case 'reviewing':
+      return worded('work', 'awaiting review', [mergedFact(childStatuses)])
     case 'parked':
       return worded('hold', 'waiting on you')
     case 'escalated':
@@ -238,7 +246,7 @@ export function buildModel(s: Snapshot): BoardModel {
   for (const n of s.nodes) {
     const isOrphan = orphan.get(n.id)!
     const children = childrenOf.get(n.id) ?? []
-    const childStatuses = children.map((c) => byId.get(c)!.status)
+    const childStatuses = children.filter((c) => byId.get(c)!.kind !== 'review').map((c) => byId.get(c)!.status)
     const folder = foldersById.get(n.id) ?? null
     lampWordingOf.set(
       n.id,
@@ -260,7 +268,12 @@ export function buildModel(s: Snapshot): BoardModel {
   // Siblings sort by blocking order, not by name: an id a sibling depends on comes first,
   // and among siblings with no dependency on each other the order falls back to the id, so a
   // fresh session with the same tree computes the same order every time.
-  for (const [parent, list] of childrenOf) childrenOf.set(parent, blockingOrder(list, byId))
+  // A folder's integration review comes after the work it reviews.
+  for (const [parent, list] of childrenOf) {
+    const ordered = blockingOrder(list, byId)
+    const isReview = (id: string) => byId.get(id)!.kind === 'review'
+    childrenOf.set(parent, [...ordered.filter((id) => !isReview(id)), ...ordered.filter(isReview)])
+  }
 
   const depth = new Map<string, number>()
   const order: string[] = []
@@ -400,7 +413,7 @@ export function projectPath(s: Snapshot): string {
 // integrated node is finished unless it is the root, which still waits for the go to land.
 export function claudePrompt(s: Snapshot, n: SnapshotNode): string | null {
   const landable = n.id === '.' && n.status === 'integrated'
-  if (MERGED_STATUSES.has(n.status) && !landable) return null
+  if ((MERGED_STATUSES.has(n.status) || n.kind === 'review') && !landable) return null
   const need = needsYou(n)
   const where = `the agentics effort \`${s.effort}\` in \`${projectPath(s)}\``
   const lines: string[] = []

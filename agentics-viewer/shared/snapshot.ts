@@ -43,7 +43,7 @@ export interface SnapshotNode {
   id: string
   label?: string                  // the visible name; absent from agentics before 4.7.1
   parent: string | null           // null only for the root '.'
-  kind: string                    // 'design' | 'composite' | 'leaf', passed through
+  kind: string                    // 'design' | 'composite' | 'group' | 'leaf', or 'review': a folder's integration review
   author?: string                 // 'you' | 'planner'; absent from agentics before 4.16.0, read as 'you'
   title: string
   intent: string

@@ -399,6 +399,8 @@ the detail panel's first line. Hovering a block or row shows status and facts in
 |---|---|---|---|
 | `active` | `--work` border | the stage: "implementing", "writing tests", "in review", "fix round 2"; "working" for a folder | "3 commits" when there are commits; "`n` of `m` merged" for a folder |
 | `approved` | `--work` border | "awaiting merge" or "held" (from `stage`) | none |
+| `reviewing` (a folder whose children all merged, its integration review due) | `--work` border | "awaiting review" | "`n` of `m` merged" |
+| a `review` entry (a folder's integration review, drawn as the folder's last child) | `--work` border while it has a stage, else `--rule`; `--good` border and fill once `done` or `not_earned` | the stage ("in review"), else "queued"; "reviewed" or "not earned" | none |
 | `parked`, with its own event | `--hold` border and a 16 % `--hold` fill | "waiting on you" | none |
 | `escalated`, with its own event | `--stop` border and a 16 % `--stop` fill | "escalated" | none |
 | `parked` or `escalated` with no event (agentics rolls a descendant's status up to every ancestor) | `--rule` border | none: the border says it | what is below: "1 escalated", "2 waiting on you", "4 need design" |
@@ -572,7 +574,8 @@ output and cost; "23 dispatches, tokens not reported" when no usage was recorded
   its own lacks, when there are any), "Last report" (the lead of its latest report) and one "Note"
   per note an earlier session left, newest first.
 - "Prompt for Claude Code" with a copy button that behaves like the file ones, on every
-  unfinished node: any status but merged, integrated or landed, plus an integrated root. The
+  unfinished node: any status but merged, integrated or landed, plus an integrated root. A
+  `review` entry gets none: its folder's prompt covers it. The
   viewer is read-only, so this is how you act on what it shows. The snapshot does not say whether
   a session is driving the effort, so a node being worked on shows the prompt too. Every prompt
   names the skill, the effort, the repo and the node's spec, and then:

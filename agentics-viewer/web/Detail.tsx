@@ -28,7 +28,7 @@ function commitWord(n: number): string {
 // once nothing more is needed, amber when this node waits on you, red when it escalated, plain
 // ink for everything still moving.
 function statusTone(node: SnapshotNode): 'good' | 'hold' | 'stop' | 'ongoing' {
-  if (node.status === 'merged' || node.status === 'integrated' || node.status === 'landed') return 'good'
+  if (['merged', 'integrated', 'landed', 'done', 'not_earned'].includes(node.status)) return 'good'
   return needsYou(node) ?? 'ongoing'
 }
 
