@@ -137,7 +137,8 @@ export interface DepRoute {
  * Geometry for every dependency edge, blocker to blocked. Each edge leaves its blocker's right
  * side from the lower half and enters the blocked node's right side in the upper half, each at
  * its own point, ordered by where the other end sits, so no two edges share an end. It runs down a
- * rail in the gap right of the rightmost column it touches. In one gap, edges that overlap
+ * rail in the first gap, right of the rightmost column it touches, that no block reaches into
+ * along the rail's length. In one gap, edges that overlap
  * vertically take separate rails, a contained edge inside the one containing it, so edges nest
  * rather than cross; edges that don't overlap share the innermost rail they fit.
  */
@@ -159,17 +160,27 @@ export function routeDeps(edges: DepEdge[], placed: Map<string, Placed>, blockH:
     spread(id, outs, 0.5, 0.9, (e, y) => (portY.get(e)!.fromY = y))
   }
 
+  const range = (e: DepEdge): [number, number] => {
+    const { fromY, toY } = portY.get(e)!
+    return [Math.min(fromY, toY), Math.max(fromY, toY)]
+  }
+  // A gap is keyed by the x of the column on its left. A block that reaches into the gap within
+  // the edge's vertical span pushes the edge out to the gap right of that block.
+  const blocks = [...placed.values()]
   const gaps = new Map<number, DepEdge[]>()
   for (const e of live) {
-    const gap = Math.max(at(e.from).x, at(e.to).x)
+    const [lo, hi] = range(e)
+    let gap = Math.max(at(e.from).x, at(e.to).x)
+    for (;;) {
+      const inGap = blocks.filter((b) =>
+        b.y < hi && b.y + blockH > lo && b.x < gap + BLOCK.w + BLOCK.colGap && b.x + BLOCK.w > gap + BLOCK.w)
+      if (inGap.length === 0) break
+      gap = Math.max(...inGap.map((b) => b.x))
+    }
     gaps.set(gap, [...(gaps.get(gap) ?? []), e])
   }
   const railX = new Map<DepEdge, number>()
   for (const [gap, list] of gaps) {
-    const range = (e: DepEdge): [number, number] => {
-      const { fromY, toY } = portY.get(e)!
-      return [Math.min(fromY, toY), Math.max(fromY, toY)]
-    }
     const span = (e: DepEdge): number => range(e)[1] - range(e)[0]
     list.sort((a, b) => span(a) - span(b) || a.from.localeCompare(b.from) || a.to.localeCompare(b.to))
     // Shortest first, each onto the innermost rail it overlaps nothing on. An edge that contains

@@ -528,8 +528,8 @@ output and cost; "23 dispatches, tokens not reported" when no usage was recorded
   as a solid arrow in the track colour (`--quiet` once the blocker is done), its head on the
   blocked end. It leaves the
   blocker's right side from the lower half and enters the blocked node's right side in the upper
-  half, each edge at its own point, and runs on a rail in the gap right of the rightmost column it
-  touches. In one gap, edges that overlap vertically take separate rails, a contained edge inside
+  half, each edge at its own point, and runs on a rail in the first gap, right of the rightmost
+  column it touches, that no block reaches into along the rail's length. In one gap, edges that overlap vertically take separate rails, a contained edge inside
   the one containing it, so edges nest; edges that don't overlap share the innermost rail they
   fit; many rails squeeze to fit the gap.
   Dashes on the board mean "needs design" and nothing else.

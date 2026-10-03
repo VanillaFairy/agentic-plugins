@@ -154,4 +154,23 @@ describe('routeDeps', () => {
   test('an edge to a node outside the layout is dropped', () => {
     expect(routeDeps([{ from: 'ghost', to: 'a' }], layout.placed, BLOCK.h)).toEqual([])
   })
+
+  test('a rail never runs through a block', () => {
+    // Groups stacked under the root, the first with leaves and a group of its own below it.
+    const stacked = snap([
+      node('.'),
+      ...['a', 'a.x', 'a.y', 'a.g', 'a.g.l', 'a.h', 'a.h.l', 'b', 'b.x'].map((id) => node(id)),
+      node('c', { deps: ['a'] }),
+      node('c.x'),
+    ])
+    const { placed } = layoutTree(buildModel(stacked))
+    const deps = [{ from: 'a', to: 'c' }, { from: 'a.x', to: 'b.x' }]
+    for (const r of routeDeps(deps, placed, BLOCK.h)) {
+      for (const p of placed.values()) {
+        const across = p.x < r.railX && r.railX < p.x + BLOCK.w
+        const along = p.y < Math.max(r.fromY, r.toY) && Math.min(r.fromY, r.toY) < p.y + BLOCK.h
+        expect(across && along, `${r.from}>${r.to} through ${p.id}`).toBe(false)
+      }
+    }
+  })
 })
