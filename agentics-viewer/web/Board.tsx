@@ -1,5 +1,5 @@
 import type { JSX } from 'preact'
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'preact/hooks'
+import { useEffect, useMemo, useRef, useState } from 'preact/hooks'
 import { subtreeDone } from './model.ts'
 import type { BoardModel, NodeView } from './model.ts'
 import type { Snapshot } from '../shared/snapshot.ts'
@@ -134,21 +134,7 @@ export function Board(props: {
   }, [texts])
 
   const wrapRef = useRef<HTMLDivElement>(null)
-  const [aspect, setAspect] = useState(16 / 10)
-  useLayoutEffect(() => {
-    const wrap = wrapRef.current
-    if (wrap === null) return
-    const measure = (): void => {
-      const { width, height } = wrap.getBoundingClientRect()
-      if (width > 0 && height > 0) setAspect(width / height)
-    }
-    measure()
-    const observer = new ResizeObserver(measure)
-    observer.observe(wrap)
-    return () => observer.disconnect()
-  }, [])
-
-  const layout = useMemo(() => layoutTree(model, blockH, aspect), [model, blockH, aspect])
+  const layout = useMemo(() => layoutTree(model, blockH), [model, blockH])
   const [hovered, setHovered] = useState<string | null>(null)
 
   const svgRef = useRef<SVGSVGElement>(null)

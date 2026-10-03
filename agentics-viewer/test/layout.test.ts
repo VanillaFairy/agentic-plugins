@@ -21,14 +21,12 @@ describe('layoutTree', () => {
   ])
 
   test('no two blocks overlap', () => {
-    for (const aspect of [0.5, 16 / 10, 4]) {
-      const blocks = [...layoutTree(buildModel(wide), BLOCK.h, aspect).placed.values()]
-      for (let i = 0; i < blocks.length; i++) {
-        for (let j = i + 1; j < blocks.length; j++) {
-          const [a, b] = [blocks[i], blocks[j]]
-          const apart = a.x + BLOCK.w <= b.x || b.x + BLOCK.w <= a.x || a.y + BLOCK.h <= b.y || b.y + BLOCK.h <= a.y
-          expect(apart, `${a.id} and ${b.id} at aspect ${aspect}`).toBe(true)
-        }
+    const blocks = [...layoutTree(buildModel(wide)).placed.values()]
+    for (let i = 0; i < blocks.length; i++) {
+      for (let j = i + 1; j < blocks.length; j++) {
+        const [a, b] = [blocks[i], blocks[j]]
+        const apart = a.x + BLOCK.w <= b.x || b.x + BLOCK.w <= a.x || a.y + BLOCK.h <= b.y || b.y + BLOCK.h <= a.y
+        expect(apart, `${a.id} and ${b.id}`).toBe(true)
       }
     }
   })
@@ -52,11 +50,12 @@ describe('layoutTree', () => {
     expect(columns(STACK_MAX + 1)).toBe(2)
   })
 
-  test('a taller viewport gets a narrower tree', () => {
+  test('children with subtrees share one row, left to right in sibling order', () => {
     const m = buildModel(wide)
-    const tall = layoutTree(m, BLOCK.h, 0.5)
-    const flat = layoutTree(m, BLOCK.h, 4)
-    expect(tall.width / tall.height).toBeLessThan(flat.width / flat.height)
+    const { placed } = layoutTree(m)
+    const groups = m.nodes.get(m.root)!.children.map((id) => placed.get(id)!)
+    expect(new Set(groups.map((p) => p.y)).size).toBe(1)
+    for (let i = 1; i < groups.length; i++) expect(groups[i].x).toBeGreaterThan(groups[i - 1].x)
   })
 
   test('every parent-child pair gets a track from the parent to the child', () => {

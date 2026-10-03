@@ -25,7 +25,7 @@ export interface Layout {
 // trimmed) grows every block in that render uniformly — see Board.tsx's blockHeightFor — so
 // blocks stay the same size as each other, just not always this exact one.
 // indent: how far a parent's children sit right of it; its track runs down the middle of that.
-// levelGap: from a parent's bottom to its first row of children, and between wrapped rows.
+// levelGap: from a parent's bottom to its row of children.
 export const BLOCK = { w: 170, h: 72, rowGap: 26, colGap: 48, indent: 28, levelGap: 36 }
 
 // Leaves under one parent stack in a column this tall at most, then start another beside it.
@@ -51,13 +51,13 @@ interface Sub {
 
 /**
  * Children sit below their parent, indented. Leaf children stack in a band of columns of up to
- * STACK_MAX, entered from the side. Children with subtrees of their own flow left to right after
- * that band, wrapping into another row past maxW, entered from the top.
+ * STACK_MAX, entered from the side. Children with subtrees of their own follow that band in one
+ * row, left to right in sibling order, entered from the top.
  */
-function measure(model: BoardModel, id: string, blockH: number, maxW: number): Sub {
+function measure(model: BoardModel, id: string, blockH: number): Sub {
   const ids = model.nodes.get(id)?.children ?? []
   if (ids.length === 0) return { id, w: BLOCK.w, h: blockH, kids: [] }
-  const subs = ids.map((k) => measure(model, k, blockH, maxW - BLOCK.indent))
+  const subs = ids.map((k) => measure(model, k, blockH))
   const top = blockH + BLOCK.levelGap
   const kids: Kid[] = []
   let w = 0
@@ -77,18 +77,10 @@ function measure(model: BoardModel, id: string, blockH: number, maxW: number): S
 
   const x0 = leaves.length > 0 ? w + BLOCK.colGap : BLOCK.indent
   let x = x0
-  let rowTop = top
-  let rowH = 0
   for (const sub of subs.filter((s) => s.kids.length > 0)) {
-    if (x > x0 && x + sub.w > maxW) {
-      x = x0
-      rowTop += rowH + BLOCK.levelGap
-      rowH = 0
-    }
-    kids.push({ sub, dx: x, dy: rowTop, laneDx: x0 - BLOCK.indent / 2, entry: 'top' })
-    w = Math.max(w, x + sub.w)
-    rowH = Math.max(rowH, sub.h)
-    h = Math.max(h, rowTop + rowH)
+    kids.push({ sub, dx: x, dy: top, laneDx: x0 - BLOCK.indent / 2, entry: 'top' })
+    w = x + sub.w
+    h = Math.max(h, top + sub.h)
     x += sub.w + BLOCK.colGap
   }
   return { id, w, h, kids }
@@ -116,20 +108,10 @@ function place(sub: Sub, x: number, y: number, blockH: number, out: Layout): voi
   }
 }
 
-/**
- * Lays the tree out to fit a viewport of the given width-to-height ratio: of every row width
- * that changes where rows wrap, the one whose layout fits that viewport at the largest scale.
- */
-export function layoutTree(model: BoardModel, blockH: number = BLOCK.h, aspect: number = 16 / 10): Layout {
-  const widest = measure(model, model.root, blockH, Infinity)
-  let best = widest
-  const fitScale = (s: Sub): number => Math.min(aspect / s.w, 1 / s.h)
-  for (let maxW = BLOCK.indent + BLOCK.w; maxW < widest.w; maxW += BLOCK.w + BLOCK.colGap) {
-    const s = measure(model, model.root, blockH, maxW)
-    if (fitScale(s) > fitScale(best)) best = s
-  }
-  const out: Layout = { placed: new Map(), links: [], width: best.w, height: best.h }
-  place(best, 0, 0, blockH, out)
+export function layoutTree(model: BoardModel, blockH: number = BLOCK.h): Layout {
+  const root = measure(model, model.root, blockH)
+  const out: Layout = { placed: new Map(), links: [], width: root.w, height: root.h }
+  place(root, 0, 0, blockH, out)
   return out
 }
 
