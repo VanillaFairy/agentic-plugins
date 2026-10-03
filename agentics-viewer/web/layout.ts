@@ -25,21 +25,30 @@ export interface Layout {
 // trimmed) grows every block in that render uniformly — see Board.tsx's blockHeightFor — so
 // blocks stay the same size as each other, just not always this exact one.
 // indent: how far a parent's children sit right of it; its track runs down the middle of that.
-// levelGap: from a parent's bottom to its row of children.
+// levelGap: from a parent's bottom to its first children, and between slots stacked in a column.
 export const BLOCK = { w: 170, h: 72, rowGap: 26, colGap: 48, indent: 28, levelGap: 36 }
 
 // Leaves under one parent stack in a column this tall at most, then start another beside it.
 export const STACK_MAX = 6
 
-// A child's place relative to its parent. Its track leaves the parent's spine, crosses to the
-// child's lane (a vertical in the gap left of the child's column) and enters the child from the
-// side, or from a bus over the child's row and in at the top.
+// What a subtree occupies: its blocks, and its tracks as zero-width or zero-height strips.
+interface Rect {
+  x: number
+  y: number
+  w: number
+  h: number
+  block: boolean
+}
+
+// A child's place and its track, both relative to its parent. The track runs down the parent's
+// spine to the bus in the gap above the child's slot, then either along it to the child's lane
+// (a vertical in the gap left of the child's column) and into the child from the side, or along
+// it to above the child and in at the top.
 interface Kid {
   sub: Sub
   dx: number
   dy: number
-  laneDx: number
-  entry: 'side' | 'top'
+  points: [number, number][]
 }
 
 interface Sub {
@@ -47,71 +56,128 @@ interface Sub {
   w: number
   h: number
   kids: Kid[]
+  rects: Rect[] // relative to the subtree's own block
+}
+
+const shift = (r: Rect, dx: number, dy: number): Rect => ({ ...r, x: r.x + dx, y: r.y + dy })
+
+function legs(points: [number, number][]): Rect[] {
+  return points.slice(1).map(([x, y], i) => {
+    const [px, py] = points[i]
+    return { x: Math.min(x, px), y: Math.min(y, py), w: Math.abs(x - px), h: Math.abs(y - py), block: false }
+  })
+}
+
+// How far apart, along the axis a slot moves on, a thing of an earlier slot and a thing of this
+// one must stay; null when their gap across that axis already keeps them apart. Blocks of two
+// subtrees in line with each other keep twice the gap blocks keep inside a group in that
+// direction, so neither reads as the next one in the other's stack or row; blocks diagonally
+// near keep the ordinary gap in one direction. Tracks keep half an indent clear of everything.
+function spacing(a: Rect, b: Rect, column: boolean): number | null {
+  const [a0, a1, b0, b1] = column ? [a.x, a.x + a.w, b.x, b.x + b.w] : [a.y, a.y + a.h, b.y, b.y + b.h]
+  const across = Math.max(a0 - b1, b0 - a1)
+  if (!a.block || !b.block) return across < BLOCK.indent / 2 ? BLOCK.indent / 2 : null
+  const [alongGap, acrossGap] = column ? [BLOCK.rowGap, BLOCK.colGap] : [BLOCK.colGap, BLOCK.rowGap]
+  if (across < 0) return 2 * alongGap // in line along the axis
+  if (across < acrossGap) return alongGap // diagonal, too close across to count as apart
+  if (across < 2 * acrossGap) return 0 // must not end up in line across the axis
+  return null
+}
+
+// How far a slot must move down (in a column) or right (in a row) from where it was laid out to
+// clear what the slots before it occupy.
+function clearance(placed: Rect[], slot: Rect[], column: boolean): number {
+  let d = 0
+  for (const b of slot) {
+    for (const a of placed) {
+      const along = spacing(a, b, column)
+      if (along !== null) d = Math.max(d, column ? a.y + a.h + along - b.y : a.x + a.w + along - b.x)
+    }
+  }
+  return d
 }
 
 /**
- * Children sit below their parent, indented. Leaf children stack in a band of columns of up to
- * STACK_MAX, entered from the side. Children with subtrees of their own follow that band in one
- * row, left to right in sibling order, entered from the top.
+ * Children sit below their parent, indented, in sibling order — the model's blocking order, so
+ * a child comes after everything it depends on. Each run of consecutive leaves forms one band of
+ * columns of up to STACK_MAX, entered from the side; each child with a subtree of its own is one
+ * slot by itself. Slots alternate direction by depth: under the root and every second level
+ * below, they stack in a column, groups entered from the side; on the levels between, they run in
+ * one row, groups entered from the top. Each slot moves up the column, or left along the row,
+ * until it just clears what the slots before it actually occupy, so it tucks into the room a
+ * shallower subtree leaves.
  */
-function measure(model: BoardModel, id: string, blockH: number): Sub {
+function measure(model: BoardModel, id: string, blockH: number, depth: number): Sub {
+  const own: Rect = { x: 0, y: 0, w: BLOCK.w, h: blockH, block: true }
   const ids = model.nodes.get(id)?.children ?? []
-  if (ids.length === 0) return { id, w: BLOCK.w, h: blockH, kids: [] }
-  const subs = ids.map((k) => measure(model, k, blockH))
+  if (ids.length === 0) return { id, w: BLOCK.w, h: blockH, kids: [], rects: [own] }
+  const subs = ids.map((k) => measure(model, k, blockH, depth + 1))
+  const slots: Sub[][] = []
+  for (const sub of subs) {
+    const last = slots.at(-1)
+    if (sub.kids.length === 0 && last !== undefined && last[0].kids.length === 0) last.push(sub)
+    else slots.push([sub])
+  }
+
+  const column = depth % 2 === 0
   const top = blockH + BLOCK.levelGap
+  const spineX = BLOCK.indent / 2
+
+  // A slot laid out with its top-left at (x, y): its kids, and what it occupies. The legs a
+  // slot shares with its siblings — the parent's spine, and in a row the bus — never count
+  // against it.
+  const layOut = (slot: Sub[], x: number, y: number): { kids: Kid[]; rects: Rect[]; mine: Rect[] } => {
+    const busY = (column ? y : top) - BLOCK.levelGap / 2
+    const kids: Kid[] = []
+    if (slot[0].kids.length === 0) {
+      const cols = Math.ceil(slot.length / STACK_MAX)
+      const rows = Math.ceil(slot.length / cols)
+      slot.forEach((sub, i) => {
+        const dx = x + Math.floor(i / rows) * (BLOCK.w + BLOCK.colGap)
+        const dy = y + (i % rows) * (blockH + BLOCK.rowGap)
+        const laneX = dx - BLOCK.indent / 2
+        const midY = dy + blockH / 2
+        kids.push({ sub, dx, dy, points: [[spineX, blockH], [spineX, busY], [laneX, busY], [laneX, midY], [dx, midY]] })
+      })
+    } else {
+      const sub = slot[0]
+      const points: [number, number][] = column
+        ? [[spineX, blockH], [spineX, busY], [spineX, y + blockH / 2], [x, y + blockH / 2]]
+        : [[spineX, blockH], [spineX, busY], [x + BLOCK.w / 2, busY], [x + BLOCK.w / 2, y]]
+      kids.push({ sub, dx: x, dy: y, points })
+    }
+    const inner = kids.flatMap((k) => k.sub.rects.map((r) => shift(r, k.dx, k.dy)))
+    const mine = [...inner, ...kids.flatMap((k) => legs(k.points.slice(column ? 1 : 2)))]
+    return { kids, rects: [...inner, ...kids.flatMap((k) => legs(k.points))], mine }
+  }
+
   const kids: Kid[] = []
-  let w = 0
-  let h = 0
-
-  const leaves = subs.filter((s) => s.kids.length === 0)
-  if (leaves.length > 0) {
-    const cols = Math.ceil(leaves.length / STACK_MAX)
-    const rows = Math.ceil(leaves.length / cols)
-    leaves.forEach((sub, i) => {
-      const dx = BLOCK.indent + Math.floor(i / rows) * (BLOCK.w + BLOCK.colGap)
-      kids.push({ sub, dx, dy: top + (i % rows) * (blockH + BLOCK.rowGap), laneDx: dx - BLOCK.indent / 2, entry: 'side' })
-    })
-    w = BLOCK.indent + cols * BLOCK.w + (cols - 1) * BLOCK.colGap
-    h = top + rows * blockH + (rows - 1) * BLOCK.rowGap
+  const rects: Rect[] = []
+  for (const slot of slots) {
+    const d = clearance(rects, layOut(slot, BLOCK.indent, top).mine, column)
+    const done = column ? layOut(slot, BLOCK.indent, top + d) : layOut(slot, BLOCK.indent + d, top)
+    kids.push(...done.kids)
+    rects.push(...done.rects)
   }
-
-  const x0 = leaves.length > 0 ? w + BLOCK.colGap : BLOCK.indent
-  let x = x0
-  for (const sub of subs.filter((s) => s.kids.length > 0)) {
-    kids.push({ sub, dx: x, dy: top, laneDx: x0 - BLOCK.indent / 2, entry: 'top' })
-    w = x + sub.w
-    h = Math.max(h, top + sub.h)
-    x += sub.w + BLOCK.colGap
-  }
-  return { id, w, h, kids }
+  rects.push(own)
+  const blocks = rects.filter((r) => r.block)
+  const w = Math.max(...blocks.map((r) => r.x + r.w))
+  const h = Math.max(...blocks.map((r) => r.y + r.h))
+  return { id, w, h, kids, rects }
 }
 
-function place(sub: Sub, x: number, y: number, blockH: number, out: Layout): void {
+function place(sub: Sub, x: number, y: number, out: Layout): void {
   out.placed.set(sub.id, { id: sub.id, x, y })
-  const spineX = x + BLOCK.indent / 2
-  const bottom = y + blockH
-  const busY = bottom + BLOCK.levelGap / 2
-  for (const { sub: kid, dx, dy, laneDx, entry } of sub.kids) {
-    const cx = x + dx
-    const cy = y + dy
-    const laneX = x + laneDx
-    const toLane: [number, number][] = [[spineX, bottom], [spineX, busY], [laneX, busY]]
-    const rowBusY = cy - BLOCK.levelGap / 2
-    const midX = cx + BLOCK.w / 2
-    const midY = cy + blockH / 2
-    const points: [number, number][] =
-      entry === 'side'
-        ? [...toLane, [laneX, midY], [cx, midY]]
-        : [...toLane, [laneX, rowBusY], [midX, rowBusY], [midX, cy]]
-    out.links.push({ parent: sub.id, child: kid.id, points })
-    place(kid, cx, cy, blockH, out)
+  for (const kid of sub.kids) {
+    out.links.push({ parent: sub.id, child: kid.sub.id, points: kid.points.map(([px, py]) => [x + px, y + py]) })
+    place(kid.sub, x + kid.dx, y + kid.dy, out)
   }
 }
 
 export function layoutTree(model: BoardModel, blockH: number = BLOCK.h): Layout {
-  const root = measure(model, model.root, blockH)
+  const root = measure(model, model.root, blockH, 0)
   const out: Layout = { placed: new Map(), links: [], width: root.w, height: root.h }
-  place(root, 0, 0, blockH, out)
+  place(root, 0, 0, out)
   return out
 }
 

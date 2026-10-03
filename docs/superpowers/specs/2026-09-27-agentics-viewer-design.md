@@ -23,7 +23,7 @@ The user's rulings from the design conversation. They bind the plan.
 | D1 | A local web app with a rendered tree ("A local web app with a rendered tree is great"). |
 | D2 | A separate tool, navigated to any local project folder, with an Open project button. |
 | D3 | The tool gets status from agentics' CLI: agentics gains a read-only `snapshot` command and stays the only code that derives status. |
-| D4 | The tree is a node-link tree diagram, top down and compact (leaves stack, groups run in one row), with an outline list beside it. "After" edges show only for the selected or hovered node. |
+| D4 | The tree is a node-link tree diagram, top down and compact (siblings in dependency order, runs of leaves stacked, alternating between a column and a row by depth), with an outline list beside it. "After" edges show only for the selected or hovered node. |
 | D5 | Open project lists projects found under configured roots, recent projects, and a Browse button that opens the native Windows folder dialog. |
 | D6 | Clicking a node opens a detail panel with its details, and links that open its files in VS Code. |
 | D7 | A node that newly parks or escalates is highlighted on the page and raises a Windows toast. |
@@ -506,11 +506,22 @@ output and cost; "23 dispatches, tokens not reported" when no usage was recorded
 **Board.**
 
 - Layout: a compact tree, top down, computed in `web/layout.ts` (170 px wide blocks, all one
-  height per render). Children sit below their parent, indented 28 px:
-  - leaf children stack in a band of columns of up to 6, entered from the side;
-  - children with subtrees of their own follow that band in one row, left to right in sibling
-    order, entered from the top. The row never wraps, so a subtree added later always lands at
-    the end of it, and the layout does not depend on the board's size.
+  height per render). Children sit below their parent, indented 28 px, in sibling order: the
+  blocking order, so a child always comes after every sibling it depends on.
+  - each run of consecutive leaf children is one slot, a band of columns of up to 6, entered
+    from the side; each child with a subtree of its own is a slot by itself;
+  - slots alternate direction by depth: under the root, and every second level below it, they
+    stack in a column, groups entered from the side; on the levels between, they run in one
+    row, groups entered from the top. Neither ever wraps, so a subtree added later always lands
+    at the end of its parent's column or row, and the layout does not depend on the board's
+    size;
+  - each slot moves up its column, or left along its row, until it clears the blocks and
+    tracks the slots before it occupy, so it tucks into the room a shallower subtree leaves
+    instead of waiting below or beside the whole bounding box. Two blocks of sibling subtrees
+    in line keep twice the gap blocks keep inside a group in that direction (52 px one above
+    the other, 96 px side by side), so neither reads as the next block of the other's stack or
+    row; diagonal neighbours keep the ordinary gap (26 px vertically or 48 px horizontally);
+    tracks keep 14 px from everything.
 
   Tracks run from a spine down the parent's left edge, as orthogonal elbows with rounded
   corners, drawn in SVG by Preact.

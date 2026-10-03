@@ -50,12 +50,91 @@ describe('layoutTree', () => {
     expect(columns(STACK_MAX + 1)).toBe(2)
   })
 
-  test('children with subtrees share one row, left to right in sibling order', () => {
-    const m = buildModel(wide)
+  test('children with subtrees alternate: a column under the root, a row below that, a column below that', () => {
+    // Three levels of groups, two to a parent, each bottom group holding one leaf.
+    const ids = ['a', 'b'].flatMap((a) => [a, ...['p', 'q'].flatMap((p) => [`${a}.${p}`, ...['s', 't'].flatMap((s) => [`${a}.${p}.${s}`, `${a}.${p}.${s}.l`])])])
+    const m = buildModel(snap([node('.'), ...ids.map((id) => node(id))]))
     const { placed } = layoutTree(m)
-    const groups = m.nodes.get(m.root)!.children.map((id) => placed.get(id)!)
-    expect(new Set(groups.map((p) => p.y)).size).toBe(1)
-    for (let i = 1; i < groups.length; i++) expect(groups[i].x).toBeGreaterThan(groups[i - 1].x)
+    const runs = (parent: string, axis: 'x' | 'y') => {
+      const kids = m.nodes.get(parent)!.children.map((id) => placed.get(id)!)
+      const across = axis === 'x' ? 'y' : 'x'
+      expect(new Set(kids.map((p) => p[across])).size, `${parent}'s groups share one ${across}`).toBe(1)
+      for (let i = 1; i < kids.length; i++) expect(kids[i][axis], `${parent}'s groups in order`).toBeGreaterThan(kids[i - 1][axis])
+    }
+    runs('.', 'y')
+    for (const a of ['a', 'b']) {
+      runs(a, 'x')
+      for (const p of ['p', 'q']) runs(`${a}.${p}`, 'y')
+    }
+  })
+
+  test('a child comes after a sibling it depends on: below it in a column, right of it in a row', () => {
+    // Under the root (a column): leaf d depends on group g. Under g (a row): leaf g.d on group g.h.
+    const s = snap([
+      node('.'),
+      node('d', { deps: ['g'] }),
+      node('g'),
+      node('g.d', { deps: ['g.h'] }),
+      node('g.h'),
+      node('g.h.l'),
+    ])
+    const { placed } = layoutTree(buildModel(s))
+    expect(placed.get('d')!.y).toBeGreaterThan(placed.get('g')!.y)
+    expect(placed.get('g.d')!.x).toBeGreaterThan(placed.get('g.h')!.x)
+  })
+
+  // Under the root (a column): a, whose row holds a shallow group then a deep one, then b.
+  const tuck = snap([
+    node('.'),
+    ...['a', 'a.p', 'a.p.l', 'a.q', ...Array.from({ length: 5 }, (_, i) => `a.q.l${i}`), 'b', 'b.x'].map((id) => node(id)),
+  ])
+
+  test('a slot tucks into the room a shallower subtree before it leaves', () => {
+    const { placed } = layoutTree(buildModel(tuck))
+    expect(placed.get('b')!.y).toBeLessThan(placed.get('a.q.l4')!.y)
+  })
+
+  test('blocks of sibling subtrees in line keep twice the in-group gap, diagonal ones the ordinary gap', () => {
+    for (const s of [wide, tuck]) {
+      const m = buildModel(s)
+      const { placed } = layoutTree(m)
+      const under = (id: string): string[] => [id, ...m.nodes.get(id)!.children.flatMap(under)]
+      for (const id of m.order) {
+        const kids = m.nodes.get(id)!.children
+        for (const [i, c1] of kids.entries()) {
+          for (const c2 of kids.slice(i + 1)) {
+            if (m.nodes.get(c1)!.children.length === 0 && m.nodes.get(c2)!.children.length === 0) continue
+            for (const a of under(c1).map((n) => placed.get(n)!)) {
+              for (const b of under(c2).map((n) => placed.get(n)!)) {
+                const gx = Math.abs(a.x - b.x) - BLOCK.w
+                const gy = Math.abs(a.y - b.y) - BLOCK.h
+                const apart =
+                  gx < 0 ? gy >= 2 * BLOCK.rowGap
+                  : gy < 0 ? gx >= 2 * BLOCK.colGap
+                  : gx >= BLOCK.colGap || gy >= BLOCK.rowGap
+                expect(apart, `${a.id} and ${b.id}`).toBe(true)
+              }
+            }
+          }
+        }
+      }
+    }
+  })
+
+  test('no track runs through a block other than its own two ends', () => {
+    for (const s of [wide, tuck]) {
+      const { placed, links } = layoutTree(buildModel(s))
+      for (const l of links) {
+        for (const p of placed.values()) {
+          if (p.id === l.parent || p.id === l.child) continue
+          l.points.slice(1).forEach(([x, y], i) => {
+            const [px, py] = l.points[i]
+            const crosses = Math.min(x, px) < p.x + BLOCK.w && Math.max(x, px) > p.x && Math.min(y, py) < p.y + BLOCK.h && Math.max(y, py) > p.y
+            expect(crosses, `${l.parent}>${l.child} through ${p.id}`).toBe(false)
+          })
+        }
+      }
+    }
   })
 
   test('every parent-child pair gets a track from the parent to the child', () => {
