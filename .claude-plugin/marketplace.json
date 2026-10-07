@@ -21,6 +21,11 @@
       "name": "socratic",
       "source": { "source": "github", "repo": "VanillaFairy/socratic" },
       "description": "Adversarial N-agent debate as a decision aid: /socratic stress-tests a decision or design question and translates the outcome into a plain recommendation; /socratic-continue feeds the last debate a new point."
+    },
+    {
+      "name": "agent-tree",
+      "source": { "source": "github", "repo": "VanillaFairy/agent-tree" },
+      "description": "Live, zoomable graph of the session's subagents in a side pane: who spawned whom, what each is doing now, and a timeline of its tool calls. Select, center, collapse or stop agents; colors follow the Claude Code theme. /agent-tree opens it."
     }
   ]
 }
