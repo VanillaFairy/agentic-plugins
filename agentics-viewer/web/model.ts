@@ -1,4 +1,4 @@
-import type { Snapshot, SnapshotNode, SnapshotFolder, Spend, Problem } from '../shared/snapshot.ts'
+import type { LiveActivity, Snapshot, SnapshotNode, SnapshotFolder, Spend, Problem } from '../shared/snapshot.ts'
 import { FORMAT } from '../shared/snapshot.ts'
 
 export type Lamp = 'work' | 'hold' | 'stop' | 'done' | 'idle' | 'open' | 'unknown' | 'orphan'
@@ -121,8 +121,7 @@ export function lampAndWording(
       if (n.kind === 'leaf') {
         const count = n.commits?.count ?? 0
         const facts = count === 0 ? [] : [count === 1 ? '1 commit' : `${count} commits`]
-        const items = n.progress?.items ?? []
-        if (items.length > 0) facts.push(`${items.filter((it) => it.state === 'done').length} of ${items.length} done`)
+        if (n.live !== null) facts.push(turnWord(n.live.turns))
         return worded('work', n.stage ?? 'working', facts)
       }
       return worded('work', 'working', [mergedFact(childStatuses)])
@@ -384,7 +383,8 @@ export interface CardFact {
 }
 
 // The node's card in plain words, one fact each: what a relaunch would do next, how far its
-// branch trails its folder's, what its last agent led with, and what earlier sessions noted.
+// branch trails its folder's, what its last agent led with, where a call wrote into the checkout
+// outside its paths, and what earlier sessions noted.
 export function cardFacts(n: SnapshotNode): CardFact[] {
   const c = n.card
   const facts: CardFact[] = []
@@ -393,6 +393,9 @@ export function cardFacts(n: SnapshotNode): CardFact[] {
     facts.push({ label: 'Behind', text: `its branch lacks ${c.behind} ${c.behind === 1 ? 'commit' : 'commits'} of its folder's branch` })
   }
   if (c.report !== null && c.report.lead !== '') facts.push({ label: 'Last report', text: c.report.lead })
+  if (c.checkout_changed !== null) {
+    facts.push({ label: 'Checkout changed', text: `${c.checkout_changed.dispatch} wrote outside its paths: ${c.checkout_changed.paths.join(', ')}` })
+  }
   for (const note of c.notes) facts.push({ label: 'Note', text: note.text })
   return facts
 }
@@ -400,8 +403,18 @@ export function cardFacts(n: SnapshotNode): CardFact[] {
 function relaunchLine(n: SnapshotNode): string | null {
   const r = n.card.relaunch
   if (r === null) return null
-  const retry = r.retry_escalated.length > 0 ? `, retry_escalated ${JSON.stringify(r.retry_escalated)}` : ''
+  const retry = r.retry.length > 0 ? `, retry ${JSON.stringify(r.retry)}` : ''
   return `Relaunch: execution \`${r.execution}\`, root \`${r.root}\`${retry}`
+}
+
+function turnWord(turns: number): string {
+  return turns === 1 ? '1 turn' : `${turns} turns`
+}
+
+// What the running call on a node is doing: its latest tool and target, its turns, and how long ago.
+export function liveLine(live: LiveActivity, now: number): string {
+  const tool = live.tool.target !== '' ? `${live.tool.name} ${live.tool.target}` : live.tool.name
+  return `Running ${tool}, ${turnWord(live.turns)}, last ${ago(live.at, now)}`
 }
 
 export function projectPath(s: Snapshot): string {
@@ -503,13 +516,13 @@ export function vscodeLink(path: string, line?: number | null): string {
   return out
 }
 
-export interface SpendRow { model: string; input: string; cacheWrite: string; cacheRead: string; output: string; cost: string }
+export interface SpendRow { model: string; dispatches: string; tokens: string; cost: string }
 
 export interface SpendView {
-  cost: string | null // null, with tokens, when no usage was recorded at all
+  cost: string | null // null, with tokens, when nothing was measured
   tokens: string | null
   dispatches: string
-  rows: SpendRow[] // per model, dearest first
+  rows: SpendRow[] // per model, dearest first; agentics splits by model for the whole effort only
 }
 
 export function compactCount(n: number): string {
@@ -522,59 +535,33 @@ function dollars(usd: number): string {
   return usd > 0 && usd < 0.005 ? '<$0.01' : '$' + usd.toFixed(2)
 }
 
-export function spendView(s: Spend): SpendView {
+// A "+" says some calls were not measured, so the true cost is higher than the figure.
+function costText(s: Spend): string {
+  return dollars(s.usd) + (s.unmeasured > 0 ? '+' : '')
+}
+
+export function spendView(s: Spend & { by_model?: Record<string, Spend> }): SpendView {
   const count = s.dispatches === 1 ? '1 dispatch' : `${s.dispatches} dispatches`
-  if (s.tokens === 0) {
-    return { cost: null, tokens: null, dispatches: s.dispatches > 0 ? `${count}, tokens not reported` : count, rows: [] }
+  if (s.tokens === 0 && s.usd === 0) {
+    return { cost: null, tokens: null, dispatches: s.dispatches > 0 ? `${count}, nothing measured` : count, rows: [] }
   }
-  const models = Object.entries(s.usage).sort(([, a], [, b]) => (b.usd ?? -1) - (a.usd ?? -1))
-  const unpriced = models.some(([, u]) => u.usd === null)
+  const models = Object.entries(s.by_model ?? {}).sort(([, a], [, b]) => b.usd - a.usd)
   return {
-    cost: dollars(s.usd) + (unpriced ? '+' : ''),
+    cost: costText(s),
     tokens: `${compactCount(s.tokens)} tokens`,
-    dispatches: s.tokens_unreported > 0 ? `${count} (${s.tokens_unreported} unreported)` : count,
-    rows: models.map(([model, u]) => ({
+    dispatches: s.unmeasured > 0 ? `${count} (${s.unmeasured} unmeasured)` : count,
+    rows: models.map(([model, m]) => ({
       model: model.replace(/^claude-/, ''),
-      input: compactCount(u.input),
-      cacheWrite: compactCount(u.cache_write),
-      cacheRead: compactCount(u.cache_read),
-      output: compactCount(u.output),
-      cost: u.usd === null ? 'no price' : dollars(u.usd),
+      dispatches: String(m.dispatches),
+      tokens: compactCount(m.tokens),
+      cost: costText(m),
     })),
   }
 }
 
-function addSpend(into: Spend, s: Spend): void {
-  into.dispatches += s.dispatches
-  into.tokens += s.tokens
-  into.usd += s.usd
-  into.tokens_unreported += s.tokens_unreported
-  for (const [model, u] of Object.entries(s.usage)) {
-    const had = into.usage[model]
-    into.usage[model] = had === undefined ? { ...u } : {
-      input: had.input + u.input,
-      cache_write: had.cache_write + u.cache_write,
-      cache_read: had.cache_read + u.cache_read,
-      output: had.output + u.output,
-      usd: had.usd === null || u.usd === null ? null : had.usd + u.usd,
-    }
-  }
-}
-
-/** A node's spend: its own, plus every node's below it in the drawn tree; null when none has any. */
-export function subtreeSpend(model: BoardModel, perLeaf: Record<string, Spend>, id: string): Spend | null {
-  const total: Spend = { dispatches: 0, tokens: 0, usd: 0, tokens_unreported: 0, usage: {} }
-  let found = false
-  function visit(nodeId: string): void {
-    const own = perLeaf[nodeId]
-    if (own !== undefined) {
-      addSpend(total, own)
-      found = true
-    }
-    for (const c of model.nodes.get(nodeId)?.children ?? []) visit(c)
-  }
-  visit(id)
-  return found ? total : null
+/** A node's spend as agentics sums it: a leaf's own, a folder's with every call below it; null when it has none. */
+export function nodeSpend(c: Snapshot['cost'], n: SnapshotNode): Spend | null {
+  return (n.kind === 'leaf' ? c.per_leaf[n.id] : c.per_folder[n.id]) ?? null
 }
 
 export function tileKey(project: string, effort: string, t: Tile): string {
@@ -628,14 +615,10 @@ export function kindWord(kind: string): string {
   }
 }
 
-const FILE_LABEL_RE = /-(implementer|test-author|auditor|reviewer|none)-r(\d+)\.md$/
-
-export function fileLabel(path: string, kind: 'brief' | 'report'): string {
+// A stored return is `<execution>/returns/<dispatch>.json`: its dispatch names whose call it was.
+export function returnLabel(path: string): string {
   const base = path.split(/[\\/]/).pop() ?? path
-  const m = FILE_LABEL_RE.exec(base)
-  const prefix = kind === 'brief' ? 'Brief' : 'Report'
-  if (!m) return `${prefix}, ${base}`
-  return `${prefix}, ${m[1]} round ${m[2]}`
+  return `Return, ${base.replace(/\.json$/, '')}`
 }
 
 export function addAck(acks: string[], key: string, cap = 200): string[] {

@@ -111,7 +111,7 @@ if (cmd === 'list') {
   let lines = 0
   try { lines = readFileSync(${JSON.stringify(eventsFile)}, 'utf8').split('\\n').filter(Boolean).length } catch {}
   console.log(JSON.stringify({
-    payload: { format: ${FORMAT}, store: ${JSON.stringify(store)}, effort: 'eff', about: '', seq_max: lines, malformed: 0, folders: [], nodes: [], cost: { dispatches: 0, tokens: 0, usd: 0, tokens_unreported: 0, usage: {}, per_leaf: {} } },
+    payload: { format: ${FORMAT}, store: ${JSON.stringify(store)}, effort: 'eff', about: '', seq_max: lines, malformed: 0, folders: [], nodes: [], cost: { dispatches: 0, tokens: 0, usd: 0, unmeasured: 0, by_model: {}, per_leaf: {}, per_folder: {} } },
     payload_digest: String(lines),
   }))
 }

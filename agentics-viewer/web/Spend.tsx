@@ -2,8 +2,8 @@ import type { JSX } from 'preact'
 import type { Spend as SpendFigures } from '../shared/snapshot.ts'
 import { spendView } from './model.ts'
 
-/** Cost, tokens and dispatches on one line; the tokens open a per-model breakdown on hover or focus. */
-export function Spend(props: { spend: SpendFigures; tip: 'below' | 'above' }): JSX.Element {
+/** Cost, tokens and dispatches on one line; given `by_model`, the tokens open a per-model breakdown on hover or focus. */
+export function Spend(props: { spend: SpendFigures & { by_model?: Record<string, SpendFigures> }; tip: 'below' | 'above' }): JSX.Element {
   const v = spendView(props.spend)
   if (v.cost === null) return <span class="spend">{v.dispatches}</span>
   return (
@@ -16,10 +16,8 @@ export function Spend(props: { spend: SpendFigures; tip: 'below' | 'above' }): J
             <thead>
               <tr>
                 <th>Model</th>
-                <th>Input</th>
-                <th>Cache<br />write</th>
-                <th>Cache<br />read</th>
-                <th>Output</th>
+                <th>Dispatches</th>
+                <th>Tokens</th>
                 <th>Cost</th>
               </tr>
             </thead>
@@ -27,10 +25,8 @@ export function Spend(props: { spend: SpendFigures; tip: 'below' | 'above' }): J
               {v.rows.map((r) => (
                 <tr key={r.model}>
                   <th>{r.model}</th>
-                  <td>{r.input}</td>
-                  <td>{r.cacheWrite}</td>
-                  <td>{r.cacheRead}</td>
-                  <td>{r.output}</td>
+                  <td>{r.dispatches}</td>
+                  <td>{r.tokens}</td>
                   <td>{r.cost}</td>
                 </tr>
               ))}

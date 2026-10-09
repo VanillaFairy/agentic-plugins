@@ -24,12 +24,13 @@ import {
   browseErrorText,
   TEXT,
   kindWord,
-  fileLabel,
+  returnLabel,
   addAck,
   visibleRows,
   moveSelection,
   subtreeDone,
-  subtreeSpend,
+  nodeSpend,
+  liveLine,
 } from '../web/model.ts'
 
 // Depth-first pre-order over a node list, read from each node's own `.parent`
@@ -60,12 +61,14 @@ describe('lampAndWording', () => {
     expect(r.wording).toBe('fix round 2, 3 commits')
   })
 
-  test("active leaf counts its progress file's finished pieces", () => {
-    const items = [{ name: 'A', state: 'done' as const }, { name: 'B', state: 'working' as const }, { name: 'C', state: 'pending' as const }]
-    const n = node('a', { status: 'active', kind: 'leaf', stage: 'x', commits: { count: 1, last_subject: '', last_at: '' }, progress: { path: 'p', items, error: null } })
-    expect(lampAndWording(n, null, []).wording).toBe('x, 1 commit, 1 of 3 done')
-    const unreadable = node('a', { status: 'active', kind: 'leaf', stage: 'x', commits: null, progress: { path: 'p', items: null, error: 'not JSON' } })
-    expect(lampAndWording(unreadable, null, []).wording).toBe('x')
+  test('an active leaf with a running call counts its turns', () => {
+    const live = { dispatch: 'a.implementer.leaf.r1', turns: 12, tool: { name: 'Edit', target: 'lib/a.mjs' }, at: '2026-10-08T10:00:00.000Z' }
+    const n = node('a', { status: 'active', kind: 'leaf', stage: 'x', commits: { count: 1, last_subject: '', last_at: '' }, live })
+    expect(lampAndWording(n, null, []).wording).toBe('x, 1 commit, 12 turns')
+    const one = node('a', { status: 'active', kind: 'leaf', stage: 'x', commits: null, live: { ...live, turns: 1 } })
+    expect(lampAndWording(one, null, []).wording).toBe('x, 1 turn')
+    const idle = node('a', { status: 'active', kind: 'leaf', stage: 'x', commits: null })
+    expect(lampAndWording(idle, null, []).wording).toBe('x')
   })
 
   test('one commit is singular', () => {
@@ -470,7 +473,7 @@ describe('returnInWords', () => {
 
 describe('claudePrompt', () => {
   const s = snap([], { store: '/repo/.agentics', effort: 'auth' })
-  const spec = { spec: { path: '/repo/.agentics/auth/DESIGN.md', line: 12 }, briefs: [], reports: [] }
+  const spec = { spec: { path: '/repo/.agentics/auth/DESIGN.md', line: 12 }, returns: [] }
 
   test('nothing for a finished node', () => {
     for (const status of ['merged', 'integrated', 'landed']) {
@@ -532,21 +535,22 @@ describe('claudePrompt', () => {
     const card = {
       next: { action: 'verify', why: 'a finished series left unmeasured' },
       behind: 3,
-      report: { path: '/r.md', lead: 'Two worldgen tests time out.' },
+      report: { dispatch: 'api.cache.implementer.leaf.r2', lead: 'Two worldgen tests time out.' },
       notes: [{ seq: 9, by: 'session', text: 'rebased onto the folder branch' }, { seq: 7, by: 'session', text: 'the base lacks the fix' }],
-      relaunch: { execution: '20260929-075434', root: 'api', retry_escalated: ['api.cache'] },
+      relaunch: { execution: '20260929-075434', root: 'api', retry: ['api.cache'] },
+      checkout_changed: { dispatch: 'api.cache.implementer.leaf.r2', paths: ['README.md', 'docs/notes.md'] },
     }
     const n = node('api.cache', { status: 'escalated', event: { kind: 'escalated', seq: 4, reason: 'tests red' }, card })
     const p = claudePrompt(s, n)!
     const facts = cardFacts(n)
-    expect(facts.map((f) => f.label)).toEqual(['Next', 'Behind', 'Last report', 'Note', 'Note'])
+    expect(facts.map((f) => f.label)).toEqual(['Next', 'Behind', 'Last report', 'Checkout changed', 'Note', 'Note'])
     for (const f of facts) expect(p).toContain(`${f.label}: ${f.text}`)
-    for (const said of [card.next.action, card.next.why, String(card.behind), card.report.lead, ...card.notes.map((x) => x.text)]) {
-      expect(facts.some((f) => f.text.includes(said))).toBe(true)
-    }
+    const said = [card.next.action, card.next.why, String(card.behind), card.report.lead, card.checkout_changed.dispatch,
+      ...card.checkout_changed.paths, ...card.notes.map((x) => x.text)]
+    for (const x of said) expect(facts.some((f) => f.text.includes(x))).toBe(true)
     expect(p).toContain(card.relaunch.execution)
     expect(p).toContain(`\`${card.relaunch.root}\``)
-    expect(p).toContain(JSON.stringify(card.relaunch.retry_escalated))
+    expect(p).toContain(`retry ${JSON.stringify(card.relaunch.retry)}`)
   })
   test('an empty card adds nothing, and a branch that is level is not called behind', () => {
     const bare = node('api.cache', { status: 'planned' })
@@ -629,27 +633,12 @@ describe('text helpers', () => {
     expect(kindWord('mystery')).toBe('mystery')
   })
 
-  test('a brief is labelled', () => {
-    expect(fileLabel('/work/briefs/a.impl-implementer-r1.md', 'brief')).toBe('Brief, implementer round 1')
+  test('a stored return is labelled by its dispatch', () => {
+    expect(returnLabel('/repo/.agentics/e/executions/20261008-100000/returns/api.cache.implementer.leaf.r2.json')).toBe('Return, api.cache.implementer.leaf.r2')
   })
 
-  test('a report with a dashed role is labelled', () => {
-    expect(fileLabel('/work/reports/20260927-101500-a.impl-test-author-r2.md', 'report')).toBe('Report, test-author round 2')
-  })
-
-  test('dashes in the node part do not confuse the role', () => {
-    expect(fileLabel('x-y.z-w-reviewer-r3.md', 'brief')).toBe('Brief, reviewer round 3')
-  })
-
-  test('an unparsable name falls back to the base name', () => {
-    expect(fileLabel('odd.md', 'brief')).toBe('Brief, odd.md')
-  })
-
-  test('fileLabel accepts the none role', () => {
-    // The rule's own regex names "none" as a valid role; nothing in the
-    // acceptance list exercises it, so a hand-rolled 4-role check would pass
-    // every named test while still rejecting this one.
-    expect(fileLabel('a.b-none-r1.md', 'brief')).toBe('Brief, none round 1')
+  test('a file that is not a stored return is labelled by its whole name', () => {
+    expect(returnLabel('/repo/notes.txt')).toBe('Return, notes.txt')
   })
 })
 
@@ -790,77 +779,67 @@ describe('claudeCodeLink', () => {
 })
 
 describe('spend view', () => {
-  const usage = (input: number, cache_write: number, cache_read: number, output: number, usd: number | null) =>
-    ({ input, cache_write, cache_read, output, usd })
-  const spend = (extra: Partial<Spend>): Spend => ({ dispatches: 0, tokens: 0, usd: 0, tokens_unreported: 0, usage: {}, ...extra })
+  const spend = (extra: Partial<Spend>): Spend => ({ dispatches: 0, tokens: 0, usd: 0, unmeasured: 0, ...extra })
 
   test('cost, tokens and dispatches, with a row per model, dearest first', () => {
-    const v = spendView(spend({
-      dispatches: 23,
-      tokens: 1_840_000,
-      usd: 4.123,
-      usage: {
-        'claude-haiku-4-5': usage(480, 231_585, 818_153, 20_257, 0.47),
-        'claude-sonnet-5': usage(152, 220_941, 3_104_462, 7274, 3.653),
+    const v = spendView({
+      ...spend({ dispatches: 23, tokens: 1_840_000, usd: 4.123 }),
+      by_model: {
+        'claude-haiku-4-5': spend({ dispatches: 15, tokens: 1_070_475, usd: 0.47 }),
+        'claude-sonnet-5': spend({ dispatches: 8, tokens: 3_332_829, usd: 3.653 }),
       },
-    }))
+    })
     expect([v.cost, v.tokens, v.dispatches]).toEqual(['$4.12', '1.8M tokens', '23 dispatches'])
     expect(v.rows).toEqual([
-      { model: 'sonnet-5', input: '152', cacheWrite: '221k', cacheRead: '3.1M', output: '7k', cost: '$3.65' },
-      { model: 'haiku-4-5', input: '480', cacheWrite: '232k', cacheRead: '818k', output: '20k', cost: '$0.47' },
+      { model: 'sonnet-5', dispatches: '8', tokens: '3.3M', cost: '$3.65' },
+      { model: 'haiku-4-5', dispatches: '15', tokens: '1.1M', cost: '$0.47' },
     ])
   })
 
-  test('one dispatch, and a cost under a cent', () => {
+  test('one dispatch, a cost under a cent, and no rows without a per-model split', () => {
     const v = spendView(spend({ dispatches: 1, tokens: 800, usd: 0.001 }))
     expect([v.cost, v.tokens, v.dispatches]).toEqual(['<$0.01', '800 tokens', '1 dispatch'])
+    expect(v.rows).toEqual([])
   })
 
-  test('unreported dispatches are named', () => {
-    expect(spendView(spend({ dispatches: 5, tokens: 2000, usd: 0.5, tokens_unreported: 2 })).dispatches).toBe('5 dispatches (2 unreported)')
+  test('unmeasured dispatches are named, and a cost that leaves some out is marked as a floor', () => {
+    const lost = spend({ dispatches: 5, tokens: 2000, usd: 0.5, unmeasured: 2 })
+    const v = spendView({ ...lost, by_model: { 'claude-opus-5-5': lost } })
+    expect([v.cost, v.dispatches]).toEqual(['$0.50+', '5 dispatches (2 unmeasured)'])
+    expect(v.rows.map((r) => [r.model, r.cost])).toEqual([['opus-5-5', '$0.50+']])
   })
 
-  test('a model with no price is said, and the total is marked as partial', () => {
-    const v = spendView(spend({ dispatches: 2, tokens: 3000, usd: 1, usage: { 'claude-next': usage(1000, 0, 0, 0, null), 'claude-opus-5-5': usage(2000, 0, 0, 0, 1) } }))
-    expect(v.cost).toBe('$1.00+')
-    expect(v.rows.map((r) => [r.model, r.cost])).toEqual([['opus-5-5', '$1.00'], ['next', 'no price']])
+  test('no figures when nothing was measured', () => {
+    expect(spendView(spend({ dispatches: 20, unmeasured: 20 }))).toEqual({ cost: null, tokens: null, dispatches: '20 dispatches, nothing measured', rows: [] })
   })
 
-  test('no figures when no usage was recorded', () => {
-    expect(spendView(spend({ dispatches: 20, tokens_unreported: 20 }))).toEqual({ cost: null, tokens: null, dispatches: '20 dispatches, tokens not reported', rows: [] })
-  })
-
-  test('a composite sums every leaf below it, per model too', () => {
-    const leaves: Record<string, Spend> = {
-      'a.x': spend({ dispatches: 2, tokens: 100, usd: 1, usage: { opus: usage(10, 20, 30, 40, 1) } }),
-      'a.b.y': spend({ dispatches: 3, tokens: 200, usd: 2, tokens_unreported: 1, usage: { opus: usage(1, 2, 3, 4, 2), next: usage(5, 0, 0, 0, null) } }),
-      z: spend({ dispatches: 7, tokens: 999, usd: 9 }),
-    }
-    const m = buildModel(snap([node('.', { kind: 'composite' }), node('a', { kind: 'composite' }), node('a.x'), node('a.b', { kind: 'composite' }), node('a.b.y'), node('z')]))
-    const s = subtreeSpend(m, leaves, 'a')!
-    const [x, y] = [leaves['a.x'], leaves['a.b.y']]
-    expect([s.dispatches, s.tokens, s.usd, s.tokens_unreported]).toEqual([
-      x.dispatches + y.dispatches, x.tokens + y.tokens, x.usd + y.usd, x.tokens_unreported + y.tokens_unreported,
-    ])
-    expect(s.usage.opus).toEqual(usage(11, 22, 33, 44, 3))
-    expect(s.usage.next).toEqual(y.usage.next)
-    expect(subtreeSpend(m, leaves, 'a.x')).toEqual(x)
-    expect(subtreeSpend(m, leaves, '.')!.dispatches).toBe(x.dispatches + y.dispatches + leaves.z.dispatches)
-  })
-
-  test('a model priced in one leaf and not in another has no price in the sum', () => {
-    const leaves = { 'a.x': spend({ usage: { m: usage(1, 0, 0, 0, 1) } }), 'a.y': spend({ usage: { m: usage(1, 0, 0, 0, null) } }) }
-    const m = buildModel(snap([node('.', { kind: 'composite' }), node('a', { kind: 'composite' }), node('a.x'), node('a.y')]))
-    expect(subtreeSpend(m, leaves, 'a')!.usage.m.usd).toBeNull()
-  })
-
-  test('no spend when nothing below a node has any', () => {
-    const m = buildModel(snap([node('.', { kind: 'composite' }), node('a', { kind: 'composite' }), node('a.x')]))
-    expect(subtreeSpend(m, {}, 'a')).toBeNull()
+  test("a node's spend is agentics' own: a leaf's from per_leaf, a folder's from per_folder", () => {
+    const leaf = spend({ dispatches: 2, tokens: 100, usd: 1 })
+    const folder = spend({ dispatches: 9, tokens: 900, usd: 7, unmeasured: 1 })
+    const cost = { ...spend({}), by_model: {}, per_leaf: { 'a.x': leaf }, per_folder: { a: folder } }
+    expect(nodeSpend(cost, node('a.x'))).toEqual(leaf)
+    expect(nodeSpend(cost, node('a', { kind: 'composite' }))).toEqual(folder)
+    expect(nodeSpend(cost, node('a.y'))).toBeNull()
+    expect(nodeSpend(cost, node('b', { kind: 'composite' }))).toBeNull()
   })
 
   test('counts just under a million round up to it', () => {
     expect([compactCount(999), compactCount(1499), compactCount(999_960), compactCount(2_449_000)]).toEqual(['999', '1k', '1.0M', '2.4M'])
+  })
+})
+
+describe('live activity', () => {
+  const at = '2026-10-08T10:00:00.000Z'
+  const live = { dispatch: 'a.implementer.leaf.r1', turns: 3, tool: { name: 'Bash', target: 'npm test' }, at }
+
+  test('names the tool, its target, the turns and how long ago', () => {
+    const now = new Date(at).getTime() + 5 * 60_000
+    expect(liveLine(live, now)).toBe(`Running Bash npm test, 3 turns, last ${ago(at, now)}`)
+  })
+
+  test('a tool with no target, and one turn', () => {
+    const now = new Date(at).getTime()
+    expect(liveLine({ ...live, turns: 1, tool: { name: 'Read', target: '' } }, now)).toBe(`Running Read, 1 turn, last ${ago(at, now)}`)
   })
 })
 

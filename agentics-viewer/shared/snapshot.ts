@@ -1,4 +1,4 @@
-export const FORMAT = 3
+export const FORMAT = 4
 
 export type Approval = 'none' | 'approved' | 'prepared' | 'edited'
 
@@ -9,26 +9,26 @@ export interface SnapshotEvent {
   detail?: string
   return?: string
   question?: string
-  said?: string                   // the file its author wrote in full; empty when there is none
+  said?: string                   // the dispatch whose stored return holds its text; empty when there is none
 }
 
 // What a session needs to move a node on, computed by agentics on every read.
 export interface NodeCard {
   next: { action: string; why: string } | null   // an unmerged leaf's next action on a relaunch
   behind: number | null                          // commits of its folder's branch the leaf's lacks
-  report: { path: string; lead: string } | null
+  report: { dispatch: string; lead: string } | null   // the latest stored return that carries text
   notes: Array<{ seq: number; by: string; text: string }>   // newest first
-  relaunch: { execution: string; root: string; retry_escalated: string[] } | null
+  relaunch: { execution: string; root: string; retry: string[] } | null
+  checkout_changed: { dispatch: string; paths: string[] } | null   // a call that wrote into the checkout outside its paths
 }
 
-export type ProgressState = 'pending' | 'working' | 'done'
-
-// The executor's own account of the pieces its leaf splits into, rewritten as it works. A view:
-// agentics derives nothing from it. `items` is null when the file could not be read, `error` says why.
-export interface Progress {
-  path: string
-  items: Array<{ name: string; state: ProgressState }> | null
-  error: string | null
+// The call running on a node, from the file agentics' runner rewrites while it runs. A view:
+// agentics derives nothing from it.
+export interface LiveActivity {
+  dispatch: string
+  turns: number
+  tool: { name: string; target: string }   // the latest tool call
+  at: string                               // when that call was made, ISO
 }
 
 export interface SnapshotFolder {
@@ -59,25 +59,16 @@ export interface SnapshotNode {
   branch: string
   worktree: string | null
   commits: { count: number; last_subject: string; last_at: string } | null
-  progress?: Progress | null      // an unfinished leaf's; absent from agentics before 4.17.0
-  files: { spec: { path: string; line: number | null }; briefs: string[]; reports: string[] }
+  live: LiveActivity | null
+  files: { spec: { path: string; line: number | null }; returns: string[] }
   card: NodeCard
-}
-
-export interface ModelUsage {
-  input: number
-  cache_write: number
-  cache_read: number
-  output: number
-  usd: number | null // null when agentics has no price for the model
 }
 
 export interface Spend {
   dispatches: number
   tokens: number
-  usd: number
-  tokens_unreported: number // dispatches with no usage recorded
-  usage: Record<string, ModelUsage>
+  usd: number         // the host's own figure
+  unmeasured: number  // calls with no cost figure, or that never returned once their run ended
 }
 
 export interface Snapshot {
@@ -89,7 +80,11 @@ export interface Snapshot {
   malformed: number
   folders: SnapshotFolder[]
   nodes: SnapshotNode[]
-  cost: Spend & { per_leaf: Record<string, Spend> }
+  cost: Spend & {
+    by_model: Record<string, Spend>     // the whole effort's calls, per model
+    per_leaf: Record<string, Spend>
+    per_folder: Record<string, Spend>   // a folder's own calls and every call below it
+  }
 }
 
 export interface EffortListing {
