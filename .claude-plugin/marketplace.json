@@ -10,7 +10,7 @@
     {
       "name": "agentics",
       "source": { "source": "github", "repo": "VanillaFairy/agentics" },
-      "description": "Workflow-orchestrated design, investigation and development over a generic codebase. All work is one execution tree: decomposed until atomic, executed by readiness in framework-owned worktrees, verified and reviewed by rigor, landed only on the user's go."
+      "description": "Code-orchestrated design, investigation and development over a generic codebase. All work is one execution tree: decomposed until atomic, executed by readiness in framework-owned worktrees, verified and reviewed by rigor, landed only on the user's go."
     },
     {
       "name": "improve-clauding",

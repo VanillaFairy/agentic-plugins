@@ -4,7 +4,7 @@ VanillaFairy's Claude Code plugins, in one marketplace.
 
 | Plugin | What it does |
 |---|---|
-| [agentics](https://github.com/VanillaFairy/agentics) | Workflow-orchestrated design, investigation and development over a codebase |
+| [agentics](https://github.com/VanillaFairy/agentics) | Code-orchestrated design, investigation and development over a codebase |
 | [improve-clauding](https://github.com/VanillaFairy/improve-clauding) | Retrospective over your recent Claude Code and Cursor sessions |
 | [socratic](https://github.com/VanillaFairy/socratic) | Adversarial multi-agent debate as a decision aid |
 | [agent-tree](https://github.com/VanillaFairy/agent-tree) | Live, zoomable graph of your session's subagents in a side pane |
