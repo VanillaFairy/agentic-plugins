@@ -26,6 +26,10 @@ not affected.
 `agentics-viewer/` is a local web app that shows an agentics effort's tree live. It is not a
 plugin and isn't listed in the marketplace. See its README.
 
+`agent-tree-viewer/` is a local web app that shows the live subagent tree of any Claude Code
+session on this machine, the agent-tree plugin's view in a browser tab. It isn't a plugin
+either. See its README.
+
 ## Install
 
 ```
