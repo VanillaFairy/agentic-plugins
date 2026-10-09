@@ -107,7 +107,7 @@ describe('runSnapshot', () => {
     const result = await runSnapshot(loc, 'proj', 'my-effort')
     expect(result.ok).toBe(true)
     if (result.ok) {
-      expect(result.payload.format).toBe(FORMAT)
+      expect(result.payload.format).toBe(4)
       expect(result.digest).toBe('00000000')
     }
   })
