@@ -26,8 +26,9 @@ export function node(id: string, partial: Partial<SnapshotNode> = {}): SnapshotN
     branch: '',
     worktree: null,
     commits: null,
-    files: { spec: { path: '', line: null }, briefs: [], reports: [] },
-    card: { next: null, behind: null, report: null, notes: [], relaunch: null },
+    live: null,
+    files: { spec: { path: '', line: null }, returns: [] },
+    card: { next: null, behind: null, report: null, notes: [], relaunch: null, checkout_changed: null },
   }
   return { ...base, ...partial }
 }
@@ -42,7 +43,7 @@ export function snap(nodes: SnapshotNode[], extra: Partial<Snapshot> = {}): Snap
     malformed: 0,
     folders: [],
     nodes,
-    cost: { dispatches: 0, tokens: 0, usd: 0, tokens_unreported: 0, usage: {}, per_leaf: {} },
+    cost: { dispatches: 0, tokens: 0, usd: 0, unmeasured: 0, by_model: {}, per_leaf: {}, per_folder: {} },
   }
   return { ...base, ...extra }
 }

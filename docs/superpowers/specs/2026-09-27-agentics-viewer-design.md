@@ -114,7 +114,7 @@ a submodule). `snapshot` carries the same field.
 
 ```ts
 {
-  format: 3,
+  format: 4,
   store: string,                        // absolute .agentics/ path agentics read
   effort: string, about: string, seq_max: number, malformed: number,
   folders: Array<{
@@ -125,8 +125,10 @@ a submodule). `snapshot` carries the same field.
     spec: { path: string }
   }>,
   nodes: Array<{
-    id: string, parent: string | null,  // parent null only for the root
-    kind: string,                       // design | composite | leaf, passed through
+    id: string, label: string,          // label: the visible name
+    parent: string | null,              // null only for the root
+    kind: string,                       // design | composite | group | leaf, or review: a folder's integration review
+    author: string,                     // you | planner: who writes the node's spec
     title: string, intent: string, context: string,
     rigor: string, role: string,
     locus: string[], deps: string[],    // deps = the compiled "after" edges
@@ -137,25 +139,25 @@ a submodule). `snapshot` carries the same field.
     branch: string,
     worktree: string | null,            // only when the directory exists
     commits: null | { count: number, last_subject: string, last_at: string },
-    progress?: null | { path: string, items: Array<{ name: string, state: 'pending' | 'working' | 'done' }> | null, error: string | null },
-    files: { spec: { path: string, line: number | null }, briefs: string[], reports: string[] },
+    live: null | { dispatch: string, turns: number, tool: { name: string, target: string }, at: string },
+    files: { spec: { path: string, line: number | null }, returns: string[] },
     card: {
       next: { action: string, why: string } | null,
       behind: number | null,
-      report: { path: string, lead: string } | null,
+      report: { dispatch: string, lead: string } | null,
       notes: Array<{ seq: number, by: string, text: string }>,
-      relaunch: { execution: string, root: string, retry_escalated: string[] } | null
+      relaunch: { execution: string, root: string, retry: string[] } | null,
+      checkout_changed: { dispatch: string, paths: string[] } | null
     }
   }>,
-  cost: Spend & { per_leaf: Record<string, Spend> }
+  cost: Spend & { by_model: Record<string, Spend>, per_leaf: Record<string, Spend>, per_folder: Record<string, Spend> }
 }
 
 Spend = {
   dispatches: number,
   tokens: number,                       // every token processed, cache reads included
-  usd: number,                          // over the models agentics has a price for
-  tokens_unreported: number,            // dispatches with no usage recorded
-  usage: Record<string, { input: number, cache_write: number, cache_read: number, output: number, usd: number | null }>
+  usd: number,                          // the host's own figure
+  unmeasured: number                    // calls with no cost figure, or never returned once their run ended
 }
 ```
 
@@ -168,15 +170,14 @@ Spend = {
   folder's integration branch (`branchOf(effort, parentOf(id))`) to the leaf's branch, giving the
   count, the last subject and the last committer date (ISO). It is null when either branch is
   missing. Commit times are the only timestamps in the payload, since agentics orders by `seq`.
-- **`progress`** is an unfinished leaf's progress file, the one its latest dispatch wrote: the
-  pieces the executor split its work into, each `pending`, `working` or `done`, rewritten as it
-  works. `items` is null and `error` says why when the file could not be read. Null for anything
-  else; absent from agentics before 4.17.0, read as null. It is a view: agentics derives nothing
-  from it.
+- **`live`** is the running call on a node, from the file agentics' runner rewrites while the call
+  runs: its dispatch, its turns so far, its latest tool call's name and target, and when that call
+  was made. Null when nothing runs. It is a view: agentics derives nothing from it.
 - **`files.spec`** is the folder's own `DESIGN.md` for a folder node, with a null line. For a task
   it is the parent folder's `DESIGN.md` at the task entry's line from `parseSpec`.
-- **`files.briefs` / `files.reports`** list only files that exist, found by agentics' own naming
-  (`briefPath`, `reportPath`) across the effort's executions.
+- **`files.returns`** lists the node's stored returns that exist, one per dispatch, oldest first.
+- **`cost`** sums the host's own figures over every call; `per_folder` holds a folder's own calls
+  and every call below it, and `by_model` is for the whole effort only.
 - **`format`** is a single integer. Any change to the payload's field list bumps it, updates the
   contract entry, and updates the viewer in the same vanillafairy commit that moves the submodule
   pointer.
@@ -204,7 +205,7 @@ Spend = {
 ```
 agentics-viewer/
   package.json  package-lock.json  tsconfig.json  vite.config.ts  README.md
-  shared/snapshot.ts        the payload type and FORMAT = 3; imported by server and page
+  shared/snapshot.ts        the payload type and FORMAT = 4; imported by server and page
   server/main.ts            the entry: runs serve.ts and starts it again after an update
   server/serve.ts           start, health, build, the version watch
   server/agentics.ts        find agentics, run status.mjs, check the envelope and format
@@ -469,10 +470,10 @@ end with an ellipsis.
 ### 7.5 Components
 
 **Header.** Project picker (opens Open project), effort picker (a list of the project's efforts,
-most recently active first), spend ("$4.12 · 1.8M tokens · 23 dispatches": the dollars carry a "+" when a model has no
-price, the dispatches "(2 unreported)" when `tokens_unreported > 0`; hovering or focusing the
-tokens opens a table with one row per model, dearest first: input, cache write, cache read,
-output and cost; "23 dispatches, tokens not reported" when no usage was recorded), and the Open project button (the only filled button).
+most recently active first), spend ("$4.12 · 1.8M tokens · 23 dispatches": the dollars carry a "+" when a call
+was not measured, the dispatches "(2 unmeasured)" when `unmeasured > 0`; hovering or focusing the
+tokens opens a table with one row per model, dearest first: dispatches, tokens and cost; "23
+dispatches, nothing measured" when nothing was), and the Open project button (the only filled button).
 
 **Annunciator.**
 
@@ -575,14 +576,13 @@ output and cost; "23 dispatches, tokens not reported" when no usage was recorded
   - Escalated: heading "Escalated" and the reason, with the detail beneath.
 - For active tasks, a line with the stage and "3 commits, last 4 min ago: `<subject>`". The
   "ago" is computed on the page from `last_at` and refreshes every 30 s.
-- For a task with a progress file, one row per piece: a green check when done, a turning blue ring
-  and a "working" badge while working (still under reduced motion), an empty ring when pending.
-  An unreadable file shows "Progress file unreadable: `<why>`" instead. The board block adds
-  "`n` of `m` done" to an active task's facts.
+- For a task with a running call, a line "Running `<tool> <target>`, `<n>` turns, last `<ago>`". The
+  board block adds "`n` turns" to an active task's facts.
 - On every unfinished node, its card (`cardFacts`), one labelled line per fact that exists:
   "Next" (the action a relaunch would take and why), "Behind" (the commits of its folder's branch
-  its own lacks, when there are any), "Last report" (the lead of its latest report) and one "Note"
-  per note an earlier session left, newest first.
+  its own lacks, when there are any), "Last report" (the lead of its latest return that carries
+  text), "Checkout changed" (the call that wrote into the checkout outside its paths, and the
+  paths) and one "Note" per note an earlier session left, newest first.
 - "Prompt for Claude Code" with a copy button that behaves like the file ones, on every
   unfinished node: any status but merged, integrated or landed, plus an integrated root. A
   `review` entry gets none: its folder's prompt covers it. The
@@ -599,7 +599,7 @@ output and cost; "23 dispatches, tokens not reported" when no usage was recorded
   - Integrated root: `agentics:develop` to walk its result and land it on your go.
 
   Every prompt ends with the card's facts as the panel shows them, and a "Relaunch" line with the
-  open execution, its root and `retry_escalated` when agentics gives one.
+  open execution, its root and `retry` when agentics gives one.
 
   Beside the copy button, an "Open in Claude Code" link,
   `claude://code/new?q=<prompt>&folder=<repo>`, which the browser hands to the Claude desktop app:
@@ -613,15 +613,15 @@ output and cost; "23 dispatches, tokens not reported" when no usage was recorded
   `HUMAN:` items drop the prefix and carry a "You decide" tag.
 - **Files**, each a `vscode://file/` link with a copy-path button beside it:
   - "Spec in `<folder>/DESIGN.md`" with its line number;
-  - "Brief, `<role>` round `<n>`" and "Report, `<role>` round `<n>`";
+  - "Return, `<dispatch>`", one per stored return;
   - "Worktree".
   - I'm not sure the desktop app's Browser pane hands `vscode://` links to VS Code. The copy
     button is the fallback.
 - **Writes**: the locus paths.
-- **Spend**: a leaf's own figures from `cost.per_leaf`; for a node with children, the sum of
-  every `per_leaf` entry in its subtree, recursively, under "Spend, all tasks below". Per-model
-  figures add up too, and a model unpriced in any of them stays unpriced. Shown in the header's
-  form and with the same per-model table on the tokens.
+- **Spend**: a leaf's own figures from `cost.per_leaf`; for a node with children, its folder's from
+  `cost.per_folder` (its own calls and every call below it), under "Spend, with everything below".
+  Shown in the header's form, without the per-model table: agentics splits by model for the whole
+  effort only.
 - Folder nodes also show their spec's approval state in words, and the count of blocking
   questions.
 
@@ -647,7 +647,7 @@ A partial result never looks whole.
 |---|---|
 | `agentics_missing` | In place of the board: "The viewer can't find agentics. It looked at `<path>`. Install agentics, or set `agentics_path` in `~/.agentics-viewer/state.json`." |
 | `agentics_too_old` | "agentics `<version>` at `<path>` has no snapshot command. It arrives in agentics 4.0.0." |
-| `format_mismatch` | "This viewer reads snapshot format 3. agentics at `<path>` writes format `<n>`. Update agentics-viewer." (or "Update agentics." when `<n>` is the older one) |
+| `format_mismatch` | "This viewer reads snapshot format 4. agentics at `<path>` writes format `<n>`. Update agentics-viewer." (or "Update agentics." when `<n>` is the older one) |
 | `snapshot_failed` with a board already shown | The board stays, with a slim bar above it: "Showing the board from `<hh:mm>`. The last refresh failed: `<error>`." The next change retries. |
 | `snapshot_failed` with no board yet | In place of the board: "The first refresh failed: `<error>`." |
 | `malformed > 0` | A slim bar: "`<n>` lines in the logs couldn't be read, so the board may be missing nodes." It clears when a later snapshot reads clean. |

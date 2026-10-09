@@ -1,10 +1,10 @@
 import type { JSX } from 'preact'
 import { useEffect, useRef, useState } from 'preact/hooks'
 import type { BoardModel, NodeView } from './model.ts'
-import { kindWord, fileLabel, returnInWords, ago, vscodeLink, needsYou, claudePrompt, claudeCodeLink, projectPath, cardFacts, subtreeSpend } from './model.ts'
+import { kindWord, returnLabel, returnInWords, ago, vscodeLink, needsYou, claudePrompt, claudeCodeLink, projectPath, cardFacts, nodeSpend, liveLine } from './model.ts'
 import { inlineMarkdown } from './markdown.ts'
 import { Spend } from './Spend.tsx'
-import type { Approval, Progress, ProgressState, Snapshot, SnapshotNode } from '../shared/snapshot.ts'
+import type { Approval, Snapshot, SnapshotNode } from '../shared/snapshot.ts'
 import './detail.css'
 
 function approvalWord(a: Approval): string {
@@ -33,49 +33,6 @@ function statusTone(node: SnapshotNode): 'good' | 'hold' | 'stop' | 'ongoing' {
 }
 
 const COPIED_MS = 1500
-
-function ProgressMark(props: { state: ProgressState }): JSX.Element {
-  switch (props.state) {
-    case 'done':
-      return (
-        <svg class="mark" width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
-          <circle cx="7" cy="7" r="6.5" fill="currentColor" />
-          <path d="M4 7.2l2 2 4-4.4" fill="none" stroke="var(--panel)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" />
-        </svg>
-      )
-    case 'working':
-      return (
-        <svg class="mark" width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
-          <circle cx="7" cy="7" r="5.5" fill="none" stroke="currentColor" stroke-opacity="0.3" stroke-width="2" />
-          <path class="spin" d="M7 1.5a5.5 5.5 0 0 1 5.5 5.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
-        </svg>
-      )
-    default:
-      return (
-        <svg class="mark" width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
-          <circle cx="7" cy="7" r="5.5" fill="none" stroke="currentColor" stroke-width="1.5" />
-        </svg>
-      )
-  }
-}
-
-// The executor's pieces as it last wrote them. A file caught mid-rewrite says so instead of
-// showing a shorter list; the write's completion brings the next snapshot.
-function ProgressList(props: { progress: Progress }): JSX.Element {
-  const { items, error } = props.progress
-  if (items === null) return <p class="d-sub">Progress file unreadable: {error}</p>
-  return (
-    <ul class="progress">
-      {items.map((it, i) => (
-        <li key={i} class={`p-${it.state}`}>
-          <ProgressMark state={it.state} />
-          <span>{it.name}</span>
-          {it.state === 'working' ? <span class="badge">working</span> : <span class="copy-fallback">{it.state}</span>}
-        </li>
-      ))}
-    </ul>
-  )
-}
 
 // Turns green with "Copied" only once the clipboard write succeeded; the select-text fallback
 // copies nothing, so it leaves the button as it was.
@@ -222,7 +179,7 @@ export function Detail(props: {
   const context = node.context.trim()
   const showContext = intent !== '' || context !== ''
 
-  const spend = subtreeSpend(model, snapshot.cost.per_leaf, view.id)
+  const spend = nodeSpend(snapshot.cost, node)
 
   const specFolder = view.folder !== null ? view.id : (node.parent ?? '.')
   const specLabel = specFolder === '.' ? 'DESIGN.md' : `${specFolder}/DESIGN.md`
@@ -253,7 +210,7 @@ export function Detail(props: {
       )}
 
       {activeLine !== null && <p class="d-sub">{activeLine}</p>}
-      {node.progress != null && <ProgressList progress={node.progress} />}
+      {node.live !== null && <p class="d-sub">{liveLine(node.live, now)}</p>}
       {approvalParts.length > 0 && <p class="d-sub">{approvalParts.join(', ')}</p>}
 
       {prompt !== null && facts.length > 0 && (
@@ -324,15 +281,9 @@ export function Detail(props: {
           </a>
           <CopyButton key={node.files.spec.path} text={node.files.spec.path} label="Copy path" copy={copyText} />
         </div>
-        {node.files.briefs.map((path) => (
+        {node.files.returns.map((path) => (
           <div class="linkrow" key={path}>
-            <a href={vscodeLink(path)}>{fileLabel(path, 'brief')}</a>
-            <CopyButton text={path} label="Copy path" copy={copyText} />
-          </div>
-        ))}
-        {node.files.reports.map((path) => (
-          <div class="linkrow" key={path}>
-            <a href={vscodeLink(path)}>{fileLabel(path, 'report')}</a>
+            <a href={vscodeLink(path)}>{returnLabel(path)}</a>
             <CopyButton text={path} label="Copy path" copy={copyText} />
           </div>
         ))}
@@ -361,7 +312,7 @@ export function Detail(props: {
 
       {spend !== null && (
         <>
-          <div class="sec">{view.children.length > 0 ? 'Spend, all tasks below' : 'Spend'}</div>
+          <div class="sec">{view.children.length > 0 ? 'Spend, with everything below' : 'Spend'}</div>
           <Spend spend={spend} tip="above" />
         </>
       )}

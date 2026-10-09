@@ -23,7 +23,7 @@ const okBody = `
 console.log(JSON.stringify({
   payload: {
     format: ${FORMAT}, store: 's', effort: 'e', about: '', seq_max: 0, malformed: 0,
-    folders: [], nodes: [], cost: { dispatches: 0, tokens: 0, usd: 0, tokens_unreported: 0, usage: {}, per_leaf: {} },
+    folders: [], nodes: [], cost: { dispatches: 0, tokens: 0, usd: 0, unmeasured: 0, by_model: {}, per_leaf: {}, per_folder: {} },
     argv: process.argv.slice(2),
   },
   payload_digest: '00000000',
@@ -38,7 +38,7 @@ process.exit(1)
 function formatBody(format: number): string {
   return `
 console.log(JSON.stringify({
-  payload: { format: ${format}, store: 's', effort: 'e', about: '', seq_max: 0, malformed: 0, folders: [], nodes: [], cost: { dispatches: 0, tokens: 0, usd: 0, tokens_unreported: 0, usage: {}, per_leaf: {} } },
+  payload: { format: ${format}, store: 's', effort: 'e', about: '', seq_max: 0, malformed: 0, folders: [], nodes: [], cost: { dispatches: 0, tokens: 0, usd: 0, unmeasured: 0, by_model: {}, per_leaf: {}, per_folder: {} } },
   payload_digest: '00000000',
 }))
 `
@@ -107,7 +107,7 @@ describe('runSnapshot', () => {
     const result = await runSnapshot(loc, 'proj', 'my-effort')
     expect(result.ok).toBe(true)
     if (result.ok) {
-      expect(result.payload.format).toBe(FORMAT)
+      expect(result.payload.format).toBe(4)
       expect(result.digest).toBe('00000000')
     }
   })

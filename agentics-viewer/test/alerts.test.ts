@@ -22,8 +22,9 @@ function node(id: string, status: string, event: SnapshotEvent | null): Snapshot
     branch: 'main',
     worktree: null,
     commits: null,
-    files: { spec: { path: '', line: null }, briefs: [], reports: [] },
-    card: { next: null, behind: null, report: null, notes: [], relaunch: null },
+    live: null,
+    files: { spec: { path: '', line: null }, returns: [] },
+    card: { next: null, behind: null, report: null, notes: [], relaunch: null, checkout_changed: null },
   }
 }
 
@@ -37,7 +38,7 @@ function snapshot(nodes: SnapshotNode[], seq_max: number): Snapshot {
     malformed: 0,
     folders: [],
     nodes,
-    cost: { dispatches: 0, tokens: 0, usd: 0, tokens_unreported: 0, usage: {}, per_leaf: {} },
+    cost: { dispatches: 0, tokens: 0, usd: 0, unmeasured: 0, by_model: {}, per_leaf: {}, per_folder: {} },
   }
 }
 
