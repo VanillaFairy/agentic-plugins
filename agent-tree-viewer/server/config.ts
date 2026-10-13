@@ -12,7 +12,7 @@ export type Config = {
   staleMinutes: number
 }
 
-export const DEFAULT_CONFIG: Config = { port: 5182, maxAgeDays: 14, staleMinutes: 15 }
+export const DEFAULT_CONFIG: Config = { port: 5183, maxAgeDays: 14, staleMinutes: 15 }
 
 export const configPath = (home: string): string => join(home, '.agent-tree-viewer', 'config.json')
 

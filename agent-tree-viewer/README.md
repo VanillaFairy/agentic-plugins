@@ -39,7 +39,7 @@ Colours follow your system's light or dark setting.
 
 ## Settings
 
-The port defaults to 5182. To change it, pass `--port`:
+The port defaults to 5183. To change it, pass `--port`:
 
 ```bash
 agent-tree-viewer.bat --port 5190
