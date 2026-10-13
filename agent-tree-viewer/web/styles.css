@@ -122,6 +122,14 @@ button {
   letter-spacing: 0.01em;
 }
 
+.brand .version {
+  margin-left: auto;
+  color: var(--muted);
+  font-weight: 400;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
 .brand::before {
   content: '';
   width: 14px;

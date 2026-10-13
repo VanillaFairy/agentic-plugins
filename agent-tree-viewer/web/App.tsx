@@ -126,6 +126,10 @@ export function App() {
 
   const data = snap?.data
   const agents = data === undefined ? [] : Object.values(data.agents)
+  const title = data?.title
+  useEffect(() => {
+    document.title = title === undefined ? `Agent Tree Viewer ${__VIEWER_VERSION__}` : `Agent Tree Viewer ${__VIEWER_VERSION__} : ${title}`
+  }, [title])
   const running = agents.filter(a => a.status === 'running').length
   const serverNow = now + (snap?.skew ?? 0)
 

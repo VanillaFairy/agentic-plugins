@@ -53,7 +53,9 @@ export function Sidebar({ groups, selected, now, onPick }: Props) {
 
   return (
     <nav class="sidebar" aria-label="Sessions">
-      <div class="brand">Agent tree</div>
+      <div class="brand">
+        Agent Tree Viewer<span class="version">{__VIEWER_VERSION__}</span>
+      </div>
       <label class="filter">
         <span class="visually-hidden">Filter sessions</span>
         <input type="search" placeholder="Filter projects and sessions" value={filter} onInput={e => setFilter(e.currentTarget.value)} />
