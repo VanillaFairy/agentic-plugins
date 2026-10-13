@@ -8,6 +8,7 @@
 import { closeSync, existsSync, openSync, readFileSync, readSync, readdirSync, statSync } from 'node:fs'
 import { basename, dirname, join } from 'node:path'
 import type { ProjectGroup, SessionSummary } from '../shared/model.ts'
+import type { Presence } from './presence.ts'
 import { parseLines } from './tail.ts'
 
 const HEAD_BYTES = 64 * 1024
@@ -124,7 +125,7 @@ export type IndexOptions = {
   desktopDir: string
   // Sessions untouched for longer than this are left out of the picker.
   maxAgeMs: number
-  liveMs: number
+  presence: () => Map<string, Presence>
 }
 
 export class SessionIndex {
@@ -206,6 +207,7 @@ export class SessionIndex {
 
   list(now: number): ProjectGroup[] {
     const desktop = this.desktopRecords()
+    const presence = this.opts.presence()
     const rows: SessionRow[] = []
     const files = new Map<string, SessionFiles>()
     let projectDirs: string[]
@@ -236,7 +238,15 @@ export class SessionIndex {
         const lastAt = Math.max(stat.mtimeMs, newestUnder(join(dir, 'subagents')))
         const title = pickTitle({ desktop: rec?.title, ...hints })
         files.set(id, { id, main, dir })
-        rows.push({ id, title, lastAt, live: now - lastAt < this.opts.liveMs, path: rec?.cwd ?? hints.cwd ?? project })
+        const p = presence.get(id)
+        rows.push({
+          id,
+          title,
+          lastAt,
+          live: p !== undefined && p.status !== 'idle',
+          ...(p?.status === 'waiting' && p.waitingFor !== undefined ? { waitingFor: p.waitingFor } : {}),
+          path: rec?.cwd ?? hints.cwd ?? project,
+        })
       }
     }
     this.files = files

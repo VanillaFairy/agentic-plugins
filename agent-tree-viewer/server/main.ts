@@ -10,12 +10,12 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { APP_NAME, PACKAGE_VERSION, createApp } from './app.ts'
 import { configPath, readConfig } from './config.ts'
+import { pidOnlyCheck, readPresence, windowsProcessCheck } from './presence.ts'
 import { SessionIndex } from './sessions.ts'
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url))
 const DAY_MS = 24 * 60 * 60 * 1000
 const MINUTE_MS = 60 * 1000
-const LIVE_MS = 2 * MINUTE_MS
 
 function health(port: number): Promise<unknown> {
   return fetch(`http://127.0.0.1:${port}/api/health`, { signal: AbortSignal.timeout(1000) })
@@ -84,11 +84,13 @@ async function main(): Promise<void> {
   }
 
   const appData = process.env.APPDATA ?? join(homedir(), 'AppData', 'Roaming')
+  const pidDir = join(homedir(), '.claude', 'sessions')
+  const check = process.platform === 'win32' ? windowsProcessCheck() : pidOnlyCheck
   const index = new SessionIndex({
     projectsDir: join(homedir(), '.claude', 'projects'),
     desktopDir: join(appData, 'Claude', 'claude-code-sessions'),
     maxAgeMs: config.maxAgeDays * DAY_MS,
-    liveMs: LIVE_MS,
+    presence: () => readPresence(pidDir, check),
   })
   const app = createApp({ port: config.port, distDir: join(ROOT, 'dist'), index, staleMs: config.staleMinutes * MINUTE_MS, now: Date.now })
   await new Promise<void>(done => app.server.on('listening', done))

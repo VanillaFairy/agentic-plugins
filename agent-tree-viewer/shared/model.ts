@@ -46,8 +46,10 @@ export type SessionSummary = {
   id: string
   title: string
   lastAt: number
-  // Something in the session wrote to its transcript in the last couple of minutes.
+  // A running Claude Code process works on the session, or waits on the person.
   live: boolean
+  // What it waits on: a permission prompt, an MCP input, an open dialog.
+  waitingFor?: string
 }
 
 export type ProjectGroup = Project & { sessions: SessionSummary[] }

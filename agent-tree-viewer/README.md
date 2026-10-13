@@ -2,7 +2,7 @@
 
 A local web app that shows the subagents of any Claude Code session as a live tree. It does what the [agent-tree](https://github.com/VanillaFairy/agent-tree) plugin does in a side pane, but in a browser tab of its own: every session on this machine, a canvas you can drag and zoom, and a details pane with each agent's full command history.
 
-It isn't a plugin and needs nothing installed in Claude Code. It reads the transcripts Claude Code already writes under `~/.claude/projects`, and the desktop app's session records for the names it shows.
+It isn't a plugin and needs nothing installed in Claude Code. It reads the transcripts Claude Code already writes under `~/.claude/projects`, the desktop app's session records for the names it shows, and the status file each running Claude Code process keeps under `~/.claude/sessions`.
 
 ## Running it
 
@@ -21,7 +21,7 @@ npm run app
 
 ## Using it
 
-The left column lists your sessions from the last two weeks, grouped by project folder, with the titles the Claude app shows. A dot marks a session that wrote to its transcript in the last two minutes. Type in the filter box to narrow the list by project or session name.
+The left column lists your sessions from the last two weeks, grouped by project folder, with the titles the Claude app shows. A dot marks a session that's working right now: thinking, running a tool, or waiting on a background agent or shell. A ring marks one that's waiting on you, for a permission prompt or a question; hover it to see which. Type in the filter box to narrow the list by project or session name, and tick **Hide inactive sessions** to list only the working and waiting ones.
 
 The tree reads left to right: the session's own card first, the agents it spawned in the next column, their agents after that. The stripe on a card's left edge shows where the agent is at: amber while it runs, green when it's done, red if it failed, grey if it stopped or went quiet. A running agent's card shows the tool it's using right now, and a pulse runs along the line into it.
 
