@@ -75,7 +75,9 @@ export function createApp(deps: AppDeps): { server: http.Server; close: () => Pr
     const found = deps.index.find(id)
     if (found === undefined) return
     const project = list().find(g => g.sessions.some(s => s.id === id))
-    const snap = stream.watch.snapshot(deps.now(), found.row.title, { path: found.row.path, name: project?.name ?? found.row.path })
+    const { live, waitingFor } = found.row
+    const presence = waitingFor === undefined ? { live } : { live, waitingFor }
+    const snap = stream.watch.snapshot(deps.now(), found.row.title, { path: found.row.path, name: project?.name ?? found.row.path }, presence)
     const body = content(snap)
     if (!force && body === stream.last) return
     stream.last = body

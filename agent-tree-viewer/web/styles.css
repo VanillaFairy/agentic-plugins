@@ -1057,6 +1057,10 @@ h1 {
   animation: spin 3s linear infinite;
 }
 
+.now.waiting .mark {
+  animation: none;
+}
+
 .end .mark {
   top: 0.4em;
   width: 11px;

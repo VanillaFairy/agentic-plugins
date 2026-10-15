@@ -205,7 +205,15 @@ export function Detail({ snap, id, now, onPick }: Props) {
       <header class="detail-head">
         <div class="detail-top">
           {agent === undefined ? (
-            <p class="status-line main">The session’s main loop</p>
+            snap.main.live ? (
+              <p class="status-line running">
+                <span class="status-dot" />
+                <span>{snap.main.waitingFor === undefined ? 'running' : 'waiting on you'}</span>
+                <span class="status-time">the session’s main loop</span>
+              </p>
+            ) : (
+              <p class="status-line main">The session’s main loop</p>
+            )
           ) : (
             <p class={`status-line ${agent.status}`}>
               <span class="status-dot" />
@@ -227,7 +235,7 @@ export function Detail({ snap, id, now, onPick }: Props) {
       <div class="detail-body" ref={bodyRef} onScroll={onScroll} aria-label="Activity">
         {problem !== undefined && <p class="problem">Could not load the details: {problem}</p>}
         {detail === undefined && problem === undefined && <p class="quiet-inline">Reading the transcript…</p>}
-        {detail !== undefined && <Stream sessionId={snap.id} nodeId={id} steps={detail.steps} agent={agent} spawned={spawned} now={now} onPick={onPick} />}
+        {detail !== undefined && <Stream sessionId={snap.id} nodeId={id} steps={detail.steps} agent={agent} main={snap.main} spawned={spawned} now={now} onPick={onPick} />}
       </div>
       {!atLatest && detail !== undefined && (
         <button class="jump" onClick={jump} aria-label="Jump to the latest" title="Jump to the latest">

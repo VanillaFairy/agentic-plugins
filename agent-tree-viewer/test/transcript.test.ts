@@ -35,9 +35,17 @@ function agent(id: string, meta: AgentMeta, ...entries: object[]): AgentSource {
   return { id, meta, facts: f, mtime: f.lastAt ?? T0 }
 }
 
-function snap(main: FileFacts, agents: AgentSource[], nowS = 60, staleS = 600) {
-  return buildSnapshot({ id: 's', title: 't', project: { path: 'p', name: 'p' }, main, agents, now: T0 + nowS * 1000, staleMs: staleS * 1000 })
+function snap(main: FileFacts, agents: AgentSource[], nowS = 60, staleS = 600, presence: { live: boolean; waitingFor?: string } = { live: false }) {
+  return buildSnapshot({ id: 's', title: 't', project: { path: 'p', name: 'p' }, main, agents, presence, now: T0 + nowS * 1000, staleMs: staleS * 1000 })
 }
+
+describe('the main loop', () => {
+  it('is live, or waits on the person, as the session’s process says', () => {
+    const main = facts(said(0, 'end_turn'))
+    expect(snap(main, [], 60, 600, { live: true, waitingFor: 'permission' }).main).toMatchObject({ live: true, waitingFor: 'permission' })
+    expect(snap(main, []).main.live).toBe(false)
+  })
+})
 
 describe('parents', () => {
   it('hangs an agent under whoever made the call that spawned it', () => {

@@ -5,7 +5,7 @@
 // agent's type, description and the tool call that spawned it. That call sits in the
 // transcript of whoever spawned the agent, which is how the tree finds a parent.
 
-import type { AgentNode, AgentStatus, CallDetail, InputField, ModelUsage, NodeDetail, Project, SessionSnapshot, Step, ToolEvent } from '../shared/model.ts'
+import type { AgentNode, AgentStatus, CallDetail, InputField, ModelUsage, NodeDetail, Project, SessionSnapshot, SessionSummary, Step, ToolEvent } from '../shared/model.ts'
 import { estimateCost } from './pricing.ts'
 
 const KEEP = 24
@@ -227,6 +227,8 @@ export type SessionSource = {
   project: Project
   main: FileFacts
   agents: AgentSource[]
+  // What the session's Claude Code process says it is doing.
+  presence: Pick<SessionSummary, 'live' | 'waitingFor'>
   now: number
   // A running agent whose transcript stays silent this long is taken as stopped.
   staleMs: number
@@ -324,7 +326,7 @@ export function buildSnapshot(s: SessionSource): SessionSnapshot {
     title: s.title,
     project: s.project,
     now: s.now,
-    main: { toolCount: s.main.calls.length, activity: recent(s.main.calls) },
+    main: { toolCount: s.main.calls.length, activity: recent(s.main.calls), ...s.presence },
     agents,
   }
 }

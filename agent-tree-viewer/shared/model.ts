@@ -33,7 +33,8 @@ export type SessionSnapshot = {
   project: Project
   // The server's clock when it built the snapshot, so the page can count run times on its own.
   now: number
-  main: { toolCount: number; activity: ToolEvent[] }
+  // `live` and `waitingFor` as the session's own process reports them, the same as its SessionSummary.
+  main: { toolCount: number; activity: ToolEvent[]; live: boolean; waitingFor?: string }
   agents: Record<string, AgentNode>
 }
 

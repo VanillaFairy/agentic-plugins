@@ -179,8 +179,8 @@ function agentCard(f: Frame, p: Placed, n: AgentNode, x: number, y: number): voi
   }
 }
 
-// The session's own card: an agent card without a status stripe, set apart by a heavier edge
-// and a larger title.
+// The session's own card, set apart by a heavier edge and a larger title. It carries the running
+// stripe while the session's process works or waits on the person.
 function rootCard(f: Frame, p: Placed, x: number, y: number): void {
   const { ctx, palette, snap } = f
   roundRect(ctx, x, y, NODE_W, NODE_H, RADIUS)
@@ -189,6 +189,15 @@ function rootCard(f: Frame, p: Placed, x: number, y: number): void {
   ctx.lineWidth = f.selected === ROOT ? 2.5 : 2
   ctx.strokeStyle = f.selected === ROOT ? palette.select : palette.muted
   ctx.stroke()
+  const { live, waitingFor } = snap.main
+  if (live) {
+    ctx.save()
+    roundRect(ctx, x, y, NODE_W, NODE_H, RADIUS)
+    ctx.clip()
+    ctx.fillStyle = palette.status.running
+    ctx.fillRect(x, y, 4, NODE_H)
+    ctx.restore()
+  }
   const left = x + INSET
   const room = NODE_W - INSET * 2
   const agents = Object.values(snap.agents)
@@ -202,10 +211,11 @@ function rootCard(f: Frame, p: Placed, x: number, y: number): void {
   if (agents.length === 0) pair(ctx, 'main loop', `${snap.main.toolCount} tools`, left, y + 46, room - FOLD_R - 4)
   else pair(ctx, `${agents.length} agents`, `${running} running`, left, y + 46, room - FOLD_R - 4)
   const doing = current(snap.main.activity)
-  if (doing) {
+  const line = waitingFor !== undefined ? `waiting: ${waitingFor}` : doing ? `${doing.tool} ${doing.arg}` : live ? 'working…' : undefined
+  if (line !== undefined) {
     ctx.font = FONT.doing
     ctx.fillStyle = palette.status.running
-    ctx.fillText(fit(ctx, `${doing.tool} ${doing.arg}`, room), left, y + 66)
+    ctx.fillText(fit(ctx, line, room), left, y + 66)
   }
 }
 

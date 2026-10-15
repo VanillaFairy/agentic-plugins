@@ -2,7 +2,7 @@
 
 import { readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
-import type { CallDetail, NodeDetail, Project, SessionSnapshot } from '../shared/model.ts'
+import type { CallDetail, NodeDetail, Project, SessionSnapshot, SessionSummary } from '../shared/model.ts'
 import { JsonlTail } from './tail.ts'
 import type { SessionFiles } from './sessions.ts'
 import { buildSnapshot, emptyFacts, fullCall, ingest, nodeDetail } from './transcript.ts'
@@ -92,12 +92,13 @@ export class SessionWatch {
     return facts === undefined ? undefined : fullCall(facts, callId)
   }
 
-  snapshot(now: number, title: string, project: Project): SessionSnapshot {
+  snapshot(now: number, title: string, project: Project, presence: Pick<SessionSummary, 'live' | 'waitingFor'>): SessionSnapshot {
     this.catchUpAll()
     return buildSnapshot({
       id: this.files.id,
       title,
       project,
+      presence,
       now,
       staleMs: this.staleMs,
       main: this.main.facts,

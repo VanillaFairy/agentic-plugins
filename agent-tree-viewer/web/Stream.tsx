@@ -2,7 +2,7 @@
 
 import { Fragment } from 'preact'
 import { useEffect, useState } from 'preact/hooks'
-import type { AgentNode, AgentStatus, CallDetail, Step } from '../shared/model.ts'
+import type { AgentNode, AgentStatus, CallDetail, SessionSnapshot, Step } from '../shared/model.ts'
 import { elapsed } from './layout.ts'
 import { clockTime } from './time.ts'
 
@@ -171,20 +171,47 @@ function Now({ agent, last, now }: { agent: AgentNode; last: Step | undefined; n
   )
 }
 
+// The bottom of the main loop's spine, from what the session's process reports.
+function MainNow({ main, last, now }: { main: SessionSnapshot['main']; last: Step | undefined; now: number }) {
+  if (main.waitingFor !== undefined) {
+    return (
+      <li class="step now waiting" aria-live="polite">
+        <span class="mark" aria-hidden="true">
+          ✻
+        </span>
+        <p>Waiting on you: {main.waitingFor}</p>
+      </li>
+    )
+  }
+  if (!main.live || (last?.kind === 'call' && last.call.endedAt === undefined)) return null
+  return (
+    <li class="step now" aria-live="polite">
+      <span class="mark" aria-hidden="true">
+        ✻
+      </span>
+      <p>
+        Working
+        {last !== undefined && <span class="step-time">{elapsed(now - endOf(last))}</span>}
+      </p>
+    </li>
+  )
+}
+
 type Props = {
   sessionId: string
   // The card: an agent id, or 'main'.
   nodeId: string
   steps: readonly Step[]
-  // Absent for the main loop, whose state the transcript cannot tell.
+  // Absent for the main loop.
   agent: AgentNode | undefined
+  main: SessionSnapshot['main']
   // The agents this transcript spawned, so a spawning call can open its agent.
   spawned: readonly AgentNode[]
   now: number
   onPick: (id: string) => void
 }
 
-export function Stream({ sessionId, nodeId, steps, agent, spawned, now, onPick }: Props) {
+export function Stream({ sessionId, nodeId, steps, agent, main, spawned, now, onPick }: Props) {
   const where = { sessionId, nodeId }
   if (steps.length === 0 && agent === undefined) return <p class="quiet-inline">Nothing in the transcript yet.</p>
   const byCall = new Map(spawned.flatMap(c => (c.callId === undefined ? [] : [[c.callId, c] as const])))
@@ -243,7 +270,7 @@ export function Stream({ sessionId, nodeId, steps, agent, spawned, now, onPick }
             )
         }
       })}
-      {agent !== undefined && <Now agent={agent} last={steps.at(-1)} now={now} />}
+      {agent !== undefined ? <Now agent={agent} last={steps.at(-1)} now={now} /> : <MainNow main={main} last={steps.at(-1)} now={now} />}
     </ol>
   )
 }
