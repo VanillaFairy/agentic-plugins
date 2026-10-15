@@ -6,6 +6,10 @@ import { TreeView } from './tree-view.ts'
 
 const LIST_EVERY_MS = 4000
 const HIDE_DONE_KEY = 'agent-tree-viewer:hide-done'
+const DETAIL_WIDTH_KEY = 'agent-tree-viewer:detail-width'
+const DETAIL_MIN_PX = 300
+const BOARD_MIN_PX = 240
+const SPLITTER_STEP_PX = 24
 
 function sessionFromUrl(): string | undefined {
   return new URLSearchParams(location.search).get('session') ?? undefined
@@ -27,6 +31,56 @@ function recall(key: string): string | null {
   }
 }
 
+function recallWidth(): number | undefined {
+  const width = Number(recall(DETAIL_WIDTH_KEY))
+  return width > 0 ? width : undefined
+}
+
+// Drags the edge between the tree and the details. The width it sets is the details pane's,
+// measured from the right edge of `work`; double-click returns to the default.
+function Splitter({ work, width, onWidth }: { work: HTMLElement | null; width: number | undefined; onWidth: (w: number | undefined) => void }) {
+  const clamp = (w: number) => Math.round(Math.max(DETAIL_MIN_PX, Math.min(w, (work?.clientWidth ?? Infinity) - BOARD_MIN_PX)))
+  const current = () => width ?? work?.querySelector<HTMLElement>('.detail')?.offsetWidth ?? DETAIL_MIN_PX
+
+  const onPointerDown = (e: PointerEvent) => {
+    if (work === null || e.button !== 0) return
+    const handle = e.currentTarget as HTMLElement
+    handle.setPointerCapture(e.pointerId)
+    const move = (m: PointerEvent) => onWidth(clamp(work.getBoundingClientRect().right - m.clientX - handle.offsetWidth / 2))
+    const up = () => {
+      handle.removeEventListener('pointermove', move)
+      handle.removeEventListener('pointerup', up)
+      handle.removeEventListener('pointercancel', up)
+    }
+    handle.addEventListener('pointermove', move)
+    handle.addEventListener('pointerup', up)
+    handle.addEventListener('pointercancel', up)
+    e.preventDefault()
+  }
+
+  const onKeyDown = (e: KeyboardEvent) => {
+    if (e.key === 'ArrowLeft') onWidth(clamp(current() + SPLITTER_STEP_PX))
+    else if (e.key === 'ArrowRight') onWidth(clamp(current() - SPLITTER_STEP_PX))
+    else return
+    e.preventDefault()
+  }
+
+  return (
+    <div
+      class="splitter"
+      role="separator"
+      aria-orientation="vertical"
+      aria-label="Resize details"
+      aria-valuenow={width}
+      tabIndex={0}
+      title="Drag to resize, double-click to reset"
+      onPointerDown={onPointerDown}
+      onKeyDown={onKeyDown}
+      onDblClick={() => onWidth(undefined)}
+    />
+  )
+}
+
 // The session to open when none is named: the newest live one, else the newest.
 function defaultSession(groups: ProjectGroup[]): string | undefined {
   const all = groups.flatMap(g => g.sessions).sort((a, b) => b.lastAt - a.lastAt)
@@ -44,7 +98,9 @@ export function App() {
   const [pickerOpen, setPickerOpen] = useState(false)
   const [following, setFollowing] = useState(true)
   const [now, setNow] = useState(Date.now)
+  const [detailWidth, setDetailWidth] = useState(recallWidth)
   const canvasRef = useRef<HTMLCanvasElement>(null)
+  const workRef = useRef<HTMLDivElement>(null)
   const viewRef = useRef<TreeView | undefined>(undefined)
 
   useEffect(() => {
@@ -99,6 +155,11 @@ export function App() {
   useEffect(() => {
     if (snap !== undefined) viewRef.current?.update({ snap: snap.data, skew: snap.skew, hideDone, selected })
   }, [snap, hideDone, selected])
+
+  const resizeDetail = (width: number | undefined) => {
+    remember(DETAIL_WIDTH_KEY, width === undefined ? '' : String(width))
+    setDetailWidth(width)
+  }
 
   const toggleDone = () => {
     remember(HIDE_DONE_KEY, String(!hideDone))
@@ -179,12 +240,17 @@ export function App() {
             </button>
           </div>
         </header>
-        <div class="work">
+        <div class="work" ref={workRef} style={detailWidth === undefined ? undefined : { '--detail-width': `${detailWidth}px` }}>
           <div class="board">
             <canvas ref={canvasRef} aria-label="Agent tree" role="img" />
             {data !== undefined && agents.length === 0 && <p class="board-hint">Subagents show up here as they start.</p>}
           </div>
-          {data !== undefined && selected !== undefined && <Detail snap={data} id={selected} now={serverNow} onPick={setSelected} />}
+          {data !== undefined && selected !== undefined && (
+            <>
+              <Splitter work={workRef.current} width={detailWidth} onWidth={resizeDetail} />
+              <Detail snap={data} id={selected} now={serverNow} onPick={setSelected} />
+            </>
+          )}
         </div>
       </main>
     </div>
