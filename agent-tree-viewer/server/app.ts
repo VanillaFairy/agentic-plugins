@@ -1,8 +1,8 @@
 // The viewer's HTTP server: the session list, a live stream per session, and the built page.
 
 import http from 'node:http'
-import { existsSync, readFileSync, statSync } from 'node:fs'
-import { extname, join, resolve, sep } from 'node:path'
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
+import { extname, join, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type { NodeDetail, ProjectGroup, SessionSnapshot } from '../shared/model.ts'
 import { SessionWatch } from './live.ts'
@@ -48,8 +48,21 @@ export type AppDeps = {
   now: () => number
 }
 
+// The built page, read once at start. Another viewer started on this folder rebuilds the page on
+// disk; a server that kept reading it would hand its clients a page its own API does not match.
+function readPage(dir: string): Map<string, Buffer> {
+  const files = new Map<string, Buffer>()
+  if (!existsSync(dir)) return files
+  for (const name of readdirSync(dir, { recursive: true, encoding: 'utf8' })) {
+    const file = join(dir, name)
+    if (statSync(file).isFile()) files.set(name.split(sep).join('/'), readFileSync(file))
+  }
+  return files
+}
+
 export function createApp(deps: AppDeps): { server: http.Server; close: () => Promise<void> } {
   const streams = new Map<string, Stream>()
+  const page = readPage(deps.distDir)
   let listed: { at: number; groups: ProjectGroup[] } | undefined
 
   const list = (): ProjectGroup[] => {
@@ -121,18 +134,14 @@ export function createApp(deps: AppDeps): { server: http.Server; close: () => Pr
   }
 
   const serveStatic = (urlPath: string, res: http.ServerResponse): void => {
-    const root = resolve(deps.distDir)
-    let file = resolve(root, '.' + decodeURIComponent(urlPath))
-    if (file !== root && !file.startsWith(root + sep)) {
-      res.writeHead(403).end()
-      return
-    }
-    if (!existsSync(file) || statSync(file).isDirectory()) file = join(root, 'index.html')
-    if (!existsSync(file)) {
+    const asked = decodeURIComponent(urlPath).replace(/^\/+/, '')
+    const name = page.has(asked) ? asked : 'index.html'
+    const body = page.get(name)
+    if (body === undefined) {
       res.writeHead(500, { 'content-type': 'text/plain' }).end('The page is not built. Run `npm run build`.')
       return
     }
-    res.writeHead(200, { 'content-type': MIME[extname(file)] ?? 'application/octet-stream' }).end(readFileSync(file))
+    res.writeHead(200, { 'content-type': MIME[extname(name)] ?? 'application/octet-stream' }).end(body)
   }
 
   const server = http.createServer((req, res) => {
