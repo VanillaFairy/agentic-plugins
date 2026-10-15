@@ -240,8 +240,8 @@ export class TreeView {
       else this.collapsed.add(hit.id)
       if (this.sessionId !== undefined) saveFolds(this.sessionId, this.collapsed)
       this.relayout()
-    } else {
-      this.events.select(hit?.id === this.input?.selected ? undefined : hit?.id)
+    } else if (hit !== undefined) {
+      this.events.select(hit.id === this.input?.selected ? undefined : hit.id)
     }
   }
 
