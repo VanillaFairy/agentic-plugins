@@ -267,7 +267,6 @@ export function App() {
         <div class="work">
           <div class="board">
             <canvas ref={canvasRef} aria-label="Agent tree" role="img" />
-            {data !== undefined && agents.length === 0 && <p class="board-hint">Subagents show up here as they start.</p>}
           </div>
           {data !== undefined && selected !== undefined && (
             <div class="detail-dock" ref={dockRef} style={detailWidth === undefined ? undefined : { '--detail-width': `${detailWidth}px` }}>
