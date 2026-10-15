@@ -1,6 +1,7 @@
 import { render } from 'preact'
 import '@fontsource/sofia-sans/800.css'
 import '@fontsource/sofia-sans-semi-condensed/400.css'
+import '@fontsource/sofia-sans-semi-condensed/400-italic.css'
 import '@fontsource/sofia-sans-semi-condensed/500.css'
 import '@fontsource/sofia-sans-semi-condensed/600.css'
 import '@fontsource/sofia-sans-semi-condensed/700.css'

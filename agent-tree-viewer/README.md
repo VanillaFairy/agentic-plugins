@@ -1,6 +1,6 @@
 # agent-tree-viewer
 
-A local web app that shows the subagents of any Claude Code session as a live tree. It does what the [agent-tree](https://github.com/VanillaFairy/agent-tree) plugin does in a side pane, but in a browser tab of its own: every session on this machine, a canvas you can drag and zoom, and a details pane with each agent's full command history.
+A local web app that shows the subagents of any Claude Code session as a live tree. It does what the [agent-tree](https://github.com/VanillaFairy/agent-tree) plugin does in a side pane, but in a browser tab of its own: every session on this machine, a canvas you can drag and zoom, and a details pane that tells each agent's work step by step.
 
 It isn't a plugin and needs nothing installed in Claude Code. It reads the transcripts Claude Code already writes under `~/.claude/projects`, the desktop app's session records for the names it shows, and the status file each running Claude Code process keeps under `~/.claude/sessions`.
 
@@ -27,7 +27,7 @@ The tree reads left to right: the session's own card first, the agents it spawne
 
 - Drag with the left button to pan. Scroll to zoom.
 - Click the round mark where a card's lines leave to fold its agents away, and again to bring them back. Each session remembers its folds in this browser, across reloads and when you switch between sessions.
-- Click a card to open its details on the right: what it was asked, its report, who spawned it, what it spawned, the models it used with their tokens and estimated cost, and every tool call it made, newest first. Click a call to see its full input and the start of its output. The session's own card also totals the whole session, every agent included.
+- Click a card to open its details on the right. Pinned at the top: when it started and ended, who spawned it, its tool calls, how many agents it spawned and what it cost; open the breakdown for tokens per model and the list of spawned agents. The session's own card also totals the whole session, every agent included. Below, the agent's work as one timeline, oldest at the top: what it was asked, what it wrote, its thinking where the transcript keeps it, and its tool calls in runs, down to what it does right now or how it ended. Click a call to see all of it: the command or each field it was given, and everything it returned. A call that spawned an agent links to that agent.
 - **Fit** shows the whole tree. **Follow** keeps the newest running agent in sight as the tree grows; panning or zooming by hand turns it off.
 - **Hide done** leaves out finished agents, except ones with something still running under them.
 

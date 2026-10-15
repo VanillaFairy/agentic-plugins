@@ -5,11 +5,11 @@
 // agent's type, description and the tool call that spawned it. That call sits in the
 // transcript of whoever spawned the agent, which is how the tree finds a parent.
 
-import type { AgentNode, AgentStatus, CallDetail, ModelUsage, NodeDetail, Project, SessionSnapshot, ToolEvent } from '../shared/model.ts'
+import type { AgentNode, AgentStatus, CallDetail, InputField, ModelUsage, NodeDetail, Project, SessionSnapshot, Step, ToolEvent } from '../shared/model.ts'
 import { estimateCost } from './pricing.ts'
 
 const KEEP = 24
-// How much of a call's input and output the details pane gets, and of a prompt or report.
+// How much of a call's input and output a node's detail carries, and of a prompt or report.
 const INPUT_CHARS = 4000
 const OUTPUT_CHARS = 1500
 const TEXT_CHARS = 40000
@@ -30,11 +30,8 @@ export type FileFacts = {
   lastAt?: number
   // Every tool call in the order it was made; `endedAt` is set once its result is in.
   calls: CallDetail[]
-  // The first thing a person or a spawning agent asked of this transcript.
-  prompt?: string
-  // A subagent's SubagentHandback message, else the latest text the model wrote.
-  handback?: string
-  lastText?: string
+  // Everything in the order it happened; a call step holds the same object as `calls`.
+  steps: Step[]
   results: Map<string, Result>
   // The latest notification heard for each background agent, by agent id.
   notes: Map<string, { status: string; at: number }>
@@ -50,7 +47,7 @@ export type FileFacts = {
 type MessageUsage = Omit<ModelUsage, 'messages' | 'cost'>
 
 export function emptyFacts(): FileFacts {
-  return { calls: [], results: new Map(), notes: new Map(), runs: new Map(), idle: false, usage: new Map() }
+  return { calls: [], steps: [], results: new Map(), notes: new Map(), runs: new Map(), idle: false, usage: new Map() }
 }
 
 // The one argument that says what a call is about: the file it touches, the command it runs,
@@ -81,13 +78,15 @@ function textOf(content: unknown): string {
 
 const clipText = (text: string, max: number) => (text.length > max ? text.slice(0, max) + '…' : text)
 
-function inputText(input: unknown): string {
-  if (input === undefined) return ''
-  try {
-    return clipText(JSON.stringify(input, null, 2), INPUT_CHARS)
-  } catch {
-    return ''
-  }
+// A call's input as a person reads it: a shell command alone, else every field by name, text as
+// it is and anything else as JSON.
+export function inputFields(input: unknown): InputField[] {
+  const fields = record(input)
+  if (fields === undefined) return []
+  if (typeof fields.command === 'string') return [{ name: 'command', text: fields.command }]
+  return Object.entries(fields)
+    .filter(([, value]) => value !== undefined && value !== null && value !== '')
+    .map(([key, value]) => ({ name: key.replace(/_/g, ' '), text: typeof value === 'string' ? value : JSON.stringify(value, null, 2) }))
 }
 
 // A prompt is a user turn with words in it, not a tool result, a harness note or a meta entry.
@@ -180,18 +179,22 @@ export function ingest(facts: FileFacts, raw: unknown): void {
   else if (entry.type === 'user') facts.idle = false
 
   const content = message?.content
-  facts.prompt ??= promptOf(entry, content)
+  const prompt = promptOf(entry, content)
+  if (prompt !== undefined) facts.steps.push({ kind: 'prompt', at, text: prompt })
   if (!Array.isArray(content)) return
   for (const item of content) {
     const part = record(item)
     if (part === undefined) continue
     if (entry.type === 'assistant' && part.type === 'text' && typeof part.text === 'string' && part.text.trim() !== '') {
-      facts.lastText = clipText(part.text.trim(), TEXT_CHARS)
+      facts.steps.push({ kind: 'words', at, text: clipText(part.text.trim(), TEXT_CHARS) })
+    } else if (entry.type === 'assistant' && part.type === 'thinking') {
+      facts.steps.push({ kind: 'thought', at, text: typeof part.thinking === 'string' ? clipText(part.thinking.trim(), TEXT_CHARS) : '' })
     } else if (entry.type === 'assistant' && part.type === 'tool_use' && typeof part.id === 'string') {
       const tool = toolName(String(part.name ?? 'tool'))
       const handback = record(part.input)?.message
-      if (tool === 'SubagentHandback' && typeof handback === 'string') facts.handback = clipText(handback, TEXT_CHARS)
-      facts.calls.push({ id: part.id, tool, arg: argSummary(part.input), startedAt: at, input: inputText(part.input) })
+      const call: CallDetail = { id: part.id, tool, arg: argSummary(part.input), startedAt: at, input: inputFields(part.input) }
+      facts.calls.push(call)
+      facts.steps.push(tool === 'SubagentHandback' && typeof handback === 'string' ? { kind: 'handback', at, text: clipText(handback, TEXT_CHARS) } : { kind: 'call', at, call })
     } else if (entry.type === 'user' && part.type === 'tool_result' && typeof part.tool_use_id === 'string') {
       const isError = part.is_error === true
       const text = textOf(part.content)
@@ -201,7 +204,7 @@ export function ingest(facts: FileFacts, raw: unknown): void {
       if (call !== undefined) {
         call.endedAt = at
         if (isError) call.isError = true
-        if (text.trim() !== '') call.output = clipText(text.trim(), OUTPUT_CHARS)
+        if (text.trim() !== '') call.output = text.trim()
       }
     }
   }
@@ -239,15 +242,28 @@ function noteStatus(status: string): AgentStatus {
 const recent = (calls: readonly CallDetail[]): ToolEvent[] =>
   calls.slice(-KEEP).map(({ input: _input, output: _output, ...call }) => ({ ...call }))
 
+function clipCall(call: CallDetail): CallDetail {
+  const clipped = call.input.some(f => f.text.length > INPUT_CHARS) || (call.output?.length ?? 0) > OUTPUT_CHARS
+  return {
+    ...call,
+    input: call.input.map(f => ({ ...f, text: clipText(f.text, INPUT_CHARS) })),
+    ...(call.output !== undefined ? { output: clipText(call.output, OUTPUT_CHARS) } : {}),
+    ...(clipped ? { clipped } : {}),
+  }
+}
+
+// One call whole, input and output uncut.
+export function fullCall(facts: FileFacts, callId: string): CallDetail | undefined {
+  const call = facts.calls.findLast(c => c.id === callId)
+  return call === undefined ? undefined : { ...call }
+}
+
 // `everyone` is every transcript of the session, given for the main loop so its details can
 // also total the whole session.
 export function nodeDetail(id: string, facts: FileFacts, everyone?: readonly FileFacts[]): NodeDetail {
-  const report = facts.handback ?? facts.lastText
   return {
     id,
-    ...(facts.prompt !== undefined ? { prompt: facts.prompt } : {}),
-    ...(report !== undefined ? { report } : {}),
-    calls: [...facts.calls].reverse().map(c => ({ ...c })),
+    steps: facts.steps.map(step => (step.kind === 'call' ? { ...step, call: clipCall(step.call) } : { ...step })),
     usage: sumUsage([facts]),
     ...(everyone !== undefined ? { sessionUsage: sumUsage(everyone) } : {}),
   }
@@ -292,6 +308,7 @@ export function buildSnapshot(s: SessionSource): SessionSnapshot {
     agents[agent.id] = {
       id: agent.id,
       ...(spawnedBy !== undefined && spawnedBy.id !== 'main' ? { parentId: spawnedBy.id } : {}),
+      ...(agent.meta.toolUseId !== undefined ? { callId: agent.meta.toolUseId } : {}),
       type: agent.meta.agentType ?? 'agent',
       description: agent.meta.description || agent.meta.agentType || 'agent',
       status,

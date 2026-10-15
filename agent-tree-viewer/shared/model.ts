@@ -15,6 +15,8 @@ export type AgentNode = {
   id: string
   // Absent for an agent the session's main loop spawned.
   parentId?: string
+  // The tool call that spawned it, when one did; a Workflow's agents have none of their own.
+  callId?: string
   type: string
   description: string
   status: AgentStatus
@@ -54,18 +56,30 @@ export type SessionSummary = {
 
 export type ProjectGroup = Project & { sessions: SessionSummary[] }
 
-// One tool call in full, for the details pane: its whole input, and the start of what it returned.
-export type CallDetail = ToolEvent & { input: string; output?: string }
+// One tool call for the details pane: its input and what it returned. In a node's detail both are
+// cut short, with `clipped` set; the call's own address gives them whole.
+export type CallDetail = ToolEvent & { input: InputField[]; output?: string; clipped?: boolean }
+
+// One field of a call's input, named as a person reads it: `command`, `file path`, `old string`.
+export type InputField = { name: string; text: string }
+
+// One step of a transcript, in the order it happened.
+export type Step =
+  // What a person or a spawning agent asked.
+  | { kind: 'prompt'; at: number; text: string }
+  // What the model wrote.
+  | { kind: 'words'; at: number; text: string }
+  // `text` is empty when the transcript keeps the thinking hidden, which it mostly does.
+  | { kind: 'thought'; at: number; text: string }
+  // A subagent's SubagentHandback message.
+  | { kind: 'handback'; at: number; text: string }
+  | { kind: 'call'; at: number; call: CallDetail }
 
 // Everything one card's transcript says, for the details pane. `id` is an agent id or 'main'.
 export type NodeDetail = {
   id: string
-  // What the agent was asked to do; for the main loop, the session's first prompt.
-  prompt?: string
-  // The agent's report back, or the latest thing the main loop said.
-  report?: string
-  // Every tool call, newest first.
-  calls: CallDetail[]
+  // Oldest first.
+  steps: Step[]
   // Tokens this transcript spent, one row per model and speed, costliest first.
   usage: ModelUsage[]
   // For the main loop only: the whole session, every agent included.

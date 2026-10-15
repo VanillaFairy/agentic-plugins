@@ -2,10 +2,10 @@
 
 import { readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
-import type { NodeDetail, Project, SessionSnapshot } from '../shared/model.ts'
+import type { CallDetail, NodeDetail, Project, SessionSnapshot } from '../shared/model.ts'
 import { JsonlTail } from './tail.ts'
 import type { SessionFiles } from './sessions.ts'
-import { buildSnapshot, emptyFacts, ingest, nodeDetail } from './transcript.ts'
+import { buildSnapshot, emptyFacts, fullCall, ingest, nodeDetail } from './transcript.ts'
 import type { AgentMeta, FileFacts } from './transcript.ts'
 
 const META = /^agent-(.+)\.meta\.json$/
@@ -83,6 +83,13 @@ export class SessionWatch {
     if (id === 'main') return nodeDetail(id, this.main.facts, [this.main.facts, ...[...this.agents.values()].map(a => a.facts)])
     const agent = this.agents.get(id)
     return agent === undefined ? undefined : nodeDetail(id, agent.facts)
+  }
+
+  // One tool call of one card, whole; undefined when that card made no such call.
+  call(id: string, callId: string): CallDetail | undefined {
+    this.catchUpAll()
+    const facts = id === 'main' ? this.main.facts : this.agents.get(id)?.facts
+    return facts === undefined ? undefined : fullCall(facts, callId)
   }
 
   snapshot(now: number, title: string, project: Project): SessionSnapshot {

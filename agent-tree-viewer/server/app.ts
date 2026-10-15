@@ -4,7 +4,7 @@ import http from 'node:http'
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
 import { extname, join, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import type { NodeDetail, ProjectGroup, SessionSnapshot } from '../shared/model.ts'
+import type { ProjectGroup, SessionSnapshot } from '../shared/model.ts'
 import { SessionWatch } from './live.ts'
 import type { SessionIndex } from './sessions.ts'
 
@@ -124,14 +124,18 @@ export function createApp(deps: AppDeps): { server: http.Server; close: () => Pr
     })
   }
 
-  // From the session's open stream when there is one, so its transcripts are read only once.
-  const nodeDetail = (sessionId: string, nodeId: string): NodeDetail | undefined => {
+  // The session's open stream when there is one, so its transcripts are read only once.
+  const watchOf = (sessionId: string): SessionWatch | undefined => {
     const open = streams.get(sessionId)?.watch
-    if (open !== undefined) return open.detail(nodeId)
+    if (open !== undefined) return open
     list()
     const found = deps.index.find(sessionId)
-    return found === undefined ? undefined : new SessionWatch(found.files, deps.staleMs).detail(nodeId)
+    return found === undefined ? undefined : new SessionWatch(found.files, deps.staleMs)
   }
+  const json = (res: http.ServerResponse, body: unknown) =>
+    body === undefined
+      ? res.writeHead(404, { 'content-type': 'application/json' }).end(JSON.stringify({ error: 'No such session, agent or call' }))
+      : res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(body))
 
   const serveStatic = (urlPath: string, res: http.ServerResponse): void => {
     const asked = decodeURIComponent(urlPath).replace(/^\/+/, '')
@@ -152,6 +156,7 @@ export function createApp(deps: AppDeps): { server: http.Server; close: () => Pr
     const url = new URL(req.url ?? '/', `http://127.0.0.1:${deps.port}`)
     const stream = /^\/api\/sessions\/([^/]+)\/stream$/.exec(url.pathname)
     const node = /^\/api\/sessions\/([^/]+)\/nodes\/([^/]+)$/.exec(url.pathname)
+    const call = /^\/api\/sessions\/([^/]+)\/nodes\/([^/]+)\/calls\/([^/]+)$/.exec(url.pathname)
     try {
       if (url.pathname === '/api/health') {
         res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ app: APP_NAME, version: PACKAGE_VERSION }))
@@ -160,9 +165,9 @@ export function createApp(deps: AppDeps): { server: http.Server; close: () => Pr
       } else if (stream?.[1] !== undefined) {
         openStream(decodeURIComponent(stream[1]), res)
       } else if (node?.[1] !== undefined && node[2] !== undefined) {
-        const detail = nodeDetail(decodeURIComponent(node[1]), decodeURIComponent(node[2]))
-        if (detail === undefined) res.writeHead(404, { 'content-type': 'application/json' }).end(JSON.stringify({ error: 'No such session or agent' }))
-        else res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(detail))
+        json(res, watchOf(decodeURIComponent(node[1]))?.detail(decodeURIComponent(node[2])))
+      } else if (call?.[1] !== undefined && call[2] !== undefined && call[3] !== undefined) {
+        json(res, watchOf(decodeURIComponent(call[1]))?.call(decodeURIComponent(call[2]), decodeURIComponent(call[3])))
       } else if (url.pathname.startsWith('/api/')) {
         res.writeHead(404).end()
       } else {

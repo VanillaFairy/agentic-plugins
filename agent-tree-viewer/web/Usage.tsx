@@ -49,10 +49,15 @@ function Row({ u }: { u: ModelUsage }) {
   )
 }
 
+// The priced rows' sum, and whether some model had no price to add.
+export function totalCost(rows: readonly ModelUsage[]): { total: number; partial: boolean } {
+  const priced = rows.filter(r => r.cost !== undefined)
+  return { total: priced.reduce((sum, r) => sum + (r.cost ?? 0), 0), partial: priced.length < rows.length }
+}
+
 export function UsageList({ rows }: { rows: ModelUsage[] }) {
   if (rows.length === 0) return <p class="quiet-inline">No model calls recorded yet.</p>
-  const priced = rows.filter(r => r.cost !== undefined)
-  const total = priced.reduce((sum, r) => sum + (r.cost ?? 0), 0)
+  const { total, partial } = totalCost(rows)
   return (
     <>
       <ul class="usage">
@@ -65,7 +70,7 @@ export function UsageList({ rows }: { rows: ModelUsage[] }) {
           <span>Total</span>
           <span>
             {dollars(total)}
-            {priced.length < rows.length && ' and models with no price'}
+            {partial && ' and models with no price'}
           </span>
         </p>
       )}

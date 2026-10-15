@@ -74,12 +74,12 @@ button {
 
 /* Panels scroll by wheel, touch and keyboard, without a visible bar. */
 .projects,
-.detail {
+.detail-body {
   scrollbar-width: none;
 }
 
 .projects::-webkit-scrollbar,
-.detail::-webkit-scrollbar {
+.detail-body::-webkit-scrollbar {
   display: none;
 }
 
@@ -481,14 +481,90 @@ h1 {
 /* Details */
 
 .detail {
+  position: relative;
   flex: 1;
   min-width: 0;
-  overflow-y: auto;
-  padding: 16px 20px 28px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
   background: var(--card);
   border: 1px solid var(--card-edge);
   border-radius: 10px;
   box-shadow: 0 8px 28px rgb(0 0 0 / 0.18);
+}
+
+.detail-head {
+  padding: 16px 20px 12px;
+  border-bottom: 1px solid var(--card-edge);
+}
+
+/* Facts and cost, pinned above the activity. */
+.summary {
+  margin-top: 12px;
+}
+
+.fact-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(112px, 1fr));
+  gap: 8px 14px;
+  margin: 0;
+}
+
+.fact {
+  min-width: 0;
+}
+
+.fact.wide {
+  grid-column: span 2;
+}
+
+.fact dt {
+  color: var(--muted);
+  font-size: 12.5px;
+  line-height: 1.3;
+}
+
+.fact dd {
+  margin: 0;
+  font-weight: 600;
+  font-size: 14px;
+  line-height: 1.35;
+  font-variant-numeric: tabular-nums;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fact .agent-link {
+  padding: 0;
+}
+
+.fact-aside {
+  margin-left: 6px;
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.summary > .more {
+  margin-top: 8px;
+}
+
+.summary-more {
+  max-height: 38vh;
+  overflow-y: auto;
+  scrollbar-width: none;
+  margin-top: 4px;
+}
+
+.summary-more h3 {
+  margin-top: 14px;
+}
+
+.detail-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 4px 20px 28px;
 }
 
 .detail-top {
@@ -588,28 +664,6 @@ h1 {
   color: var(--tone);
 }
 
-.facts {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 6px 16px;
-  margin: 16px 0 0;
-}
-
-.facts dt {
-  color: var(--muted);
-}
-
-.facts dd {
-  margin: 0;
-  min-width: 0;
-  font-variant-numeric: tabular-nums;
-  overflow-wrap: anywhere;
-}
-
-.facts .id {
-  font: 400 12.5px/1.5 var(--mono);
-}
-
 .link {
   color: var(--live);
   font-weight: 600;
@@ -648,30 +702,12 @@ h1 {
   text-decoration: underline;
 }
 
-.long-text,
 .call-body pre {
   margin: 0;
   font: 400 12.5px/1.55 var(--mono);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   color: var(--ink);
-}
-
-.long-text {
-  padding: 10px 12px;
-  border-radius: 8px;
-  background: var(--panel);
-}
-
-.long-text.clamped {
-  max-height: 12.5em;
-  overflow: hidden;
-  mask-image: linear-gradient(black 70%, transparent);
-}
-
-.long .link {
-  margin-top: 6px;
-  font-size: 14px;
 }
 
 .quiet-inline {
@@ -755,86 +791,332 @@ h1 {
   font-size: 13px;
 }
 
-.calls {
+/* The Activity stream: a spine down the left, a mark on it for every step. */
+
+.stream {
+  --gutter: 26px;
+  --mark-x: 6px;
+  position: relative;
   list-style: none;
   margin: 0;
-  padding: 0;
+  padding: 14px 0 0;
+}
+
+.stream::before {
+  content: '';
+  position: absolute;
+  left: var(--mark-x);
+  top: 22px;
+  bottom: 14px;
+  width: 1px;
+  background: var(--card-edge);
+}
+
+.step {
+  position: relative;
+  padding-left: var(--gutter);
+  margin-bottom: 14px;
+}
+
+.step > p,
+.step h4 {
+  margin: 0;
+}
+
+.mark {
+  position: absolute;
+  left: calc(var(--mark-x) - 4px);
+  top: 0.5em;
+  width: 9px;
+  height: 9px;
+  box-sizing: border-box;
+}
+
+.step-time {
+  margin-left: 8px;
+  color: var(--muted);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.clamped {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: var(--lines);
+  overflow: hidden;
+}
+
+.more {
+  margin-top: 2px;
+  font-size: 13px;
+}
+
+/* A prompt: someone else's words, set off in a frame. */
+.prompt .mark {
+  background: var(--card);
+  border: 1.5px solid var(--ink);
+  transform: rotate(45deg) scale(0.9);
+}
+
+.detail .prompt h4 {
+  color: var(--muted);
+  font: 600 13px/1.4 var(--sans);
+}
+
+.prompt-text {
+  margin: 4px 0 0;
+  padding: 8px 12px;
+  border: 1px solid var(--card-edge);
+  border-radius: 8px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* The model's own words: plain prose, the voice of the stream. */
+.words .mark,
+.handback .mark {
+  top: 0.55em;
+  width: 8px;
+  height: 8px;
+  left: calc(var(--mark-x) - 3.5px);
+  border-radius: 50%;
+  background: var(--ink);
+}
+
+.words-text {
+  margin: 0;
+  max-width: 68ch;
+  font-size: 15px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.handback .mark {
+  background: var(--ok);
+  box-shadow: 0 0 0 3px var(--card), 0 0 0 4px var(--ok);
+}
+
+.detail .handback h4 {
+  color: var(--ok);
+  font: 600 13px/1.4 var(--sans);
+  margin-bottom: 2px;
+}
+
+/* Thinking: quieter, slanted, said to itself. */
+.thought .mark,
+.now .mark {
+  top: 0.15em;
+  left: calc(var(--mark-x) - 6px);
+  width: 13px;
+  height: auto;
+  text-align: center;
+  font-size: 13px;
+  line-height: 1.2;
+  color: var(--muted);
+  background: var(--card);
+}
+
+.thought-text {
+  margin: 0;
+  max-width: 68ch;
+  color: var(--muted);
+  font-style: italic;
+  font-size: 14px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.thought.hidden .thought-text {
+  font-size: 13px;
+}
+
+/* Commands: the machine's side, a tinted run of compact rows. */
+.call-run {
+  list-style: none;
+  margin: 0;
+  padding: 3px 0;
+  border-radius: 8px;
+  background: var(--panel);
 }
 
 .call {
-  border-left: 2px solid var(--card-edge);
+  position: relative;
 }
 
-.call + .call {
-  margin-top: 2px;
+.call .mark {
+  left: calc(var(--mark-x) - 3.5px - var(--gutter));
+  top: 12px;
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  background: var(--line);
+  box-shadow: 0 0 0 2px var(--card);
 }
 
-.call.open {
-  border-left-color: var(--live);
+.call.error .mark {
+  background: var(--bad);
 }
 
-.call.error {
-  border-left-color: var(--bad);
+.call.open .mark {
+  background: var(--live);
+  animation: pulse 1.4s ease-in-out infinite;
+}
+
+.pause {
+  position: relative;
+  padding: 1px 10px 1px 28px;
+  color: var(--muted);
+  font-style: italic;
+  font-size: 13px;
+}
+
+.pause::before {
+  content: '✻';
+  position: absolute;
+  left: 10px;
+  font-style: normal;
 }
 
 .call-head {
   display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 2px 12px;
+  grid-template-columns: auto 1fr auto;
+  align-items: baseline;
+  gap: 10px;
   width: 100%;
-  padding: 7px 4px 7px 10px;
+  padding: 5px 10px;
   text-align: left;
-  border-radius: 0 6px 6px 0;
+  border-radius: 6px;
 }
 
 .call-head:hover,
 .call-head[aria-expanded='true'] {
-  background: var(--panel);
+  background: var(--ground);
 }
 
 .call-tool {
   font-weight: 600;
+  font-size: 14px;
 }
 
-.call-when {
-  display: inline-flex;
-  gap: 10px;
+.call-arg {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: 400 12px/1.5 var(--mono);
   color: var(--muted);
-  font-size: 13px;
-  font-variant-numeric: tabular-nums;
 }
 
 .call-took {
-  min-width: 4.5em;
-  text-align: right;
+  color: var(--muted);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 .call.open .call-took {
   color: var(--live);
+  font-weight: 600;
 }
 
-.call.error .call-took {
+.call.error .call-took,
+.call.error .call-tool {
   color: var(--bad);
 }
 
-.call-arg {
-  grid-column: 1 / -1;
-  font: 400 12px/1.5 var(--mono);
-  color: var(--muted);
-  overflow-wrap: anywhere;
+.call-child {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  max-width: 100%;
+  padding: 0 10px 6px;
+  color: var(--live);
+  font-weight: 600;
+  font-size: 13.5px;
+  text-align: left;
+}
+
+.call-child .status-dot {
+  background: var(--tone);
+}
+
+.call-child:hover {
+  text-decoration: underline;
 }
 
 .call-body {
-  padding: 2px 4px 12px 10px;
+  padding: 0 10px 10px;
 }
 
 .call-body pre {
-  max-height: 22em;
-  overflow: auto;
-  scrollbar-width: none;
   padding: 8px 10px;
   border-radius: 6px;
-  background: var(--panel);
+  background: var(--card);
+}
+
+/* The bottom of the spine: what happens this moment, or how it ended. */
+.now {
+  color: var(--live);
+  font-weight: 600;
+}
+
+.now .mark {
+  color: var(--live);
+  animation: spin 3s linear infinite;
+}
+
+.end .mark {
+  top: 0.4em;
+  width: 11px;
+  height: 11px;
+  left: calc(var(--mark-x) - 5px);
+  border-radius: 50%;
+  background: var(--tone);
+  box-shadow: 0 0 0 3px var(--card);
+}
+
+.end {
+  color: var(--tone);
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.jump {
+  position: absolute;
+  left: 50%;
+  bottom: 14px;
+  transform: translateX(-50%);
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: var(--ink);
+  box-shadow: 0 4px 14px rgb(0 0 0 / 0.2);
+}
+
+.jump svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: var(--card);
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+@keyframes pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 /* Narrow screens: the session picker slides over the tree. */
@@ -907,7 +1189,7 @@ h1 {
     width: auto;
     max-width: none;
     min-width: 0;
-    max-height: 72vh;
+    height: 72vh;
     z-index: 8;
   }
 
@@ -927,7 +1209,9 @@ h1 {
 
 @media (prefers-reduced-motion: reduce) {
   .sidebar,
-  .chevron {
+  .chevron,
+  .call.open .mark,
+  .now .mark {
     animation: none;
     transition: none;
   }

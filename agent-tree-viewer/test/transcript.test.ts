@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildSnapshot, emptyFacts, ingest, nodeDetail, toolName } from '../server/transcript.ts'
+import { buildSnapshot, emptyFacts, fullCall, ingest, inputFields, nodeDetail, toolName } from '../server/transcript.ts'
 import type { AgentMeta, AgentSource, FileFacts } from '../server/transcript.ts'
 
 const T0 = Date.parse('2026-10-09T10:00:00.000Z')
@@ -129,23 +129,50 @@ describe('activity', () => {
 })
 
 describe('nodeDetail', () => {
-  it('gives the prompt, the handback as the report, and every call newest first with its output', () => {
+  it('tells the steps in the order they happened, each call with its output', () => {
     const f = facts(
       { type: 'user', timestamp: at(0), message: { content: 'Find the clock' } },
-      call(1, 'a', 'Grep', { pattern: 'now(' }),
-      result(2, 'a', 'src/clock.ts:3'),
-      { type: 'assistant', timestamp: at(3), message: { content: [{ type: 'text', text: 'thinking aloud' }] } },
-      call(4, 'h', 'SubagentHandback', { message: 'It is in src/clock.ts' }),
+      { type: 'assistant', timestamp: at(1), message: { content: [{ type: 'thinking', thinking: '', signature: 'x' }] } },
+      call(2, 'a', 'Grep', { pattern: 'now(' }),
+      result(3, 'a', 'src/clock.ts:3'),
+      { type: 'assistant', timestamp: at(4), message: { content: [{ type: 'text', text: 'It is in one place.' }] } },
+      call(5, 'h', 'SubagentHandback', { message: 'It is in src/clock.ts' }),
     )
     const d = nodeDetail('A', f)
-    expect(d).toMatchObject({ id: 'A', prompt: 'Find the clock', report: 'It is in src/clock.ts' })
-    expect(d.calls.map(c => c.id)).toEqual(['h', 'a'])
-    expect(d.calls[1]).toMatchObject({ output: 'src/clock.ts:3' })
-    expect(JSON.parse(d.calls[1]!.input)).toEqual({ pattern: 'now(' })
+    expect(d.steps.map(s => s.kind)).toEqual(['prompt', 'thought', 'call', 'words', 'handback'])
+    expect(d.steps[0]).toMatchObject({ text: 'Find the clock' })
+    expect(d.steps[1]).toMatchObject({ text: '' })
+    const grep = d.steps[2]
+    expect(grep?.kind === 'call' && grep.call).toMatchObject({ tool: 'Grep', output: 'src/clock.ts:3', endedAt: T0 + 3000 })
+    expect(d.steps[4]).toMatchObject({ text: 'It is in src/clock.ts' })
   })
 
-  it('falls back to the latest text the model wrote when there is no handback', () => {
-    const f = facts({ type: 'assistant', timestamp: at(0), message: { content: [{ type: 'text', text: 'first' }] } }, { type: 'assistant', timestamp: at(1), message: { content: [{ type: 'text', text: 'second' }] } })
-    expect(nodeDetail('main', f).report).toBe('second')
+  it('cuts a long output short in the stream, marks it, and gives it whole by its call', () => {
+    const long = 'x'.repeat(100_000)
+    const f = facts(call(0, 'a', 'Bash', { command: 'ls' }), result(1, 'a', long), call(2, 'b', 'Bash', { command: 'pwd' }), result(3, 'b', 'short'))
+    const [cut, small] = nodeDetail('A', f).steps.map(s => (s.kind === 'call' ? s.call : undefined))
+    expect(cut?.clipped).toBe(true)
+    expect(cut?.output?.length).toBeLessThan(long.length)
+    expect(small?.clipped).toBeUndefined()
+    expect(fullCall(f, 'a')?.output).toBe(long)
+  })
+
+  it('keeps every prompt of the main loop, not only the first', () => {
+    const f = facts({ type: 'user', timestamp: at(0), message: { content: 'one' } }, said(1, 'end_turn'), { type: 'user', timestamp: at(2), message: { content: 'two' } })
+    expect(nodeDetail('main', f).steps.filter(s => s.kind === 'prompt').map(s => s.kind === 'prompt' && s.text)).toEqual(['one', 'two'])
+  })
+})
+
+describe('inputFields', () => {
+  it('gives a shell call its command alone, as written', () => {
+    const command = 'npm test\n  && echo "done"'
+    expect(inputFields({ command, description: 'Run the tests', timeout: 60000 })).toEqual([{ name: 'command', text: command }])
+  })
+
+  it('names every other field and keeps its text as written', () => {
+    const old = 'one\n"two"'
+    const fields = inputFields({ file_path: 'a.ts', old_string: old, new_string: 'three', replace_all: false })
+    expect(fields).toContainEqual({ name: 'old string', text: old })
+    expect(fields).toContainEqual({ name: 'replace all', text: 'false' })
   })
 })
