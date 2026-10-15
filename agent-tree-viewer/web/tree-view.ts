@@ -214,7 +214,9 @@ export class TreeView {
     this.canvas.style.width = `${box.width}px`
     this.canvas.style.height = `${box.height}px`
     if (this.following) this.move(this.followTransform(), false)
-    this.request()
+    // Setting the canvas size wiped it; draw now so the browser never paints it blank.
+    cancelAnimationFrame(this.frame)
+    this.draw(performance.now())
   }
 
   private graphPoint(e: MouseEvent): [number, number] {
