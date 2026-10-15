@@ -400,15 +400,30 @@ h1 {
 }
 
 .work {
+  position: relative;
   display: flex;
   flex: 1;
   min-height: 0;
   margin: 0 16px 16px;
 }
 
+/* The details float over the tree's right side, with the handle on their left edge. */
+.detail-dock {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  bottom: 8px;
+  display: flex;
+  width: var(--detail-width, min(460px, 42%));
+  max-width: calc(100% - 256px);
+  min-width: 300px;
+}
+
 .splitter {
   flex: 0 0 12px;
+  margin-right: -6px;
   position: relative;
+  z-index: 1;
   cursor: col-resize;
   touch-action: none;
 }
@@ -416,7 +431,8 @@ h1 {
 .splitter::after {
   content: '';
   position: absolute;
-  inset: 0 5px;
+  /* Vertical inset matches .detail's border-radius, so the line stops where the corners curve. */
+  inset: 10px 5px;
   border-radius: 1px;
 }
 
@@ -465,14 +481,14 @@ h1 {
 /* Details */
 
 .detail {
-  flex: 0 0 var(--detail-width, min(460px, 42%));
-  max-width: calc(100% - 252px);
-  min-width: 300px;
+  flex: 1;
+  min-width: 0;
   overflow-y: auto;
   padding: 16px 20px 28px;
   background: var(--card);
   border: 1px solid var(--card-edge);
-  border-radius: 12px;
+  border-radius: 10px;
+  box-shadow: 0 8px 28px rgb(0 0 0 / 0.18);
 }
 
 .detail-top {
@@ -885,13 +901,17 @@ h1 {
     display: none;
   }
 
-  .detail {
+  .detail-dock {
     position: fixed;
     inset: auto 0 0 0;
+    width: auto;
     max-width: none;
     min-width: 0;
     max-height: 72vh;
     z-index: 8;
+  }
+
+  .detail {
     border-radius: 14px 14px 0 0;
     box-shadow: 0 -12px 40px rgb(0 0 0 / 0.3);
   }

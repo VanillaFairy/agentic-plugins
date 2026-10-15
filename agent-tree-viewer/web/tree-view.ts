@@ -62,6 +62,8 @@ export class TreeView {
   private palette: Palette
   private width = 0
   private height = 0
+  // How much of the canvas's right side a floating pane hides; Fit and Follow aim at the rest.
+  private covered = 0
   private frame = 0
   private lastTick = 0
   private disposed = false
@@ -126,6 +128,12 @@ export class TreeView {
     this.move(this.followTransform(), true)
   }
 
+  cover(right: number): void {
+    if (right === this.covered) return
+    this.covered = right
+    if (this.following) this.move(this.followTransform(), false)
+  }
+
   dispose(): void {
     this.disposed = true
     cancelAnimationFrame(this.frame)
@@ -165,7 +173,7 @@ export class TreeView {
   }
 
   private fitScale(): number {
-    return Math.min(MAX_FIT_SCALE, (this.width - FIT_MARGIN * 2) / this.lay.width, (this.height - FIT_MARGIN * 2) / this.lay.height)
+    return Math.min(MAX_FIT_SCALE, (this.width - this.covered - FIT_MARGIN * 2) / this.lay.width, (this.height - FIT_MARGIN * 2) / this.lay.height)
   }
 
   // The tree reads from the session's card at the left edge, centred top to bottom.
@@ -187,7 +195,7 @@ export class TreeView {
       this.lay.placed.find(p => p.id === ROOT)
     const tallerThanView = this.lay.height * k > this.height - FIT_MARGIN * 2
     const y = !tallerThanView || focus === undefined ? (this.height - this.lay.height * k) / 2 : this.height / 2 - (focus.y + NODE_H / 2) * k
-    const x = focus === undefined ? FIT_MARGIN : Math.min(FIT_MARGIN, this.width - FIT_MARGIN - (focus.x + NODE_W + PAD) * k)
+    const x = focus === undefined ? FIT_MARGIN : Math.min(FIT_MARGIN, this.width - this.covered - FIT_MARGIN - (focus.x + NODE_W + PAD) * k)
     return zoomIdentity.translate(x, y).scale(k)
   }
 

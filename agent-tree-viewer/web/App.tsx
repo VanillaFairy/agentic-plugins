@@ -36,17 +36,18 @@ function recallWidth(): number | undefined {
   return width > 0 ? width : undefined
 }
 
-// Drags the edge between the tree and the details. The width it sets is the details pane's,
-// measured from the right edge of `work`; double-click returns to the default.
-function Splitter({ work, width, onWidth }: { work: HTMLElement | null; width: number | undefined; onWidth: (w: number | undefined) => void }) {
-  const clamp = (w: number) => Math.round(Math.max(DETAIL_MIN_PX, Math.min(w, (work?.clientWidth ?? Infinity) - BOARD_MIN_PX)))
-  const current = () => width ?? work?.querySelector<HTMLElement>('.detail')?.offsetWidth ?? DETAIL_MIN_PX
+// The left edge of the floating details dock, which it sits in. The width it sets is the dock's;
+// double-click returns to the default.
+function Splitter({ width, onWidth }: { width: number | undefined; onWidth: (w: number | undefined) => void }) {
+  const clamp = (handle: HTMLElement, w: number) =>
+    Math.round(Math.max(DETAIL_MIN_PX, Math.min(w, (handle.parentElement?.parentElement?.clientWidth ?? Infinity) - BOARD_MIN_PX)))
 
   const onPointerDown = (e: PointerEvent) => {
-    if (work === null || e.button !== 0) return
     const handle = e.currentTarget as HTMLElement
+    const dock = handle.parentElement
+    if (dock === null || e.button !== 0) return
     handle.setPointerCapture(e.pointerId)
-    const move = (m: PointerEvent) => onWidth(clamp(work.getBoundingClientRect().right - m.clientX - handle.offsetWidth / 2))
+    const move = (m: PointerEvent) => onWidth(clamp(handle, dock.getBoundingClientRect().right - m.clientX + handle.offsetWidth / 2))
     const up = () => {
       handle.removeEventListener('pointermove', move)
       handle.removeEventListener('pointerup', up)
@@ -59,8 +60,10 @@ function Splitter({ work, width, onWidth }: { work: HTMLElement | null; width: n
   }
 
   const onKeyDown = (e: KeyboardEvent) => {
-    if (e.key === 'ArrowLeft') onWidth(clamp(current() + SPLITTER_STEP_PX))
-    else if (e.key === 'ArrowRight') onWidth(clamp(current() - SPLITTER_STEP_PX))
+    const handle = e.currentTarget as HTMLElement
+    const current = width ?? handle.parentElement?.offsetWidth ?? DETAIL_MIN_PX
+    if (e.key === 'ArrowLeft') onWidth(clamp(handle, current + SPLITTER_STEP_PX))
+    else if (e.key === 'ArrowRight') onWidth(clamp(handle, current - SPLITTER_STEP_PX))
     else return
     e.preventDefault()
   }
@@ -100,8 +103,9 @@ export function App() {
   const [now, setNow] = useState(Date.now)
   const [detailWidth, setDetailWidth] = useState(recallWidth)
   const canvasRef = useRef<HTMLCanvasElement>(null)
-  const workRef = useRef<HTMLDivElement>(null)
+  const dockRef = useRef<HTMLDivElement>(null)
   const viewRef = useRef<TreeView | undefined>(undefined)
+  const detailOpen = snap !== undefined && selected !== undefined
 
   useEffect(() => {
     let stop = false
@@ -151,6 +155,26 @@ export function App() {
     viewRef.current = view
     return () => view.dispose()
   }, [])
+
+  // Tell the tree how much of its right side the details hide. A dock as wide as the board is
+  // the narrow-screen bottom sheet, which hides no side.
+  useEffect(() => {
+    const dock = dockRef.current
+    const board = canvasRef.current?.parentElement
+    if (dock === null || board == null) return
+    const measure = () => {
+      const b = board.getBoundingClientRect()
+      const covered = b.right - dock.getBoundingClientRect().left
+      viewRef.current?.cover(covered > 0 && covered < b.width ? covered : 0)
+    }
+    const observer = new ResizeObserver(measure)
+    observer.observe(dock)
+    observer.observe(board)
+    return () => {
+      observer.disconnect()
+      viewRef.current?.cover(0)
+    }
+  }, [detailOpen])
 
   useEffect(() => {
     if (snap !== undefined) viewRef.current?.update({ snap: snap.data, skew: snap.skew, hideDone, selected })
@@ -240,16 +264,16 @@ export function App() {
             </button>
           </div>
         </header>
-        <div class="work" ref={workRef} style={detailWidth === undefined ? undefined : { '--detail-width': `${detailWidth}px` }}>
+        <div class="work">
           <div class="board">
             <canvas ref={canvasRef} aria-label="Agent tree" role="img" />
             {data !== undefined && agents.length === 0 && <p class="board-hint">Subagents show up here as they start.</p>}
           </div>
           {data !== undefined && selected !== undefined && (
-            <>
-              <Splitter work={workRef.current} width={detailWidth} onWidth={resizeDetail} />
+            <div class="detail-dock" ref={dockRef} style={detailWidth === undefined ? undefined : { '--detail-width': `${detailWidth}px` }}>
+              <Splitter width={detailWidth} onWidth={resizeDetail} />
               <Detail snap={data} id={selected} now={serverNow} onPick={setSelected} />
-            </>
+            </div>
           )}
         </div>
       </main>
