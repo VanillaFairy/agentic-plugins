@@ -30,6 +30,7 @@ The tree reads left to right: the session's own card first, the agents it spawne
 - Click a card to open its details on the right. Pinned at the top: when it started and ended, who spawned it, its tool calls, how many agents it spawned and what it cost; open the breakdown for tokens per model and the list of spawned agents. The session's own card also totals the whole session, every agent included. Below, the agent's work as one timeline, oldest at the top: what it was asked, what it wrote, its thinking where the transcript keeps it, and its tool calls in runs, down to what it does right now or how it ended. Click a call to see all of it: the command or each field it was given, and everything it returned. A call that spawned an agent links to that agent.
 - **Fit** shows the whole tree. **Follow** keeps the newest running agent in sight as the tree grows; panning or zooming by hand turns it off.
 - **Hide done** leaves out finished agents, except ones with something still running under them.
+- **Autocompact done**, there while done agents show, folds every card whose agents are all finished. The card itself stays; click its fold mark to open it again.
 
 Keys: `+` and `-` zoom, `F` fits, `L` follows, `H` hides done agents, `Esc` closes the details.
 

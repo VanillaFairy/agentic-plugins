@@ -10,7 +10,7 @@ import 'd3-transition'
 import { zoom, zoomIdentity } from 'd3-zoom'
 import type { ZoomBehavior, ZoomTransform } from 'd3-zoom'
 import type { SessionSnapshot } from '../shared/model.ts'
-import { NODE_H, NODE_W, PAD, ROOT, hitAt, layout, withoutDone } from './layout.ts'
+import { NODE_H, NODE_W, PAD, ROOT, allDoneUnder, hitAt, layout, withoutDone } from './layout.ts'
 import type { Layout, Placed } from './layout.ts'
 import { loadFolds, saveFolds } from './folds.ts'
 import { forgetMeasurements, paint, readPalette } from './paint.ts'
@@ -32,6 +32,8 @@ export type ViewInput = {
   // Server clock minus page clock.
   skew: number
   hideDone: boolean
+  // Fold every node whose agents are all done, unless someone opened it.
+  autocompact: boolean
   selected: string | undefined
 }
 
@@ -54,6 +56,9 @@ export class TreeView {
   private input: ViewInput | undefined
   private lay: Layout = { placed: [], width: 0, height: 0 }
   private collapsed = new Set<string>()
+  private compacted = new Set<string>()
+  // Compacted nodes opened by hand; they stay open for as long as the session stays on screen.
+  private opened = new Set<string>()
   private sessionId: string | undefined
   private at = new Map<string, { x: number; y: number; alpha: number }>()
   private transform: ZoomTransform = zoomIdentity
@@ -102,6 +107,7 @@ export class TreeView {
     if (input.snap.id !== this.sessionId) {
       this.sessionId = input.snap.id
       this.collapsed = loadFolds(input.snap.id)
+      this.opened.clear()
       this.at.clear()
       this.follow(true)
     }
@@ -151,7 +157,10 @@ export class TreeView {
     const shown = this.input.hideDone ? withoutDone(all) : all
     this.events.hiddenDone(Object.keys(all).length - Object.keys(shown).length)
     // A fold on an agent left out by Hide done stays, so showing done agents finds it folded.
-    this.lay = layout(shown, this.collapsed)
+    this.compacted = this.input.autocompact && !this.input.hideDone ? allDoneUnder(shown) : new Set()
+    const folds = new Set(this.collapsed)
+    for (const id of this.compacted) if (!this.opened.has(id)) folds.add(id)
+    this.lay = layout(shown, folds)
 
     const animate = !this.reduced.matches && this.at.size > 0
     const ids = new Set(this.lay.placed.map(p => p.id))
@@ -236,8 +245,14 @@ export class TreeView {
     const [gx, gy] = this.graphPoint(e)
     const hit = hitAt(this.lay, gx, gy, 4 / this.transform.k)
     if (hit?.kind === 'fold') {
-      if (this.collapsed.has(hit.id)) this.collapsed.delete(hit.id)
-      else this.collapsed.add(hit.id)
+      const compacted = this.compacted.has(hit.id)
+      if (this.lay.placed.find(p => p.id === hit.id)?.fold === 'open') {
+        if (compacted) this.opened.delete(hit.id)
+        else this.collapsed.add(hit.id)
+      } else {
+        this.collapsed.delete(hit.id)
+        if (compacted) this.opened.add(hit.id)
+      }
       if (this.sessionId !== undefined) saveFolds(this.sessionId, this.collapsed)
       this.relayout()
     } else if (hit !== undefined) {

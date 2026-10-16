@@ -52,6 +52,20 @@ export function withoutDone(nodes: Record<string, AgentNode>): Record<string, Ag
   return kept
 }
 
+// The nodes, the session's own card included, with agents under them and every one of those done.
+export function allDoneUnder(nodes: Record<string, AgentNode>): Set<string> {
+  const kids = childrenOf(nodes)
+  const found = new Set<string>()
+  const done = (id: string): boolean => {
+    const under = (kids.get(id) ?? []).map(kid => done(kid.id) && kid.status === 'completed')
+    const all = under.every(Boolean)
+    if (under.length > 0 && all) found.add(id)
+    return all
+  }
+  done(ROOT)
+  return found
+}
+
 function folded(kids: Map<string, AgentNode[]>, id: string): Folded {
   const under = (one: string): AgentNode[] => (kids.get(one) ?? []).flatMap(kid => [kid, ...under(kid.id)])
   const all = under(id)

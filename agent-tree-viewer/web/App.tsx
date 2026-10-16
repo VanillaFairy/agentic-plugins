@@ -6,6 +6,7 @@ import { TreeView } from './tree-view.ts'
 
 const LIST_EVERY_MS = 4000
 const HIDE_DONE_KEY = 'agent-tree-viewer:hide-done'
+const AUTOCOMPACT_KEY = 'agent-tree-viewer:autocompact-done'
 const DETAIL_WIDTH_KEY = 'agent-tree-viewer:detail-width'
 const DETAIL_MIN_PX = 300
 const BOARD_MIN_PX = 240
@@ -97,6 +98,7 @@ export function App() {
   const [lost, setLost] = useState(false)
   const [hideDone, setHideDone] = useState(() => recall(HIDE_DONE_KEY) === 'true')
   const [hiddenDone, setHiddenDone] = useState(0)
+  const [autocompact, setAutocompact] = useState(() => recall(AUTOCOMPACT_KEY) === 'true')
   const [selected, setSelected] = useState<string>()
   const [pickerOpen, setPickerOpen] = useState(false)
   const [following, setFollowing] = useState(true)
@@ -177,8 +179,8 @@ export function App() {
   }, [detailOpen])
 
   useEffect(() => {
-    if (snap !== undefined) viewRef.current?.update({ snap: snap.data, skew: snap.skew, hideDone, selected })
-  }, [snap, hideDone, selected])
+    if (snap !== undefined) viewRef.current?.update({ snap: snap.data, skew: snap.skew, hideDone, autocompact, selected })
+  }, [snap, hideDone, autocompact, selected])
 
   const resizeDetail = (width: number | undefined) => {
     remember(DETAIL_WIDTH_KEY, width === undefined ? '' : String(width))
@@ -190,6 +192,11 @@ export function App() {
     setHideDone(!hideDone)
   }
 
+  const toggleCompact = () => {
+    remember(AUTOCOMPACT_KEY, String(!autocompact))
+    setAutocompact(!autocompact)
+  }
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.ctrlKey || e.metaKey || e.altKey) return
@@ -198,6 +205,7 @@ export function App() {
       else if (e.key === '0' || e.key === 'f') viewRef.current?.fit()
       else if (e.key === 'l') viewRef.current?.followSession()
       else if (e.key === 'h') toggleDone()
+      else if (e.key === 'c' && !hideDone) toggleCompact()
       else if (e.key === 'Escape') setSelected(undefined)
     }
     addEventListener('keydown', onKey)
@@ -262,6 +270,11 @@ export function App() {
             <button class="text" aria-pressed={hideDone} onClick={toggleDone} title="Leave out finished agents (H)">
               {hideDone ? `Show done${hiddenDone > 0 ? ` (${hiddenDone})` : ''}` : 'Hide done'}
             </button>
+            {!hideDone && (
+              <button class="text" aria-pressed={autocompact} onClick={toggleCompact} title="Fold every agent whose agents are all done (C)">
+                Autocompact done
+              </button>
+            )}
           </div>
         </header>
         <div class="work">

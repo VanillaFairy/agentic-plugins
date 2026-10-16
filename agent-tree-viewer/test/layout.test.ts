@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { AgentNode, AgentStatus } from '../shared/model.ts'
-import { NODE_H, NODE_W, ROOT, foldCentre, hitAt, layout, withoutDone } from '../web/layout.ts'
+import { NODE_H, NODE_W, ROOT, allDoneUnder, foldCentre, hitAt, layout, withoutDone } from '../web/layout.ts'
 
 const node = (id: string, startedAt: number, status: AgentStatus = 'running', parentId?: string): AgentNode => ({
   id,
@@ -19,6 +19,17 @@ describe('withoutDone', () => {
   it('leaves out done agents, except one with something still going under it', () => {
     const kept = withoutDone(tree(node('a', 1, 'completed'), node('b', 2, 'completed'), node('c', 3, 'running', 'b'), node('d', 4, 'failed')))
     expect(Object.keys(kept).sort()).toEqual(['b', 'c', 'd'])
+  })
+})
+
+describe('allDoneUnder', () => {
+  it('names the nodes whose agents below are all done, never a node for its own status', () => {
+    const nodes = tree(node('a', 1, 'running'), node('b', 2, 'completed', 'a'), node('c', 3, 'completed'), node('d', 4, 'completed', 'c'), node('e', 5, 'running', 'd'))
+    expect([...allDoneUnder(nodes)].sort()).toEqual(['a'])
+  })
+
+  it('takes in the session itself once every agent is done', () => {
+    expect(allDoneUnder(tree(node('a', 1, 'completed'), node('b', 2, 'completed', 'a'))).has(ROOT)).toBe(true)
   })
 })
 
