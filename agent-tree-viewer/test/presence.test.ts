@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { readPresence } from '../server/presence.ts'
-import type { ProcessCheck } from '../server/presence.ts'
+import type { ProcessCheck, ShellCheck } from '../server/presence.ts'
 
 describe('readPresence', () => {
   let dir: string | undefined
@@ -25,6 +25,8 @@ describe('readPresence', () => {
     ...extra,
   })
   const running = (...pids: number[]): ProcessCheck => records => records.map(r => pids.includes(r.pid) && r.procStart === `start-${r.pid}`)
+  const shellsUnder = (...pids: number[]): ShellCheck => () => new Set(pids)
+  const none = shellsUnder()
 
   it('keeps only files whose process still runs, and passes on what a waiting session waits for', () => {
     const d = write({
@@ -32,7 +34,7 @@ describe('readPresence', () => {
       '2.json': pidFile(2, 'b', 'busy', 10),
       '3.json': pidFile(3, 'c', 'shell', 10),
     })
-    const p = readPresence(d, running(1, 3))
+    const p = readPresence(d, running(1, 3), none)
     expect(p.get('a')).toMatchObject({ status: 'waiting', waitingFor: 'permission prompt' })
     expect(p.has('b')).toBe(false)
     expect(p.get('c')?.status).toBe('shell')
@@ -40,15 +42,23 @@ describe('readPresence', () => {
 
   it('takes the newest status when two running processes hold one session', () => {
     const d = write({ '1.json': pidFile(1, 'a', 'idle', 20), '2.json': pidFile(2, 'a', 'busy', 10) })
-    expect(readPresence(d, running(1, 2)).get('a')?.status).toBe('idle')
+    expect(readPresence(d, running(1, 2), none).get('a')?.status).toBe('idle')
   })
 
   it('skips files it cannot read as a session record', () => {
     const d = write({ '1.json': '{"pid":', '2.json': pidFile(2, 'b', 'dreaming', 10), '3.key': 'x', '4.json': pidFile(4, 'd', 'busy', 10) })
-    expect([...readPresence(d, running(1, 2, 4)).keys()]).toEqual(['d'])
+    expect([...readPresence(d, running(1, 2, 4), none).keys()]).toEqual(['d'])
+  })
+
+  it('takes an idle process with a tool shell still under it as running a shell', () => {
+    const d = write({ '1.json': pidFile(1, 'a', 'idle', 10), '2.json': pidFile(2, 'b', 'idle', 10), '3.json': pidFile(3, 'c', 'waiting', 10) })
+    const p = readPresence(d, running(1, 2, 3), shellsUnder(1, 3))
+    expect(p.get('a')?.status).toBe('shell')
+    expect(p.get('b')?.status).toBe('idle')
+    expect(p.get('c')?.status).toBe('waiting')
   })
 
   it('finds nothing when the folder is missing', () => {
-    expect(readPresence(join(tmpdir(), 'no-such-presence-dir'), running()).size).toBe(0)
+    expect(readPresence(join(tmpdir(), 'no-such-presence-dir'), running(), none).size).toBe(0)
   })
 })

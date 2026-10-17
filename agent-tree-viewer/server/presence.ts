@@ -8,8 +8,11 @@
 //
 // A process can die without removing its file, and Windows reuses pids, so a file counts only
 // while its pid runs with the creation time the file records in `procStart`.
+//
+// Claude Code writes `idle` even while a shell it started in the background still runs, so a
+// process that still has a tool shell under it is taken as `shell` whatever its file says.
 
-import { execFileSync } from 'node:child_process'
+import { execFile, execFileSync } from 'node:child_process'
 import { readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 
@@ -21,6 +24,9 @@ type PidRecord = Presence & { sessionId: string; pid: number; procStart: string 
 
 // Answers whether each pid still runs as the process that started at its procStart.
 export type ProcessCheck = (records: readonly { pid: number; procStart: string }[]) => boolean[]
+
+// Of these pids, the ones with a Bash or PowerShell tool shell still running under them.
+export type ShellCheck = (pids: readonly number[]) => ReadonlySet<number>
 
 const STATUSES = new Set<string>(['busy', 'shell', 'waiting', 'idle'])
 
@@ -45,7 +51,7 @@ function parse(text: string): PidRecord | undefined {
 }
 
 // By session id. A session resumed in a second process keeps the newest word of the ones running.
-export function readPresence(dir: string, check: ProcessCheck): Map<string, Presence> {
+export function readPresence(dir: string, check: ProcessCheck, shells: ShellCheck): Map<string, Presence> {
   let names: string[]
   try {
     names = readdirSync(dir).filter(name => PID_FILE.test(name))
@@ -62,12 +68,14 @@ export function readPresence(dir: string, check: ProcessCheck): Map<string, Pres
     }
   }
   const running = check(records)
+  const live = records.filter((_, i) => running[i])
+  const withShell = shells(live.filter(r => r.status === 'idle').map(r => r.pid))
   const out = new Map<string, Presence>()
-  records.forEach((r, i) => {
-    if (!running[i]) return
+  for (const r of live) {
+    const status = r.status === 'idle' && withShell.has(r.pid) ? 'shell' : r.status
     const old = out.get(r.sessionId)
-    if (old === undefined || r.at > old.at) out.set(r.sessionId, { status: r.status, ...(r.waitingFor !== undefined ? { waitingFor: r.waitingFor } : {}), at: r.at })
-  })
+    if (old === undefined || r.at > old.at) out.set(r.sessionId, { status, ...(r.waitingFor !== undefined ? { waitingFor: r.waitingFor } : {}), at: r.at })
+  }
   return out
 }
 
@@ -115,3 +123,30 @@ function creationTimes(pids: readonly number[]): Map<number, string> | undefined
 
 // Elsewhere `procStart` is in a form this viewer does not read; a running pid is taken at its word.
 export const pidOnlyCheck: ProcessCheck = records => records.map(r => pidRuns(r.pid))
+
+const SHELL_REFRESH_MS = 5000
+// The Bash tool sources a shell snapshot; the PowerShell tool runs a script named in its command.
+const TOOL_SHELL = 'shell-snapshots|__claudeCodeScript'
+
+// Asking Windows for child processes takes seconds, so the query runs in the background and
+// each call answers with the newest result: up to a few seconds old, empty until the first one.
+export function windowsShellCheck(): ShellCheck {
+  let known: ReadonlySet<number> = new Set()
+  let startedAt = -Infinity
+  let running = false
+  return pids => {
+    if (!running && pids.length > 0 && Date.now() - startedAt >= SHELL_REFRESH_MS) {
+      running = true
+      startedAt = Date.now()
+      const filter = pids.map(p => `ParentProcessId=${p}`).join(' OR ')
+      const script = `Get-CimInstance Win32_Process -Filter '${filter}' | Where-Object { $_.CommandLine -match '${TOOL_SHELL}' } | ForEach-Object { $_.ParentProcessId }; exit 0`
+      execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], { encoding: 'utf8', windowsHide: true }, (err, out) => {
+        running = false
+        if (err === null) known = new Set(out.split(/\r?\n/).filter(line => line.trim() !== '').map(Number))
+      })
+    }
+    return known
+  }
+}
+
+export const noShellCheck: ShellCheck = () => new Set()

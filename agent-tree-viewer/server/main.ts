@@ -10,7 +10,7 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { APP_NAME, PACKAGE_VERSION, createApp } from './app.ts'
 import { configPath, readConfig } from './config.ts'
-import { pidOnlyCheck, readPresence, windowsProcessCheck } from './presence.ts'
+import { noShellCheck, pidOnlyCheck, readPresence, windowsProcessCheck, windowsShellCheck } from './presence.ts'
 import { SessionIndex } from './sessions.ts'
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url))
@@ -86,11 +86,12 @@ async function main(): Promise<void> {
   const appData = process.env.APPDATA ?? join(homedir(), 'AppData', 'Roaming')
   const pidDir = join(homedir(), '.claude', 'sessions')
   const check = process.platform === 'win32' ? windowsProcessCheck() : pidOnlyCheck
+  const shells = process.platform === 'win32' ? windowsShellCheck() : noShellCheck
   const index = new SessionIndex({
     projectsDir: join(homedir(), '.claude', 'projects'),
     desktopDir: join(appData, 'Claude', 'claude-code-sessions'),
     maxAgeMs: config.maxAgeDays * DAY_MS,
-    presence: () => readPresence(pidDir, check),
+    presence: () => readPresence(pidDir, check, shells),
   })
   const app = createApp({ port: config.port, distDir: join(ROOT, 'dist'), index, staleMs: config.staleMinutes * MINUTE_MS, now: Date.now })
   await new Promise<void>(done => app.server.on('listening', done))
