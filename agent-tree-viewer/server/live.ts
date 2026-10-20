@@ -1,11 +1,14 @@
-// Follows one session's transcripts as they grow and rebuilds its agent tree from them.
+// Follows one session's transcripts as they grow, and those of the agentics runs it started, and
+// rebuilds its agent tree from them.
 
 import { readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import type { CallDetail, NodeDetail, Project, SessionSnapshot, SessionSummary } from '../shared/model.ts'
+import { RunWatch, projectsDirOf, runNodeId, runNodes } from './runs.ts'
+import type { RunSource } from './runs.ts'
 import { JsonlTail } from './tail.ts'
 import type { SessionFiles } from './sessions.ts'
-import { buildSnapshot, emptyFacts, fullCall, ingest, nodeDetail } from './transcript.ts'
+import { buildSnapshot, emptyFacts, fullCall, ingest, nodeDetail, sumUsage } from './transcript.ts'
 import type { AgentMeta, FileFacts } from './transcript.ts'
 
 const META = /^agent-(.+)\.meta\.json$/
@@ -35,14 +38,18 @@ function readMeta(path: string): AgentMeta | undefined {
 export class SessionWatch {
   private main: Followed
   private agents = new Map<string, Followed & { meta: AgentMeta }>()
+  private runWatch: RunWatch
+  private runs: RunSource[] = []
 
   private readonly files: SessionFiles
   private readonly staleMs: number
 
-  constructor(files: SessionFiles, staleMs: number) {
+  // `repo` is the folder the session runs in, whose agentics store holds the runs it started.
+  constructor(files: SessionFiles, staleMs: number, repo: string) {
     this.files = files
     this.staleMs = staleMs
     this.main = follow(files.main)
+    this.runWatch = new RunWatch(repo, projectsDirOf(files.main), files.id)
   }
 
   // Agents a Workflow ran keep their transcripts one folder down, in `workflows/<run id>/`.
@@ -75,26 +82,40 @@ export class SessionWatch {
     catchUp(this.main)
     this.discoverAgents()
     for (const agent of this.agents.values()) catchUp(agent)
+    this.runs = this.runWatch.read()
+  }
+
+  private runFacts(run?: RunSource): FileFacts[] {
+    return (run === undefined ? this.runs : [run]).flatMap(r => [...r.transcripts.values()].map(t => t.facts))
+  }
+
+  // The transcript of a card: the main loop, a subagent, or a session an agentics run dispatched.
+  private factsOf(id: string): FileFacts | undefined {
+    if (id === 'main') return this.main.facts
+    return this.agents.get(id)?.facts ?? this.runs.map(r => r.transcripts.get(id)?.facts).find(f => f !== undefined)
   }
 
   // Everything one card's transcript says; undefined for an agent this session never had.
   detail(id: string): NodeDetail | undefined {
     this.catchUpAll()
-    if (id === 'main') return nodeDetail(id, this.main.facts, [this.main.facts, ...[...this.agents.values()].map(a => a.facts)])
-    const agent = this.agents.get(id)
-    return agent === undefined ? undefined : nodeDetail(id, agent.facts)
+    if (id === 'main') return nodeDetail(id, this.main.facts, [this.main.facts, ...[...this.agents.values()].map(a => a.facts), ...this.runFacts()])
+    // A run has no transcript of its own; what it cost is what its sessions cost.
+    const run = this.runs.find(r => runNodeId(r.meta.run) === id)
+    if (run !== undefined) return { id, steps: [], usage: sumUsage(this.runFacts(run)) }
+    const facts = this.factsOf(id)
+    return facts === undefined ? undefined : nodeDetail(id, facts)
   }
 
   // One tool call of one card, whole; undefined when that card made no such call.
   call(id: string, callId: string): CallDetail | undefined {
     this.catchUpAll()
-    const facts = id === 'main' ? this.main.facts : this.agents.get(id)?.facts
+    const facts = this.factsOf(id)
     return facts === undefined ? undefined : fullCall(facts, callId)
   }
 
   snapshot(now: number, title: string, project: Project, presence: Pick<SessionSummary, 'live' | 'waitingFor'>): SessionSnapshot {
     this.catchUpAll()
-    return buildSnapshot({
+    const snap = buildSnapshot({
       id: this.files.id,
       title,
       project,
@@ -104,5 +125,7 @@ export class SessionWatch {
       main: this.main.facts,
       agents: [...this.agents].map(([id, a]) => ({ id, meta: a.meta, facts: a.facts, mtime: a.tail.mtime })),
     })
+    for (const run of this.runs) for (const node of runNodes(run, now)) snap.agents[node.id] = node
+    return snap
   }
 }

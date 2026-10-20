@@ -241,7 +241,7 @@ function noteStatus(status: string): AgentStatus {
 }
 
 // The stream carries only the latest calls, and none of their inputs or outputs.
-const recent = (calls: readonly CallDetail[]): ToolEvent[] =>
+export const recent = (calls: readonly CallDetail[]): ToolEvent[] =>
   calls.slice(-KEEP).map(({ input: _input, output: _output, ...call }) => ({ ...call }))
 
 function clipCall(call: CallDetail): CallDetail {

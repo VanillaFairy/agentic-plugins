@@ -96,7 +96,7 @@ export function createApp(deps: AppDeps): { server: http.Server; close: () => Pr
     let stream = streams.get(id)
     if (stream === undefined) {
       const created: Stream = {
-        watch: new SessionWatch(found.files, deps.staleMs),
+        watch: new SessionWatch(found.files, deps.staleMs, found.row.path),
         clients: new Set(),
         last: '',
         timer: setInterval(() => {
@@ -132,7 +132,7 @@ export function createApp(deps: AppDeps): { server: http.Server; close: () => Pr
     if (open !== undefined) return open
     list()
     const found = deps.index.find(sessionId)
-    return found === undefined ? undefined : new SessionWatch(found.files, deps.staleMs)
+    return found === undefined ? undefined : new SessionWatch(found.files, deps.staleMs, found.row.path)
   }
   const json = (res: http.ServerResponse, body: unknown) =>
     body === undefined

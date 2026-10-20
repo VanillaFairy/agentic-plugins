@@ -17,6 +17,9 @@ that ships bumps it, in the same commit series as the change:
 - `server/transcript.ts` turns transcript entries into the tree. A subagent's parent is whoever
   made the tool call its `agent-<id>.meta.json` names (`toolUseId`), or for a Workflow agent the
   call whose result names its run folder.
+- `server/runs.ts` grafts agentics runs: a run's `run.json` names the session that started it
+  (`session`), and its `state.jsonl` names every dispatched session, whose transcript is a
+  top-level session file in the project directory of the dispatch's `cwd`.
 - `server/sessions.ts` names sessions: the desktop app's records under
   `%APPDATA%\Claude\claude-code-sessions` first, then the transcript's own title entries.
 - Claude Code's transcript format is undocumented. When a status or a name comes out wrong,
