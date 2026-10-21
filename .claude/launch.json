@@ -9,7 +9,7 @@
         "agentics-viewer",
         "start"
       ],
-      "port": 5181
+      "port": 5192
     },
     {
       "name": "agentics-viewer-dev",

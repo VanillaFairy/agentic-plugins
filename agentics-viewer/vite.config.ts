@@ -9,5 +9,5 @@ export default defineConfig({
   define: { __VIEWER_VERSION__: JSON.stringify(version) },
   build: { outDir: '../dist', emptyOutDir: true },
   // `npx vite` serves web/ with hot reload and forwards the API to a running `npm start`.
-  server: { port: 5173, proxy: { '/api': 'http://127.0.0.1:5181' } },
+  server: { port: 5173, proxy: { '/api': 'http://127.0.0.1:5192' } },
 })

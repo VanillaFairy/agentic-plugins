@@ -46,7 +46,7 @@ user ruled on them together by approving this spec.
   "Tools" section naming it.
 - TypeScript throughout. The server runs as `.ts` directly on Node 26 (type stripping), so it
   needs no build. The page is built by Vite.
-- It listens on `127.0.0.1:5181`, changeable in the state file.
+- It listens on `127.0.0.1:5192`, changeable in the state file.
 - Its own state lives in `~/.agentics-viewer/state.json`.
 - Discovery scans `C:\work` four levels deep; eight recent projects are kept.
 - Refresh timings: 300 ms quiet period, 1 s cap, 5 s commit poll, 10 s snapshot timeout.
@@ -236,14 +236,14 @@ extensions, so Node can run the server without a build.
   a file manager (cmd started it with the file's own path), the `.cmd` reopens itself in a console
   of its own with `cmd /k`, so the console and any error stay on screen after the server stops;
   run from an existing console, it runs there and holds it.
-- The server binds `127.0.0.1:<port>` (default 5181). `GET /api/health` answers
+- The server binds `127.0.0.1:<port>` (default 5192). `GET /api/health` answers
   `{app: 'agentics-viewer', version}`.
 - If the port is taken and `/api/health` answers as the viewer, the new process prints the URL
   and exits 0. If something else holds the port, it exits 1 naming the port and the `port`
   setting.
-- `.claude/launch.json` in vanillafairy gets an `agentics-viewer` entry (`npm start`, port 5181),
+- `.claude/launch.json` in vanillafairy gets an `agentics-viewer` entry (`npm start`, port 5192),
   so a session in vanillafairy can open it by name. Sessions in other projects open
-  `http://127.0.0.1:5181` in the Browser pane.
+  `http://127.0.0.1:5192` in the Browser pane.
 - The page URL carries its state: `?project=<path>&effort=<name>&node=<id>`. A reopened tab lands
   where it was. With no `project`, the page opens the last project from the state file.
 
@@ -338,7 +338,7 @@ During development `agentics_path` points at the `design-loop` checkout
 `~/.agentics-viewer/state.json`, written atomically (write a temp file, then rename):
 
 ```json
-{ "port": 5181, "roots": ["C:\\work"], "depth": 4, "agentics_path": null,
+{ "port": 5192, "roots": ["C:\\work"], "depth": 4, "agentics_path": null,
   "recent": ["C:\\work\\eva-plays-2"], "last": {"project": "...", "effort": "..."},
   "alerted": {"C:/work/eva-plays-2": {"<effort>": 108}} }
 ```
