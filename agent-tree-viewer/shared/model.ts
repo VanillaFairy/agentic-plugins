@@ -53,6 +53,17 @@ export type SessionSummary = {
   live: boolean
   // What it waits on: a permission prompt, an MCP input, an open dialog.
   waitingFor?: string
+  // The agentics runs it started, newest first. The sessions they dispatched are not listed apart.
+  runs?: RunLine[]
+}
+
+export type RunLine = {
+  // The run's card in the session's tree.
+  node: string
+  run: string
+  program: string
+  // Sessions the run dispatched.
+  agents: number
 }
 
 export type ProjectGroup = Project & { sessions: SessionSummary[] }

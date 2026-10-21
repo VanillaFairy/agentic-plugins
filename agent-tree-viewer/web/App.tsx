@@ -107,6 +107,8 @@ export function App() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const dockRef = useRef<HTMLDivElement>(null)
   const viewRef = useRef<TreeView | undefined>(undefined)
+  // The card to select once the session about to open has loaded.
+  const selectNext = useRef<string | undefined>(undefined)
   const detailOpen = snap !== undefined && selected !== undefined
 
   useEffect(() => {
@@ -139,10 +141,19 @@ export function App() {
     url.searchParams.set('session', sessionId)
     history.replaceState(null, '', url)
     setSnap(undefined)
-    setSelected(undefined)
+    setSelected(selectNext.current)
+    selectNext.current = undefined
     const source = new EventSource(`/api/sessions/${encodeURIComponent(sessionId)}/stream`)
     source.addEventListener('snapshot', e => {
       const data = JSON.parse((e as MessageEvent<string>).data) as SessionSnapshot
+      // The server sent the stream of the session whose agentics run dispatched this one: open
+      // that session, with this one's card selected.
+      if (data.id !== sessionId) {
+        source.close()
+        selectNext.current = sessionId
+        setSessionId(data.id)
+        return
+      }
       setSnap({ data, skew: data.now - Date.now() })
       setLost(false)
     })
@@ -212,8 +223,13 @@ export function App() {
     return () => removeEventListener('keydown', onKey)
   })
 
-  const pick = (id: string) => {
-    setSessionId(id)
+  const pick = (id: string, node?: string) => {
+    if (id === sessionId) {
+      if (node !== undefined) setSelected(node)
+    } else {
+      selectNext.current = node
+      setSessionId(id)
+    }
     setPickerOpen(false)
   }
 

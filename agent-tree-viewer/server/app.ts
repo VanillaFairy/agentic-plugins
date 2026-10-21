@@ -87,6 +87,12 @@ export function createApp(deps: AppDeps): { server: http.Server; close: () => Pr
 
   const openStream = (id: string, res: http.ServerResponse): void => {
     list()
+    // A session an agentics run dispatched shows as a card in the tree of the session that started the run.
+    const parent = deps.index.parentOf(id)
+    if (parent !== undefined) {
+      res.writeHead(307, { location: `/api/sessions/${encodeURIComponent(parent)}/stream` }).end()
+      return
+    }
     const found = deps.index.find(id)
     if (found === undefined) {
       res.writeHead(404, { 'content-type': 'application/json' }).end(JSON.stringify({ error: `No session ${id} in the last listing` }))

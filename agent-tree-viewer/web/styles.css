@@ -264,6 +264,34 @@ button {
   line-height: 1.3;
 }
 
+.runs {
+  list-style: none;
+  margin: 0 0 2px;
+  padding: 0 0 0 16px;
+}
+
+.run-line {
+  display: block;
+  width: 100%;
+  padding: 3px 8px;
+  border-radius: 6px;
+  text-align: left;
+  color: var(--muted);
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.run-line::before {
+  content: '↳ ';
+}
+
+.run-line:hover {
+  background: var(--ground);
+  color: inherit;
+}
+
 .session-when {
   display: inline-flex;
   align-items: center;

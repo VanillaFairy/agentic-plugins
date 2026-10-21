@@ -1,8 +1,8 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { appendFileSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { RunWatch, emptyRunLog, ingestRun, projectDirName, readRunMeta, runNodeId, runNodes } from '../server/runs.ts'
+import { RunStores, RunWatch, emptyRunLog, ingestRun, projectDirName, readRunMeta, runNodeId, runNodes } from '../server/runs.ts'
 import type { RunSource } from '../server/runs.ts'
 import { emptyFacts, ingest } from '../server/transcript.ts'
 
@@ -118,5 +118,23 @@ describe('the run store', () => {
     const mine = runs.find(r => r.meta.run === 'mine')
     expect(mine?.transcripts.get('s1')?.facts.calls.map(c => c.id)).toEqual(['c1'])
     expect(runs.find(r => r.meta.program === 'execute')?.log.sessions.has('s2')).toBe(true)
+  })
+  it('lists every run of a repository once from any of its checkouts, and sees a dispatch added since', () => {
+    dir = mkdtempSync(join(tmpdir(), 'atv-runs-'))
+    const repo = join(dir, 'repo')
+    const worktree = join(dir, 'wt')
+    mkdirSync(worktree, { recursive: true })
+    writeFileSync(join(worktree, '.git'), `gitdir: ${join(repo, '.git', 'worktrees', 'wt')}\n`)
+    const home = join(repo, '.agentics', '.state', 'runs', 'r1')
+    write(join(home, 'run.json'), runJson('parent'))
+    write(join(home, 'state.jsonl'), [{ kind: 'run' }, dispatched('s1', 'a')])
+    write(join(repo, '.agentics', '.state', 'runs', 'old', 'run.json'), { run: 'old', program: 'survey' })
+    write(join(repo, '.agentics', '.state', 'runs', 'old', 'state.jsonl'), [{ kind: 'run' }, dispatched('s9', 'x')])
+
+    const stores = new RunStores()
+    const first = stores.read([repo, worktree])
+    expect(first.map(r => [r.meta.run, r.meta.session, [...r.log.sessions.keys()]])).toEqual([['r1', 'parent', ['s1']]])
+    appendFileSync(join(home, 'state.jsonl'), JSON.stringify(dispatched('s2', 'b')) + '\n')
+    expect([...(stores.read([worktree])[0]?.log.sessions.keys() ?? [])]).toEqual(['s1', 's2'])
   })
 })

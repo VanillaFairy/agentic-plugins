@@ -153,20 +153,23 @@ const listDir = (dir: string): string[] => {
 
 type Followed = { tail: JsonlTail; facts: FileFacts }
 
-type Home = { stamp: number; meta?: RunMeta; log?: { tail: JsonlTail; log: RunLog }; sessions: Map<string, Followed> }
+// A run.json is read again only when it changed: its heartbeat rewrites it every 10 seconds. The
+// log is read on from where the last read stopped.
+type Home = { stamp: number; meta?: RunMeta; log?: { tail: JsonlTail; log: RunLog } }
 
-// Follows the runs one session started, and every session they dispatched.
-export class RunWatch {
+export type StoredRun = { meta: RunMeta; log: RunLog }
+
+// The agentics store of the repository `repo` is a checkout of.
+export const storeOf = (repo: string) => join(mainCheckout(repo), '.agentics')
+
+// The runs in one agentics store that name the session that started them.
+export class RunStore {
   private homes = new Map<string, Home>()
 
   private readonly store: string
-  private readonly projectsDir: string
-  private readonly session: string
 
-  constructor(repo: string, projectsDir: string, session: string) {
-    this.store = join(mainCheckout(repo), '.agentics')
-    this.projectsDir = projectsDir
-    this.session = session
+  constructor(store: string) {
+    this.store = store
   }
 
   private homeDirs(): string[] {
@@ -181,16 +184,15 @@ export class RunWatch {
     ]
   }
 
-  // A run.json is read again only when it changed: its heartbeat rewrites it every 10 seconds.
   private refresh(dir: string): Home {
     const stamp = statSync(join(dir, 'run.json'), { throwIfNoEntry: false })?.mtimeMs ?? 0
-    const home: Home = this.homes.get(dir) ?? { stamp: -1, sessions: new Map() }
+    const home: Home = this.homes.get(dir) ?? { stamp: -1 }
     if (home.stamp !== stamp) {
       home.stamp = stamp
       try {
         home.meta = readRunMeta(JSON.parse(readFileSync(join(dir, 'run.json'), 'utf8')))
       } catch {
-        // Mid-write, or no run.json yet; the next poll reads it again.
+        // Mid-write, or no run.json yet; the next read tries it again.
         home.stamp = -1
       }
     }
@@ -198,30 +200,80 @@ export class RunWatch {
     return home
   }
 
-  // Every run this session started, read up to now.
-  read(): RunSource[] {
-    const out: RunSource[] = []
+  // Each run `wanted` keeps, its log read up to now; the others' logs stay unread.
+  read(wanted: (meta: RunMeta) => boolean = () => true): StoredRun[] {
+    const out: StoredRun[] = []
     for (const dir of this.homeDirs()) {
       const home = this.refresh(dir)
       const meta = home.meta
-      if (meta?.session !== this.session) continue
+      if (meta === undefined || !wanted(meta)) continue
       home.log ??= { tail: new JsonlTail(join(dir, 'state.jsonl')), log: emptyRunLog() }
       const { entries, restarted } = home.log.tail.read()
       if (restarted) home.log.log = emptyRunLog()
       for (const entry of entries) ingestRun(home.log.log, entry)
+      out.push({ meta, log: home.log.log })
+    }
+    return out
+  }
+}
+
+// Follows the runs one session started, and every session they dispatched.
+export class RunWatch {
+  private store: RunStore
+  private sessions = new Map<string, Followed>()
+
+  private readonly projectsDir: string
+  private readonly session: string
+
+  constructor(repo: string, projectsDir: string, session: string) {
+    this.store = new RunStore(storeOf(repo))
+    this.projectsDir = projectsDir
+    this.session = session
+  }
+
+  // Every run this session started, read up to now.
+  read(): RunSource[] {
+    return this.store.read(meta => meta.session === this.session).map(({ meta, log }) => {
       const transcripts = new Map<string, { facts: FileFacts; mtime: number }>()
-      for (const [session, d] of home.log.log.sessions) {
-        let f = home.sessions.get(session)
+      for (const [session, d] of log.sessions) {
+        let f = this.sessions.get(session)
         if (f === undefined) {
           f = { tail: new JsonlTail(join(this.projectsDir, projectDirName(d.cwd), `${session}.jsonl`)), facts: emptyFacts() }
-          home.sessions.set(session, f)
+          this.sessions.set(session, f)
         }
         const read = f.tail.read()
         if (read.restarted) f.facts = emptyFacts()
         for (const entry of read.entries) ingest(f.facts, entry)
         if (f.tail.mtime > 0) transcripts.set(session, { facts: f.facts, mtime: f.tail.mtime })
       }
-      out.push({ meta, log: home.log.log, transcripts })
+      return { meta, log, transcripts }
+    })
+  }
+}
+
+// The runs in the stores of many folders, for the session picker: each store read once however
+// many of the folders are checkouts of its repository.
+export class RunStores {
+  private stores = new Map<string, RunStore>()
+  private storeByFolder = new Map<string, string>()
+
+  read(folders: Iterable<string>): StoredRun[] {
+    const seen = new Set<string>()
+    const out: StoredRun[] = []
+    for (const folder of folders) {
+      let store = this.storeByFolder.get(folder)
+      if (store === undefined) {
+        store = storeOf(folder)
+        this.storeByFolder.set(folder, store)
+      }
+      if (seen.has(store)) continue
+      seen.add(store)
+      let runs = this.stores.get(store)
+      if (runs === undefined) {
+        runs = new RunStore(store)
+        this.stores.set(store, runs)
+      }
+      out.push(...runs.read())
     }
     return out
   }

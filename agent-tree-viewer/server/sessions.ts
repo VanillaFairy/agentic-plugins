@@ -7,8 +7,10 @@
 
 import { closeSync, existsSync, openSync, readFileSync, readSync, readdirSync, statSync } from 'node:fs'
 import { basename, dirname, join } from 'node:path'
-import type { ProjectGroup, SessionSummary } from '../shared/model.ts'
+import type { ProjectGroup, RunLine, SessionSummary } from '../shared/model.ts'
 import type { Presence } from './presence.ts'
+import { RunStores, runNodeId } from './runs.ts'
+import type { StoredRun } from './runs.ts'
 import { parseLines } from './tail.ts'
 
 const HEAD_BYTES = 64 * 1024
@@ -91,6 +93,49 @@ export function groupSessions(rows: readonly SessionRow[]): ProjectGroup[] {
   return all
 }
 
+// Hangs each agentics run under the row of the session that started it, and takes the sessions it
+// dispatched out of the list: their place is in that session's tree, and the row carries their
+// last activity. A run whose starting session is not listed leaves its sessions listed; so does a
+// run.json older than its `session` field, which never reaches here. A session that started a run
+// stays listed even when another run dispatched it. `parents` maps each dispatched session to the
+// session that started its run.
+export function foldRuns(rows: readonly SessionRow[], runs: readonly StoredRun[]): { rows: SessionRow[]; parents: Map<string, string> } {
+  const listed = new Set(rows.map(r => r.id))
+  const starters = new Set(runs.map(r => r.meta.session).filter(id => listed.has(id)))
+  const parents = new Map<string, string>()
+  const lines = new Map<string, { at: number; line: RunLine }[]>()
+  for (const { meta, log } of runs) {
+    if (!starters.has(meta.session)) continue
+    for (const session of log.sessions.keys()) if (!starters.has(session)) parents.set(session, meta.session)
+    const own = lines.get(meta.session) ?? []
+    own.push({ at: meta.startedAt || 0, line: { node: runNodeId(meta.run), run: meta.run, program: meta.program, agents: log.sessions.size } })
+    lines.set(meta.session, own)
+  }
+  const dispatched = new Map<string, { lastAt: number; live: boolean }>()
+  for (const row of rows) {
+    const parent = parents.get(row.id)
+    if (parent === undefined) continue
+    const seen = dispatched.get(parent) ?? { lastAt: 0, live: false }
+    dispatched.set(parent, { lastAt: Math.max(seen.lastAt, row.lastAt), live: seen.live || row.live })
+  }
+  return {
+    rows: rows
+      .filter(row => !parents.has(row.id))
+      .map(row => {
+        const own = lines.get(row.id)
+        if (own === undefined) return row
+        const kids = dispatched.get(row.id) ?? { lastAt: 0, live: false }
+        return {
+          ...row,
+          lastAt: Math.max(row.lastAt, kids.lastAt),
+          live: row.live || kids.live,
+          runs: own.sort((a, b) => b.at - a.at).map(r => r.line),
+        }
+      }),
+    parents,
+  }
+}
+
 type DesktopRecord = { title?: string; cwd?: string; archived: boolean }
 
 function readSlice(file: string, from: 'head' | 'tail', size: number, bytes: number): unknown[] {
@@ -133,6 +178,8 @@ export class SessionIndex {
   private desktop = new Map<string, { stamp: number; id?: string; rec: DesktopRecord }>()
   private files = new Map<string, SessionFiles>()
   private rows = new Map<string, SessionRow>()
+  private parents = new Map<string, string>()
+  private runs = new RunStores()
 
   private readonly opts: IndexOptions
 
@@ -249,9 +296,16 @@ export class SessionIndex {
         })
       }
     }
+    const folded = foldRuns(rows, this.runs.read(new Set(rows.map(r => r.path))))
     this.files = files
-    this.rows = new Map(rows.map(r => [r.id, r]))
-    return groupSessions(rows)
+    this.rows = new Map(folded.rows.map(r => [r.id, r]))
+    this.parents = folded.parents
+    return groupSessions(folded.rows)
+  }
+
+  // The session whose agentics run dispatched this one, as the last listing found it.
+  parentOf(id: string): string | undefined {
+    return this.parents.get(id)
   }
 
   // The files of a session the last listing found.

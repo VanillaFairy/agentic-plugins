@@ -41,7 +41,8 @@ type Props = {
   groups: ProjectGroup[] | undefined
   selected: string | undefined
   now: number
-  onPick: (id: string) => void
+  // `node`: the card to select in the session's tree.
+  onPick: (id: string, node?: string) => void
 }
 
 export function Sidebar({ groups, selected, now, onPick }: Props) {
@@ -125,6 +126,17 @@ export function Sidebar({ groups, selected, now, onPick }: Props) {
                           {ago(now - s.lastAt)}
                         </span>
                       </button>
+                      {s.runs !== undefined && (
+                        <ul class="runs">
+                          {s.runs.map(r => (
+                            <li key={r.node}>
+                              <button class="run-line" title={`agentics run ${r.run}`} onClick={() => onPick(s.id, r.node)}>
+                                {r.program} · {r.agents} {r.agents === 1 ? 'agent' : 'agents'}
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
                     </li>
                   ))}
                 </ul>
