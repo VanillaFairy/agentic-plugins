@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, test } from 'vitest'
 import { execFile } from 'node:child_process'
+import http from 'node:http'
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -102,5 +103,35 @@ describe('main.ts', () => {
 
     expect(result.code).toBe(0)
     expect(result.stdout).toContain(`agentics viewer is already running at http://127.0.0.1:${port}`)
+  })
+
+  test('a start against another app on the port, bound to all interfaces, exits 1', async () => {
+    const other = http.createServer((_req, res) => res.end('<html>other app</html>'))
+    await new Promise<void>((resolve) => other.listen(0, '0.0.0.0', resolve))
+    cleanups.push(() => new Promise<void>((resolve) => other.close(() => resolve())))
+    const address = other.address()
+    const port = typeof address === 'object' && address !== null ? address.port : 0
+
+    const home = tempDir()
+    tempDirs.push(home)
+    mkdirSync(join(home, '.agentics-viewer'), { recursive: true })
+    writeFileSync(statePath(home), JSON.stringify({ ...DEFAULT_STATE, port }))
+
+    const cwd = join(import.meta.dirname, '..')
+    const result = await new Promise<{ code: number | null; stdout: string }>((resolve) => {
+      execFile(
+        process.execPath,
+        ['server/main.ts'],
+        { cwd, env: { ...process.env, USERPROFILE: home, HOME: home }, timeout: 10_000 },
+        (err, stdout) => {
+          const errCode = (err as NodeJS.ErrnoException & { code?: number } | null)?.code
+          const code = err === null ? 0 : typeof errCode === 'number' ? errCode : -1
+          resolve({ code, stdout })
+        },
+      )
+    })
+
+    expect(result.code).toBe(1)
+    expect(result.stdout).toContain(`port ${port} is in use`)
   })
 })

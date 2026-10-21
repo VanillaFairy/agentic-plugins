@@ -2,6 +2,7 @@
 // state file, health probe, vite build, createApp, the version watch, SIGINT.
 
 import http from 'node:http'
+import net from 'node:net'
 import { execFile } from 'node:child_process'
 import { existsSync, readFileSync, readdirSync, statSync, watchFile } from 'node:fs'
 import { homedir } from 'node:os'
@@ -34,7 +35,20 @@ function fetchHealth(port: number): Promise<unknown> {
     .catch(() => null)
 }
 
-function isPortFree(port: number): Promise<boolean> {
+function accepts(port: number, host: string): Promise<boolean> {
+  return new Promise((resolve) => {
+    const socket = net.connect({ port, host, timeout: 1000 })
+    const done = (open: boolean): void => {
+      socket.destroy()
+      resolve(open)
+    }
+    socket.once('connect', () => done(true))
+    socket.once('error', () => done(false))
+    socket.once('timeout', () => done(false))
+  })
+}
+
+function canBind(port: number): Promise<boolean> {
   return new Promise((resolve) => {
     const probe = http.createServer()
     probe.once('error', () => resolve(false))
@@ -42,6 +56,13 @@ function isPortFree(port: number): Promise<boolean> {
       probe.close(() => resolve(true))
     })
   })
+}
+
+// Windows lets 127.0.0.1 bind beside an app holding the port on 0.0.0.0 or ::, so a bind alone
+// cannot tell; anything answering on either loopback also takes the port.
+async function isPortFree(port: number): Promise<boolean> {
+  const [v4, v6] = await Promise.all([accepts(port, '127.0.0.1'), accepts(port, '::1')])
+  return !v4 && !v6 && (await canBind(port))
 }
 
 function newestMtimeUnder(dir: string): number {
