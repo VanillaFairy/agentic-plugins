@@ -388,6 +388,8 @@ export function paint(f: Frame): void {
       }
       ctx.stroke(path)
       ctx.setLineDash([])
+      // The offset outlives the dash: left set, it sets every dashed edge after it crawling.
+      ctx.lineDashOffset = 0
     }
   }
   for (const p of f.placed) {
