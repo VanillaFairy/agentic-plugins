@@ -308,6 +308,7 @@ export function buildSnapshot(s: SessionSource): SessionSnapshot {
     }
 
     agents[agent.id] = {
+      kind: 'subagent',
       id: agent.id,
       ...(spawnedBy !== undefined && spawnedBy.id !== 'main' ? { parentId: spawnedBy.id } : {}),
       ...(agent.meta.toolUseId !== undefined ? { callId: agent.meta.toolUseId } : {}),

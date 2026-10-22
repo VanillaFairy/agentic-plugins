@@ -13,6 +13,9 @@
   --bad: #c0402e;
   --off: #8894a0;
   --focus: #c27712;
+  /* An agentics run and the sessions it dispatched, each in a process of its own. */
+  --headless: #4c56c4;
+  --headless-wash: #eef0fb;
   --sans: 'Sofia Sans Semi Condensed', 'Segoe UI', system-ui, sans-serif;
   --display: 'Sofia Sans', 'Segoe UI', system-ui, sans-serif;
   --mono: 'JetBrains Mono', 'Cascadia Mono', Consolas, monospace;
@@ -35,6 +38,8 @@
     --bad: #ff7d6b;
     --off: #6d7b88;
     --focus: #f0a63c;
+    --headless: #a0a8f8;
+    --headless-wash: #222b46;
     color-scheme: dark;
   }
 }
@@ -1229,4 +1234,66 @@ h1 {
     animation: none;
     transition: none;
   }
+}
+
+/* A run's dispatched sessions, in the details pane of the run. */
+.run-sessions {
+  list-style: none;
+  margin: 0;
+  padding: 4px 0;
+}
+
+.run-session {
+  display: grid;
+  grid-template-columns: 8px minmax(0, 1fr) auto;
+  grid-template-areas:
+    'dot work time'
+    '. role model';
+  gap: 2px 10px;
+  align-items: center;
+  width: 100%;
+  padding: 8px 10px;
+  border-left: 2px dashed var(--headless);
+  text-align: left;
+}
+
+li + li > .run-session {
+  margin-top: 2px;
+}
+
+.run-session:hover {
+  background: var(--headless-wash);
+}
+
+.run-session .status-dot {
+  grid-area: dot;
+  background: var(--tone);
+}
+
+.run-session-work {
+  grid-area: work;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.run-session-time {
+  grid-area: time;
+  color: var(--tone);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.run-session-role {
+  grid-area: role;
+  color: var(--headless);
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.run-session-model {
+  grid-area: model;
+  color: var(--muted);
+  font-size: 13px;
 }

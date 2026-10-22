@@ -1,7 +1,7 @@
 // Paints the tree on a canvas: wires, cards, fold marks. Knows nothing of zoom or input; the
 // caller sets the transform and says where every card is this frame.
 
-import type { AgentNode, AgentStatus, SessionSnapshot } from '../shared/model.ts'
+import type { AgentNode, AgentStatus, DispatchedNode, RunNode, SessionSnapshot } from '../shared/model.ts'
 import { FOLD_R, NODE_H, NODE_W, ROOT, STATUS_WORD, current, elapsed, foldCentre } from './layout.ts'
 import type { Placed } from './layout.ts'
 
@@ -13,9 +13,12 @@ export type Palette = {
   line: string
   select: string
   status: Record<AgentStatus, string>
+  // The family of an agentics run: the run's own plate, and the edge of every session it dispatched.
+  headless: string
+  headlessWash: string
 }
 
-const TOKENS = ['card', 'card-edge', 'ink', 'muted', 'line', 'select', 'live', 'ok', 'bad', 'off'] as const
+const TOKENS = ['card', 'card-edge', 'ink', 'muted', 'line', 'select', 'live', 'ok', 'bad', 'off', 'headless', 'headless-wash'] as const
 
 export function readPalette(el: Element): Palette {
   const style = getComputedStyle(el)
@@ -28,6 +31,8 @@ export function readPalette(el: Element): Palette {
     line: t.line,
     select: t.select,
     status: { running: t.live, completed: t.ok, failed: t.bad, killed: t.off },
+    headless: t.headless,
+    headlessWash: t['headless-wash'],
   }
 }
 
@@ -35,6 +40,7 @@ const SANS = '"Sofia Sans Semi Condensed", "Segoe UI", system-ui, sans-serif'
 const MONO = '"JetBrains Mono", "Cascadia Mono", Consolas, monospace'
 const FONT = {
   title: `600 15px ${SANS}`,
+  role: `600 13px ${SANS}`,
   meta: `400 13px ${SANS}`,
   time: `500 13px ${SANS}`,
   doing: `400 12px ${MONO}`,
@@ -42,7 +48,14 @@ const FONT = {
   fold: `600 12px ${SANS}`,
 }
 const RADIUS = 9
+// A run is a program, not a model: its plate is squarer than any agent's card.
+const RUN_RADIUS = 3
+// A dispatched session lives in a process of its own; its edge is broken to say so.
+const DISPATCHED_EDGE = [6, 4]
+const RUN_WIRE = [2, 4]
 const INSET = 16
+// How long the beat on a run's heartbeat trace takes to cross it.
+const BEAT_MS = 1600
 // The dash a running agent's wire carries: a short bright stroke, then a long gap.
 const PULSE = [10, 90]
 const PULSE_SPEED = 0.07
@@ -132,12 +145,15 @@ export type Frame = {
 function agentCard(f: Frame, p: Placed, n: AgentNode, x: number, y: number): void {
   const { ctx, palette } = f
   const colour = palette.status[n.status]
+  const dispatched = n.kind === 'dispatched'
   roundRect(ctx, x, y, NODE_W, NODE_H, RADIUS)
   ctx.fillStyle = palette.card
   ctx.fill()
-  ctx.lineWidth = f.selected === p.id ? 2 : 1
-  ctx.strokeStyle = f.selected === p.id ? palette.select : f.hovered === p.id ? palette.muted : palette.cardEdge
+  ctx.lineWidth = f.selected === p.id ? 2 : dispatched ? 1.4 : 1
+  ctx.strokeStyle = f.selected === p.id ? palette.select : f.hovered === p.id ? palette.muted : dispatched ? palette.headless : palette.cardEdge
+  if (dispatched && f.selected !== p.id) ctx.setLineDash(DISPATCHED_EDGE)
   ctx.stroke()
+  ctx.setLineDash([])
 
   // The status stripe down the card's left edge.
   ctx.save()
@@ -163,9 +179,13 @@ function agentCard(f: Frame, p: Placed, n: AgentNode, x: number, y: number): voi
   ctx.fillStyle = palette.ink
   ctx.fillText(fit(ctx, n.description, room - timeW - 10), left, y + 24)
 
-  ctx.font = FONT.meta
-  ctx.fillStyle = palette.muted
-  pair(ctx, n.type, `${n.toolCount} ${n.toolCount === 1 ? 'tool' : 'tools'}`, left, y + 45, room - FOLD_R - 4)
+  const tools = `${n.toolCount} ${n.toolCount === 1 ? 'tool' : 'tools'}`
+  if (n.kind === 'dispatched') roleLine(f, n, tools, left, y + 45, room - FOLD_R - 4)
+  else {
+    ctx.font = FONT.meta
+    ctx.fillStyle = palette.muted
+    pair(ctx, n.type, tools, left, y + 45, room - FOLD_R - 4)
+  }
 
   if (n.status === 'running') {
     const doing = current(n.activity)
@@ -177,6 +197,91 @@ function agentCard(f: Frame, p: Placed, n: AgentNode, x: number, y: number): voi
     ctx.fillStyle = colour
     ctx.fillText(STATUS_WORD[n.status], left, y + 66)
   }
+}
+
+// A dispatched session's role in the run's colour after a prompt mark, then its model and tools;
+// the model gives way first, then the role.
+function roleLine(f: Frame, n: DispatchedNode, tools: string, x: number, y: number, max: number): void {
+  const { ctx, palette } = f
+  ctx.font = FONT.meta
+  const toolsW = ctx.measureText(tools).width
+  ctx.font = FONT.role
+  ctx.fillStyle = palette.headless
+  const role = fit(ctx, `› ${n.role || 'agent'}`, Math.max(20, max - toolsW - 12))
+  ctx.fillText(role, x, y)
+  const at = x + ctx.measureText(role).width + 8
+  ctx.font = FONT.meta
+  ctx.fillStyle = palette.muted
+  pair(ctx, n.model, tools, at, y, Math.max(0, x + max - at))
+}
+
+// A run's heartbeat as a trace: one beat travelling along a line while the run beats, and the line
+// lying flat once it stops.
+function heartbeat(f: Frame, x: number, y: number, w: number, colour: string, beating: boolean): void {
+  const { ctx } = f
+  ctx.beginPath()
+  ctx.moveTo(x, y)
+  if (beating) {
+    const phase = f.motion ? (f.t % BEAT_MS) / BEAT_MS : 0.5
+    const at = x + 2 + phase * (w - 14)
+    ctx.lineTo(at, y)
+    ctx.lineTo(at + 2.5, y - 7)
+    ctx.lineTo(at + 6, y + 5)
+    ctx.lineTo(at + 8.5, y - 2)
+    ctx.lineTo(at + 10, y)
+  }
+  ctx.lineTo(x + w, y)
+  ctx.strokeStyle = colour
+  ctx.lineWidth = 1.5
+  ctx.lineJoin = 'round'
+  ctx.lineCap = 'round'
+  ctx.stroke()
+}
+
+// An agentics run is a Node program, not a model: a squarer plate washed in the run's colour,
+// with its heartbeat where an agent shows what it is doing, and no tool count.
+function runCard(f: Frame, p: Placed, n: AgentNode & RunNode, x: number, y: number): void {
+  const { ctx, palette } = f
+  const colour = palette.status[n.status]
+  roundRect(ctx, x, y, NODE_W, NODE_H, RUN_RADIUS)
+  ctx.fillStyle = palette.headlessWash
+  ctx.fill()
+  ctx.lineWidth = f.selected === p.id ? 2 : 1.4
+  ctx.strokeStyle = f.selected === p.id ? palette.select : f.hovered === p.id ? palette.ink : palette.headless
+  ctx.stroke()
+
+  const left = x + INSET
+  const room = NODE_W - INSET * 2
+  ctx.textBaseline = 'alphabetic'
+  ctx.font = FONT.time
+  const time = elapsed((n.endedAt ?? f.now) - n.startedAt)
+  const timeW = ctx.measureText(time).width
+  ctx.fillStyle = n.status === 'running' ? colour : palette.muted
+  ctx.textAlign = 'right'
+  ctx.fillText(time, x + NODE_W - INSET + 2, y + 24)
+  ctx.textAlign = 'left'
+
+  ctx.font = FONT.title
+  ctx.fillStyle = palette.headless
+  const program = fit(ctx, n.program || 'run', room - timeW - 10)
+  ctx.fillText(program, left, y + 24)
+  const after = left + ctx.measureText(program).width + 8
+  ctx.font = FONT.meta
+  ctx.fillStyle = palette.muted
+  ctx.fillText(fit(ctx, n.pid === undefined ? 'process' : `pid ${n.pid}`, Math.max(0, left + room - timeW - 10 - after)), after, y + 24)
+
+  const kids = Object.values(f.snap.agents).filter(a => a.parentId === n.id)
+  const running = kids.filter(a => a.status === 'running').length
+  const sessions = `${kids.length} ${kids.length === 1 ? 'session' : 'sessions'}`
+  pair(ctx, n.run, running > 0 ? `${sessions}, ${running} running` : sessions, left, y + 45, room - FOLD_R - 4)
+
+  const beating = n.status === 'running'
+  heartbeat(f, left, y + 62, 44, colour, beating)
+  ctx.font = FONT.meta
+  ctx.fillStyle = colour
+  const since = elapsed(Math.max(0, f.now - n.heartbeatAt))
+  const word = beating ? `beat ${since} ago` : n.status === 'killed' ? `no beat for ${since}` : STATUS_WORD[n.status]
+  ctx.fillText(fit(ctx, word, room - 54), left + 54, y + 66)
 }
 
 // The session's own card, set apart by a heavier edge and a larger title. It carries the running
@@ -200,7 +305,7 @@ function rootCard(f: Frame, p: Placed, x: number, y: number): void {
   }
   const left = x + INSET
   const room = NODE_W - INSET * 2
-  const agents = Object.values(snap.agents)
+  const agents = Object.values(snap.agents).filter(a => a.kind !== 'run')
   const running = agents.filter(a => a.status === 'running').length
   ctx.textAlign = 'left'
   ctx.font = FONT.rootTitle
@@ -263,11 +368,14 @@ export function paint(f: Frame): void {
     if (parent === undefined) continue
     const to = pos(p)
     const path = wirePath(pos(parent), to)
+    // A run's wires leave its process for the sessions it started.
+    const outOfProcess = p.node?.kind === 'dispatched'
     ctx.globalAlpha = to.alpha
-    ctx.setLineDash([])
+    ctx.setLineDash(outOfProcess ? RUN_WIRE : [])
     ctx.lineWidth = 1.4
-    ctx.strokeStyle = palette.line
+    ctx.strokeStyle = outOfProcess ? palette.headless : palette.line
     ctx.stroke(path)
+    ctx.setLineDash([])
     if (p.node?.status === 'running') {
       ctx.strokeStyle = palette.status.running
       ctx.lineWidth = 2.4
@@ -285,7 +393,8 @@ export function paint(f: Frame): void {
   for (const p of f.placed) {
     const { x, y, alpha } = pos(p)
     ctx.globalAlpha = alpha
-    if (p.node) agentCard(f, p, p.node, x, y)
+    if (p.node?.kind === 'run') runCard(f, p, p.node, x, y)
+    else if (p.node) agentCard(f, p, p.node, x, y)
     else rootCard(f, p, x, y)
   }
   for (const p of f.placed) {

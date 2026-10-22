@@ -3,6 +3,7 @@ import type { AgentNode, AgentStatus } from '../shared/model.ts'
 import { NODE_H, NODE_W, ROOT, allDoneUnder, foldCentre, hitAt, layout, withoutDone } from '../web/layout.ts'
 
 const node = (id: string, startedAt: number, status: AgentStatus = 'running', parentId?: string): AgentNode => ({
+  kind: 'subagent',
   id,
   ...(parentId !== undefined ? { parentId } : {}),
   type: 't',

@@ -3,12 +3,14 @@
 // agentics starts every agent as a headless `claude -p --session-id <id>` process, so each agent's
 // transcript is a session file of its own, beside the session that started the run rather than
 // under its `subagents/`. The run store links them: a run's `run.json` names the session that last
-// started it (`session`), and its log names every dispatch's session, role, thread and model.
+// started it (`session`), and its logs name every dispatch's session, role, thread and model.
 //
 //   <repo>/.agentics/.state/runs/<run>/                      a program run
 //   <repo>/.agentics/<effort>/.state/executions/<stamp>/     an execution's run
 //
-// each holding `run.json` and the log `state.jsonl`.
+// each holding `run.json` and the log `state.jsonl`. A program run logs its dispatches and their
+// returns there; an execution logs only the returns, and its dispatches go to the effort's
+// `<repo>/.agentics/<effort>/.state/events.jsonl`, each naming its execution's stamp.
 
 import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { dirname, join } from 'node:path'
@@ -21,28 +23,42 @@ import type { FileFacts } from './transcript.ts'
 const RUN_STALE_MS = 120_000
 const RUN_NODE = 'run:'
 
-export type RunMeta = { run: string; program: string; session: string; startedAt: number; heartbeatAt: number }
+export type RunMeta = { run: string; program: string; session: string; startedAt: number; heartbeatAt: number; pid?: number }
 
 export type Dispatch = {
   role: string
   thread: string
+  node: string
   model: string
   effort: string
   // The folder the agent ran in; its transcript sits in that folder's project directory.
   cwd: string
-  // Absent while the dispatch has not returned.
-  status?: string
+  seq: number
 }
 
-// What a run's log says, folded entry by entry.
+type Return = { status: string; seq: number }
+
+// What a run's logs say, folded entry by entry. Dispatches and returns are kept apart and matched by
+// `seq`, agentics' counter across all of an effort's logs: an execution's two logs are read one
+// after the other, so a return can be read before its dispatch.
 export type RunLog = {
   // The latest dispatch of each session; a thread resumed in a later round reuses its session.
   sessions: Map<string, Dispatch>
+  returns: Map<string, Return>
   // The status the run ended with, when the latest start of it ended.
   ended?: string
+  // Stands in for `seq` on a line without one: the order lines were read in.
+  lines: number
 }
 
-export const emptyRunLog = (): RunLog => ({ sessions: new Map() })
+export const emptyRunLog = (): RunLog => ({ sessions: new Map(), returns: new Map(), lines: 0 })
+
+// How the latest dispatch of `session` returned; undefined while it has not.
+export function returnOf(log: RunLog, session: string): string | undefined {
+  const d = log.sessions.get(session)
+  const r = log.returns.get(session)
+  return d !== undefined && r !== undefined && r.seq > d.seq ? r.status : undefined
+}
 
 const record = (v: unknown): Record<string, unknown> | undefined =>
   typeof v === 'object' && v !== null ? (v as Record<string, unknown>) : undefined
@@ -57,20 +73,31 @@ export function readRunMeta(raw: unknown): RunMeta | undefined {
     session: r.session,
     startedAt: Date.parse(text(r.started_at)),
     heartbeatAt: Date.parse(text(r.heartbeat_at)),
+    ...(typeof r.pid === 'number' ? { pid: r.pid } : {}),
   }
 }
 
+const seqOf = (log: RunLog, e: Record<string, unknown>) => (typeof e.seq === 'number' ? e.seq : ++log.lines)
+
+function ingestDispatch(log: RunLog, e: Record<string, unknown>): void {
+  if (typeof e.session !== 'string') return
+  log.sessions.set(e.session, { role: text(e.role), thread: text(e.thread), node: text(e.node), model: text(e.model), effort: text(e.effort), cwd: text(e.cwd), seq: seqOf(log, e) })
+}
+
+// One line of a run home's `state.jsonl`.
 export function ingestRun(log: RunLog, raw: unknown): void {
   const e = record(raw)
   if (e === undefined) return
   if (e.kind === 'run') delete log.ended
   else if (e.kind === 'ended') log.ended = text(record(e.result)?.status) || 'done'
-  else if (e.kind === 'dispatched' && typeof e.session === 'string') {
-    log.sessions.set(e.session, { role: text(e.role), thread: text(e.thread), model: text(e.model), effort: text(e.effort), cwd: text(e.cwd) })
-  } else if (e.kind === 'returned' && typeof e.session === 'string') {
-    const d = log.sessions.get(e.session)
-    if (d !== undefined) d.status = text(e.status)
-  }
+  else if (e.kind === 'dispatched') ingestDispatch(log, e)
+  else if (e.kind === 'returned' && typeof e.session === 'string') log.returns.set(e.session, { status: text(e.status), seq: seqOf(log, e) })
+}
+
+// One line of an effort's `events.jsonl`, for the execution `stamp`: its dispatches, nothing else.
+export function ingestEvent(log: RunLog, raw: unknown, stamp: string): void {
+  const e = record(raw)
+  if (e?.kind === 'dispatched' && e.execution === stamp) ingestDispatch(log, e)
 }
 
 export type RunSource = {
@@ -82,11 +109,11 @@ export type RunSource = {
 
 export const runNodeId = (run: string) => RUN_NODE + run
 
-function dispatchStatus(d: Dispatch, runLive: boolean): AgentStatus {
-  if (d.status === undefined) return runLive ? 'running' : 'killed'
-  if (d.status === 'returned') return 'completed'
+function dispatchStatus(returned: string | undefined, runLive: boolean): AgentStatus {
+  if (returned === undefined) return runLive ? 'running' : 'killed'
+  if (returned === 'returned') return 'completed'
   // A host stop: agentics waits it out and dispatches the thread again.
-  if (d.status === 'stopped') return 'killed'
+  if (returned === 'stopped') return 'killed'
   return 'failed'
 }
 
@@ -98,12 +125,19 @@ export function runNodes(src: RunSource, now: number): AgentNode[] {
   const kids: AgentNode[] = []
   for (const [session, d] of log.sessions) {
     const t = src.transcripts.get(session)
-    const status = dispatchStatus(d, live)
+    const status = dispatchStatus(returnOf(log, session), live)
     kids.push({
+      kind: 'dispatched',
+      role: d.role,
+      thread: d.thread,
+      node: d.node,
+      model: d.model,
+      effort: d.effort,
       id: session,
       parentId: id,
       type: d.role || 'agent',
-      description: [d.thread || d.role, [d.model, d.effort].filter(Boolean).join(' ')].filter(Boolean).join(' · '),
+      // The node `.` is the effort's root folder, which names no work; the thread does.
+      description: (d.node !== '.' && d.node) || d.thread || d.role || session,
       status,
       startedAt: t?.facts.firstAt ?? meta.startedAt,
       ...(status === 'running' ? {} : { endedAt: t?.facts.lastAt ?? t?.mtime ?? meta.startedAt }),
@@ -113,13 +147,18 @@ export function runNodes(src: RunSource, now: number): AgentNode[] {
   }
   const status: AgentStatus = live ? 'running' : log.ended === undefined ? 'killed' : log.ended === 'done' ? 'completed' : 'failed'
   const run: AgentNode = {
+    kind: 'run',
+    program: meta.program,
+    run: meta.run,
+    heartbeatAt: meta.heartbeatAt,
+    ...(meta.pid !== undefined ? { pid: meta.pid } : {}),
     id,
     type: 'agentics run',
     description: `${meta.program} ${meta.run}`,
     status,
     startedAt: meta.startedAt,
     ...(live ? {} : { endedAt: Math.max(meta.heartbeatAt, ...kids.map(k => k.endedAt ?? 0)) }),
-    toolCount: kids.reduce((n, k) => n + k.toolCount, 0),
+    toolCount: 0,
     activity: [],
   }
   return [run, ...kids]
@@ -153,9 +192,47 @@ const listDir = (dir: string): string[] => {
 
 type Followed = { tail: JsonlTail; facts: FileFacts }
 
-// A run.json is read again only when it changed: its heartbeat rewrites it every 10 seconds. The
-// log is read on from where the last read stopped.
-type Home = { stamp: number; meta?: RunMeta; log?: { tail: JsonlTail; log: RunLog } }
+// Where a run home's logs are. `events` is set for an execution: its effort's events.jsonl, and the
+// stamp its dispatches there carry.
+type HomeDir = { dir: string; events?: { path: string; stamp: string } }
+
+// A run's logs, each read on from where the last read stopped. An execution reads its effort's
+// events.jsonl whole once, then only what is appended, keeping its own dispatches from it.
+class RunLogTail {
+  private state!: JsonlTail
+  private events: JsonlTail | undefined
+  private log!: RunLog
+
+  private readonly home: HomeDir
+
+  constructor(home: HomeDir) {
+    this.home = home
+    this.restart()
+  }
+
+  private restart(): void {
+    this.state = new JsonlTail(join(this.home.dir, 'state.jsonl'))
+    this.events = this.home.events === undefined ? undefined : new JsonlTail(this.home.events.path)
+    this.log = emptyRunLog()
+  }
+
+  read(): RunLog {
+    const state = this.state.read()
+    const events = this.events?.read()
+    // A log rewritten from the start voids the fold, the other log's share of it included.
+    if (state.restarted || events?.restarted) {
+      this.restart()
+      return this.read()
+    }
+    for (const entry of state.entries) ingestRun(this.log, entry)
+    const stamp = this.home.events?.stamp ?? ''
+    for (const entry of events?.entries ?? []) ingestEvent(this.log, entry, stamp)
+    return this.log
+  }
+}
+
+// A run.json is read again only when it changed: its heartbeat rewrites it every 10 seconds.
+type Home = { stamp: number; meta?: RunMeta; log?: RunLogTail }
 
 export type StoredRun = { meta: RunMeta; log: RunLog }
 
@@ -172,14 +249,17 @@ export class RunStore {
     this.store = store
   }
 
-  private homeDirs(): string[] {
+  private homeDirs(): HomeDir[] {
     const runs = join(this.store, '.state', 'runs')
     const efforts = listDir(this.store).filter(name => !name.startsWith('.'))
     return [
-      ...listDir(runs).filter(name => !name.startsWith('.')).map(name => join(runs, name)),
+      ...listDir(runs)
+        .filter(name => !name.startsWith('.'))
+        .map(name => ({ dir: join(runs, name) })),
       ...efforts.flatMap(effort => {
-        const dir = join(this.store, effort, '.state', 'executions')
-        return listDir(dir).map(stamp => join(dir, stamp))
+        const state = join(this.store, effort, '.state')
+        const dir = join(state, 'executions')
+        return listDir(dir).map(stamp => ({ dir: join(dir, stamp), events: { path: join(state, 'events.jsonl'), stamp } }))
       }),
     ]
   }
@@ -200,18 +280,15 @@ export class RunStore {
     return home
   }
 
-  // Each run `wanted` keeps, its log read up to now; the others' logs stay unread.
+  // Each run `wanted` keeps, its logs read up to now; the others' logs stay unread.
   read(wanted: (meta: RunMeta) => boolean = () => true): StoredRun[] {
     const out: StoredRun[] = []
-    for (const dir of this.homeDirs()) {
-      const home = this.refresh(dir)
+    for (const where of this.homeDirs()) {
+      const home = this.refresh(where.dir)
       const meta = home.meta
       if (meta === undefined || !wanted(meta)) continue
-      home.log ??= { tail: new JsonlTail(join(dir, 'state.jsonl')), log: emptyRunLog() }
-      const { entries, restarted } = home.log.tail.read()
-      if (restarted) home.log.log = emptyRunLog()
-      for (const entry of entries) ingestRun(home.log.log, entry)
-      out.push({ meta, log: home.log.log })
+      home.log ??= new RunLogTail(where)
+      out.push({ meta, log: home.log.read() })
     }
     return out
   }

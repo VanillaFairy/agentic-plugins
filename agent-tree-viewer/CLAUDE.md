@@ -18,8 +18,12 @@ that ships bumps it, in the same commit series as the change:
   made the tool call its `agent-<id>.meta.json` names (`toolUseId`), or for a Workflow agent the
   call whose result names its run folder.
 - `server/runs.ts` grafts agentics runs: a run's `run.json` names the session that started it
-  (`session`), and its `state.jsonl` names every dispatched session, whose transcript is a
-  top-level session file in the project directory of the dispatch's `cwd`. The picker reads the
+  (`session`), and its logs name every dispatched session, whose transcript is a top-level session
+  file in the project directory of the dispatch's `cwd`. A program run under `.state/runs/` logs
+  dispatches and returns in its `state.jsonl`; an execution logs only returns there, and its
+  dispatches go to the effort's `.state/events.jsonl`, tagged with the execution's stamp. The two
+  are matched by `seq`, never by read order. Runs and dispatched sessions are their own node kinds
+  (`kind: 'run' | 'dispatched'` in `shared/model.ts`), painted apart from subagents. The picker reads the
   same stores (`RunStores`) and folds each dispatched session into the row of the session that
   started its run (`foldRuns`); the stream of a folded session redirects to that session's.
 - `server/sessions.ts` names sessions: the desktop app's records under

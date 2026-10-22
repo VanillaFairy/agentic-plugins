@@ -11,7 +11,32 @@ export type ToolEvent = {
   isError?: boolean
 }
 
-export type AgentNode = {
+// A card of the tree: a subagent inside the session's process, an agentics run (a Node program,
+// not a model, so it makes no tool calls of its own), or a headless session that run dispatched.
+export type AgentNode = NodeBase & (SubagentNode | RunNode | DispatchedNode)
+
+export type SubagentNode = { kind: 'subagent' }
+
+export type RunNode = {
+  kind: 'run'
+  program: string
+  run: string
+  // The program's last sign of life; a live run beats every few seconds.
+  heartbeatAt: number
+  pid?: number
+}
+
+export type DispatchedNode = {
+  kind: 'dispatched'
+  role: string
+  thread: string
+  // The plan node the dispatch works on; empty for a dispatch outside any node.
+  node: string
+  model: string
+  effort: string
+}
+
+type NodeBase = {
   id: string
   // Absent for an agent the session's main loop spawned.
   parentId?: string

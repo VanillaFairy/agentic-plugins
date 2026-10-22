@@ -2,8 +2,8 @@ import { appendFileSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'n
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { RunStores, RunWatch, emptyRunLog, ingestRun, projectDirName, readRunMeta, runNodeId, runNodes } from '../server/runs.ts'
-import type { RunSource } from '../server/runs.ts'
+import { RunStore, RunStores, RunWatch, emptyRunLog, ingestRun, projectDirName, readRunMeta, returnOf, runNodeId, runNodes } from '../server/runs.ts'
+import type { RunLog, RunSource } from '../server/runs.ts'
 import { emptyFacts, ingest } from '../server/transcript.ts'
 
 const T0 = Date.parse('2026-10-20T17:43:25.000Z')
@@ -44,7 +44,7 @@ describe('a run started by a session', () => {
     expect(run?.description).toContain('survey')
     expect(nodes.s1).toMatchObject({ parentId: runNodeId('r1'), type: 'analyst', status: 'running' })
     expect(nodes.s1?.description).toContain('judge:1')
-    expect(nodes.s1?.description).toContain('haiku')
+    expect(nodes.s1).toMatchObject({ model: 'haiku', effort: 'low' })
     expect(nodes.s2?.type).toBe('planner')
   })
 
@@ -83,7 +83,12 @@ describe('a run started by a session', () => {
     expect(nodes.s1?.toolCount).toBe(2)
     expect(nodes.s1?.activity.map(c => c.id)).toEqual(['c1', 'c2'])
     expect(nodes.s1?.startedAt).toBe(T0 + 1000)
-    expect(nodes[runNodeId('r1')]?.toolCount).toBe(2)
+  })
+
+  it('shows the run as a process that makes no tool calls, and its sessions as dispatched ones', () => {
+    const nodes = byId(source(0, [{ kind: 'run' }, { ...dispatched('s1', 'producer:auth/login'), node: 'auth/login' }], { s1: [toolCall(1, 'c1')] }), 10)
+    expect(nodes[runNodeId('r1')]).toMatchObject({ kind: 'run', program: 'survey', heartbeatAt: T0, toolCount: 0 })
+    expect(nodes.s1).toMatchObject({ kind: 'dispatched', role: 'analyst', node: 'auth/login', model: 'haiku', description: 'auth/login' })
   })
 })
 
@@ -110,7 +115,8 @@ describe('the run store', () => {
     write(join(state, 'theirs', 'state.jsonl'), [{ kind: 'run' }, dispatched('s9', 'x')])
     const execution = join(repo, '.agentics', 'auth', '.state', 'executions', '20261020-180000')
     write(join(execution, 'run.json'), { ...runJson('parent', 0), run: 'auth.20261020-180000', program: 'execute' })
-    write(join(execution, 'state.jsonl'), [{ kind: 'run' }, dispatched('s2', 'leaf', 'implementer', worktree)])
+    write(join(execution, 'state.jsonl'), [{ kind: 'run' }])
+    write(join(repo, '.agentics', 'auth', '.state', 'events.jsonl'), [{ ...dispatched('s2', 'leaf', 'implementer', worktree), execution: '20261020-180000' }])
     write(join(projects, projectDirName(worktree), 's1.jsonl'), [toolCall(1, 'c1')])
 
     const runs = new RunWatch(worktree, projects, 'parent').read()
@@ -136,5 +142,54 @@ describe('the run store', () => {
     expect(first.map(r => [r.meta.run, r.meta.session, [...r.log.sessions.keys()]])).toEqual([['r1', 'parent', ['s1']]])
     appendFileSync(join(home, 'state.jsonl'), JSON.stringify(dispatched('s2', 'b')) + '\n')
     expect([...(stores.read([worktree])[0]?.log.sessions.keys() ?? [])]).toEqual(['s1', 's2'])
+  })
+
+  describe('an execution', () => {
+    const STAMP = '20261021-161920'
+    let state: string
+    let events: string
+    const setUp = () => {
+      dir = mkdtempSync(join(tmpdir(), 'atv-runs-'))
+      const effort = join(dir, 'repo', '.agentics', 'auth', '.state')
+      const home = join(effort, 'executions', STAMP)
+      state = join(home, 'state.jsonl')
+      events = join(effort, 'events.jsonl')
+      write(join(home, 'run.json'), { ...runJson('parent', 0), run: `auth.${STAMP}`, program: 'execute' })
+      return new RunStore(join(dir, 'repo', '.agentics'))
+    }
+    const at = (seq: number, e: object, execution = STAMP) => ({ ...e, seq, execution })
+    const log = (store: RunStore) => {
+      const [run] = store.read()
+      if (run === undefined) throw new Error('no run read')
+      return run.log
+    }
+    const statuses = (l: RunLog) => Object.fromEntries([...l.sessions.keys()].map(s => [s, returnOf(l, s) ?? 'open']))
+
+    it('takes its dispatches from the effort’s events and its returns from its own log', () => {
+      const store = setUp()
+      write(events, [at(2, dispatched('s1', 'a')), at(3, dispatched('other', 'x'), '20261020-000000'), at(5, dispatched('s2', 'b')), { kind: 'planned', seq: 6 }])
+      write(state, [{ kind: 'run', seq: 1 }, at(4, returned('s1')), at(7, returned('s2', 'failed'))])
+      expect(statuses(log(store))).toEqual({ s1: 'returned', s2: 'failed' })
+    })
+
+    it('reads on from where it stopped, whichever of its logs a return or its dispatch reaches first', () => {
+      const store = setUp()
+      write(events, [at(2, dispatched('s1', 'a'))])
+      write(state, [{ kind: 'run', seq: 1 }])
+      expect(statuses(log(store))).toEqual({ s1: 'open' })
+      appendFileSync(state, JSON.stringify(at(4, returned('s2'))) + '\n')
+      expect(statuses(log(store))).toEqual({ s1: 'open' })
+      appendFileSync(events, JSON.stringify(at(3, dispatched('s2', 'b'))) + '\n')
+      expect(statuses(log(store))).toEqual({ s1: 'open', s2: 'returned' })
+    })
+
+    it('starts the fold over when the effort’s events are rewritten', () => {
+      const store = setUp()
+      write(events, [at(2, dispatched('s1', 'a')), at(3, dispatched('s2', 'b'))])
+      write(state, [{ kind: 'run', seq: 1 }, at(4, returned('s2'))])
+      expect(statuses(log(store))).toEqual({ s1: 'open', s2: 'returned' })
+      write(events, [at(3, dispatched('s2', 'b'))])
+      expect(statuses(log(store))).toEqual({ s2: 'returned' })
+    })
   })
 })
