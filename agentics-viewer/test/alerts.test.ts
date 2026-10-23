@@ -13,7 +13,7 @@ function node(id: string, status: string, event: SnapshotEvent | null): Snapshot
     context: '',
     rigor: 'verify',
     role: 'implementer',
-    locus: [],
+    expects: [],
     deps: [],
     acceptance: [],
     status,

@@ -50,7 +50,8 @@ export interface SnapshotNode {
   context: string
   rigor: string
   role: string
-  locus: string[]
+  expects?: string[]              // the files a leaf expects to write; absent from agentics before 6.0.0
+  locus?: string[]                // what agentics before 6.0.0 sends in place of expects
   deps: string[]
   acceptance: Array<{ text: string; check: string }>
   status: string

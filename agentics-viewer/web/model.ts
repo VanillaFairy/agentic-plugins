@@ -417,6 +417,11 @@ export function liveLine(live: LiveActivity, now: number): string {
   return `Running ${tool}, ${turnWord(live.turns)}, last ${ago(live.at, now)}`
 }
 
+// The files a node expects to write, from agentics of either side of 6.0.0.
+export function writes(n: SnapshotNode): string[] {
+  return n.expects ?? n.locus ?? []
+}
+
 export function projectPath(s: Snapshot): string {
   return s.store.replace(/\/\.agentics\/?$/, '')
 }

@@ -17,7 +17,7 @@ export function node(id: string, partial: Partial<SnapshotNode> = {}): SnapshotN
     context: '',
     rigor: 'quick',
     role: 'implementer',
-    locus: [],
+    expects: [],
     deps: [],
     acceptance: [],
     status: 'planned',

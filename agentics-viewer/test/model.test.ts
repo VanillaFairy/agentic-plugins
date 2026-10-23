@@ -28,6 +28,7 @@ import {
   addAck,
   visibleRows,
   moveSelection,
+  writes,
   subtreeDone,
   nodeSpend,
   liveLine,
@@ -865,4 +866,10 @@ test('an effort still in design, with no nodes, builds an empty model instead of
   expect(m.order).toEqual([])
   expect(m.nodes.size).toBe(0)
   expect(m.tiles).toEqual([])
+})
+
+test('a node writes its expects, or its locus from agentics before 6.0.0', () => {
+  expect(writes(node('a', { expects: ['src/a.ts'] }))).toEqual(['src/a.ts'])
+  expect(writes(node('a', { expects: undefined, locus: ['src/b.ts'] }))).toEqual(['src/b.ts'])
+  expect(writes(node('a', { expects: undefined }))).toEqual([])
 })

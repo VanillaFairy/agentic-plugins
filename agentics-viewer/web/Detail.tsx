@@ -1,7 +1,7 @@
 import type { JSX } from 'preact'
 import { useEffect, useRef, useState } from 'preact/hooks'
 import type { BoardModel, NodeView } from './model.ts'
-import { kindWord, returnLabel, returnInWords, ago, vscodeLink, needsYou, claudePrompt, claudeCodeLink, projectPath, cardFacts, nodeSpend, liveLine } from './model.ts'
+import { kindWord, returnLabel, returnInWords, ago, vscodeLink, needsYou, claudePrompt, claudeCodeLink, projectPath, cardFacts, nodeSpend, liveLine, writes } from './model.ts'
 import { inlineMarkdown } from './markdown.ts'
 import { Spend } from './Spend.tsx'
 import type { Approval, Snapshot, SnapshotNode } from '../shared/snapshot.ts'
@@ -296,11 +296,11 @@ export function Detail(props: {
       </div>
       <input class="copy-fallback" readOnly ref={fallbackRef} aria-hidden="true" tabIndex={-1} />
 
-      {node.locus.length > 0 && (
+      {writes(node).length > 0 && (
         <>
           <div class="sec">Writes</div>
           <div class="meta">
-            {node.locus.map((path) => (
+            {writes(node).map((path) => (
               <>
                 <b key={path}>{path}</b>
                 <span></span>

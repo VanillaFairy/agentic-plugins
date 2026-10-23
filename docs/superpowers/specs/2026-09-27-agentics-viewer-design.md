@@ -131,7 +131,7 @@ a submodule). `snapshot` carries the same field.
     author: string,                     // you | planner: who writes the node's spec
     title: string, intent: string, context: string,
     rigor: string, role: string,
-    locus: string[], deps: string[],    // deps = the compiled "after" edges
+    expects: string[], deps: string[],  // expects: locus before agentics 6.0.0; deps = the compiled "after" edges
     acceptance: Array<{ text: string, check: string }>,
     status: string,                     // deriveStatus, passed through unchanged
     event: null | { kind: string, seq: number, reason?: string, detail?: string, return?: string, question?: string, said?: string },
@@ -617,7 +617,7 @@ dispatches, nothing measured" when nothing was), and the Open project button (th
   - "Worktree".
   - I'm not sure the desktop app's Browser pane hands `vscode://` links to VS Code. The copy
     button is the fallback.
-- **Writes**: the locus paths.
+- **Writes**: the expects paths (the locus, from agentics before 6.0.0).
 - **Spend**: a leaf's own figures from `cost.per_leaf`; for a node with children, its folder's from
   `cost.per_folder` (its own calls and every call below it), under "Spend, with everything below".
   Shown in the header's form, without the per-model table: agentics splits by model for the whole
