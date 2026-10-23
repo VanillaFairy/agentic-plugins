@@ -2,8 +2,8 @@
 // caller sets the transform and says where every card is this frame.
 
 import type { AgentNode, AgentStatus, DispatchedNode, RunNode, SessionSnapshot } from '../shared/model.ts'
-import { FOLD_R, NODE_H, NODE_W, ROOT, STATUS_WORD, current, elapsed, foldCentre } from './layout.ts'
-import type { Placed } from './layout.ts'
+import { DECK_STEP, FOLD_R, NODE_H, NODE_W, ROOT, STATUS_WORD, current, elapsed, foldCentre, slot } from './layout.ts'
+import type { Deck, Placed } from './layout.ts'
 
 export type Palette = {
   card: string
@@ -16,9 +16,10 @@ export type Palette = {
   // The family of an agentics run: the run's own plate, and the edge of every session it dispatched.
   headless: string
   headlessWash: string
+  lift: string
 }
 
-const TOKENS = ['card', 'card-edge', 'ink', 'muted', 'line', 'select', 'live', 'ok', 'bad', 'off', 'headless', 'headless-wash'] as const
+const TOKENS = ['card', 'card-edge', 'ink', 'muted', 'line', 'select', 'live', 'ok', 'bad', 'off', 'headless', 'headless-wash', 'lift'] as const
 
 export function readPalette(el: Element): Palette {
   const style = getComputedStyle(el)
@@ -33,6 +34,7 @@ export function readPalette(el: Element): Palette {
     status: { running: t.live, completed: t.ok, failed: t.bad, killed: t.off },
     headless: t.headless,
     headlessWash: t['headless-wash'],
+    lift: t.lift,
   }
 }
 
@@ -46,6 +48,7 @@ const FONT = {
   doing: `400 12px ${MONO}`,
   rootTitle: `700 18px ${SANS}`,
   fold: `600 12px ${SANS}`,
+  deck: `600 13px ${SANS}`,
 }
 const RADIUS = 9
 // A run is a program, not a model: its plate is squarer than any agent's card.
@@ -54,6 +57,9 @@ const RUN_RADIUS = 3
 const DISPATCHED_EDGE = [6, 4]
 const RUN_WIRE = [2, 4]
 const INSET = 16
+// The status tick a deck card keeps in its strip.
+const DECK_TICK = 4
+const DECK_TICK_W = 22
 // How long the beat on a run's heartbeat trace takes to cross it.
 const BEAT_MS = 1600
 // The dash a running agent's wire carries: a short bright stroke, then a long gap.
@@ -131,6 +137,9 @@ export type Frame = {
   palette: Palette
   snap: SessionSnapshot
   placed: Placed[]
+  decks: Deck[]
+  // The part of the graph on screen, in graph units; nothing outside it is drawn.
+  view: { x0: number; y0: number; x1: number; y1: number }
   // Where each card is drawn this frame, and how opaque, while it eases to its place.
   at: Map<string, { x: number; y: number; alpha: number }>
   // The page's clock, already corrected to the server's.
@@ -358,16 +367,76 @@ function foldMark(f: Frame, p: Placed, x: number, y: number): void {
   }
 }
 
-export function paint(f: Frame): void {
+// A deck card under the one above it: its plate, edge and status stripe, the strip of it that shows.
+function deckStrip(f: Frame, n: AgentNode, x: number, y: number): void {
   const { ctx, palette } = f
-  const pos = (p: Placed) => f.at.get(p.id) ?? { x: p.x, y: p.y, alpha: 1 }
+  roundRect(ctx, x, y, NODE_W, NODE_H, RADIUS)
+  ctx.fillStyle = palette.card
+  ctx.fill()
+  ctx.lineWidth = 1
+  ctx.strokeStyle = palette.cardEdge
+  ctx.stroke()
+  ctx.fillStyle = palette.status[n.status]
+  roundRect(ctx, x + INSET, y + (DECK_STEP - DECK_TICK) / 2, DECK_TICK_W, DECK_TICK, DECK_TICK / 2)
+  ctx.fill()
+}
 
+// What a deck holds, beside its top card: how many finished, then any failed or stopped in their
+// own colours.
+function deckTally(f: Frame, deck: Deck, x: number, y: number): void {
+  const { ctx, palette, snap } = f
+  const count = { completed: 0, failed: 0, killed: 0, running: 0 }
+  for (const id of deck.ids) {
+    const n = snap.agents[id]
+    if (n !== undefined) count[n.status]++
+  }
+  const parts: [string, string][] = [[`${count.completed} done`, palette.muted]]
+  if (count.failed > 0) parts.push([`${count.failed} failed`, palette.status.failed])
+  if (count.killed > 0) parts.push([`${count.killed} stopped`, palette.status.killed])
+  ctx.font = FONT.deck
+  ctx.textAlign = 'left'
+  let at = x
+  parts.forEach(([text, colour], i) => {
+    const shown = i < parts.length - 1 ? `${text},` : text
+    ctx.fillStyle = colour
+    ctx.fillText(shown, at, y)
+    at += ctx.measureText(`${shown} `).width
+  })
+}
+
+export function paint(f: Frame): void {
+  const { ctx, palette, view } = f
+  const pos = (p: Placed) => f.at.get(p.id) ?? { x: p.x, y: p.y, alpha: 1 }
+  const byId = new Map(f.placed.map(p => [p.id, p]))
+  const seen = (x0: number, y0: number, x1: number, y1: number) => x1 >= view.x0 && x0 <= view.x1 && y1 >= view.y0 && y0 <= view.y1
+  const wireSeen = (from: { x: number; y: number }, to: { x: number; y: number }) =>
+    seen(Math.min(from.x, to.x), Math.min(from.y, to.y), Math.max(from.x, to.x) + NODE_W + FOLD_R, Math.max(from.y, to.y) + NODE_H)
+
+  // One wire to each deck, into its middle.
+  for (const deck of f.decks) {
+    const parent = byId.get(deck.parent)
+    const first = byId.get(deck.ids[0] ?? '')
+    if (parent === undefined || first === undefined) continue
+    const top = pos(first)
+    const to = { x: top.x, y: top.y + (deck.height - NODE_H) / 2 }
+    const from = pos(parent)
+    if (!wireSeen(from, to)) continue
+    const outOfProcess = first.node?.kind === 'dispatched'
+    ctx.globalAlpha = top.alpha
+    ctx.setLineDash(outOfProcess ? RUN_WIRE : [])
+    ctx.lineWidth = 1.4
+    ctx.strokeStyle = outOfProcess ? palette.headless : palette.line
+    ctx.stroke(wirePath(from, to))
+    ctx.setLineDash([])
+  }
   for (const p of f.placed) {
-    if (p.parent === undefined) continue
-    const parent = f.placed.find(q => q.id === p.parent)
+    if (p.parent === undefined || p.deck !== undefined) continue
+    const parent = byId.get(p.parent)
     if (parent === undefined) continue
     const to = pos(p)
-    const path = wirePath(pos(parent), to)
+    const from = pos(parent)
+    if (!wireSeen(from, to)) continue
+    const path = wirePath(from, to)
     // A run's wires leave its process for the sessions it started.
     const outOfProcess = p.node?.kind === 'dispatched'
     ctx.globalAlpha = to.alpha
@@ -392,17 +461,45 @@ export function paint(f: Frame): void {
       ctx.lineDashOffset = 0
     }
   }
+  let lifted: Placed | undefined
   for (const p of f.placed) {
     const { x, y, alpha } = pos(p)
+    if (!seen(x, y, x + NODE_W, y + NODE_H)) continue
     ctx.globalAlpha = alpha
-    if (p.node?.kind === 'run') runCard(f, p, p.node, x, y)
+    if (p.deck !== undefined && f.hovered === p.id) lifted = p
+    if (p.node !== undefined && slot(p) < NODE_H) deckStrip(f, p.node, x, y)
+    else if (p.node?.kind === 'run') runCard(f, p, p.node, x, y)
     else if (p.node) agentCard(f, p, p.node, x, y)
     else rootCard(f, p, x, y)
   }
+  for (const deck of f.decks) {
+    const first = byId.get(deck.ids[0] ?? '')
+    if (first === undefined) continue
+    const { x, y, alpha } = pos(first)
+    if (!seen(x, y, x + NODE_W * 2, y + 20)) continue
+    ctx.globalAlpha = alpha
+    deckTally(f, deck, x + NODE_W + 14, y + 14)
+  }
   for (const p of f.placed) {
+    if (p.fold === undefined) continue
     const { x, y, alpha } = pos(p)
+    if (!seen(x, y, x + NODE_W + FOLD_R * 6, y + NODE_H)) continue
     ctx.globalAlpha = alpha
     foldMark(f, p, x, y)
+  }
+  // The deck card under the pointer, whole, raised over the ones below it.
+  if (lifted?.node !== undefined) {
+    const { x, y } = pos(lifted)
+    ctx.globalAlpha = 1
+    ctx.save()
+    ctx.shadowColor = palette.lift
+    ctx.shadowBlur = 18
+    ctx.shadowOffsetY = 4
+    roundRect(ctx, x, y, NODE_W, NODE_H, RADIUS)
+    ctx.fillStyle = palette.card
+    ctx.fill()
+    ctx.restore()
+    agentCard(f, lifted, lifted.node, x, y)
   }
   ctx.globalAlpha = 1
 }

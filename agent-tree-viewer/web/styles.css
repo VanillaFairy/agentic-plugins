@@ -16,6 +16,8 @@
   /* An agentics run and the sessions it dispatched, each in a process of its own. */
   --headless: #4c56c4;
   --headless-wash: #eef0fb;
+  /* The shadow under a card lifted off its deck. */
+  --lift: rgba(24, 35, 46, 0.28);
   --sans: 'Sofia Sans Semi Condensed', 'Segoe UI', system-ui, sans-serif;
   --display: 'Sofia Sans', 'Segoe UI', system-ui, sans-serif;
   --mono: 'JetBrains Mono', 'Cascadia Mono', Consolas, monospace;
@@ -40,6 +42,7 @@
     --focus: #f0a63c;
     --headless: #a0a8f8;
     --headless-wash: #222b46;
+    --lift: rgba(0, 0, 0, 0.6);
     color-scheme: dark;
   }
 }

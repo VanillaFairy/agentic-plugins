@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { AgentNode, AgentStatus } from '../shared/model.ts'
-import { NODE_H, NODE_W, ROOT, allDoneUnder, foldCentre, hitAt, layout, withoutDone } from '../web/layout.ts'
+import { DECK_STEP, MIN_DECK, NODE_H, NODE_W, ROOT, allDoneUnder, foldCentre, hitAt, layout, withoutDone } from '../web/layout.ts'
 
 const node = (id: string, startedAt: number, status: AgentStatus = 'running', parentId?: string): AgentNode => ({
   kind: 'subagent',
@@ -54,6 +54,36 @@ describe('layout', () => {
     expect(lay.placed.map(p => p.id)).toEqual([ROOT, 'a'])
     expect(lay.placed[1]?.fold).toEqual({ hidden: 2, running: true })
     expect(lay.placed[0]?.fold).toBe('open')
+  })
+})
+
+describe('decks', () => {
+  const done = (count: number, from: number, parentId?: string) =>
+    Array.from({ length: count }, (_, i) => node(`d${from + i}`, from + i, i % 2 === 0 ? 'completed' : 'failed', parentId))
+
+  it('piles finished leaves in a row into one deck, one strip apart, broken by a running agent', () => {
+    const lay = layout(tree(...done(MIN_DECK, 0), node('live', 10), ...done(MIN_DECK - 1, 20)))
+    expect(lay.decks.map(d => d.ids)).toEqual([done(MIN_DECK, 0).map(n => n.id)])
+    const at = (id: string) => lay.placed.find(p => p.id === id)!
+    expect(at('d1').y - at('d0').y).toBe(DECK_STEP)
+    expect(at('d20').deck).toBeUndefined()
+    expect(at('live').deck).toBeUndefined()
+  })
+
+  it('leaves a card asked for whole, and one with agents under it, out of any deck', () => {
+    const nodes = tree(...done(MIN_DECK * 2 + 1, 0), node('kid', 50, 'completed', `d${MIN_DECK}`))
+    const lay = layout(nodes, new Set(), new Set(['d1']))
+    const decked = lay.decks.flatMap(d => d.ids)
+    expect(decked).not.toContain('d1')
+    expect(decked).not.toContain(`d${MIN_DECK}`)
+  })
+
+  it('finds the card whose strip is under the point, and the last card by its whole body', () => {
+    const lay = layout(tree(...done(MIN_DECK, 0)))
+    const [first, second, last] = lay.decks[0]!.ids.map(id => lay.placed.find(p => p.id === id)!)
+    expect(hitAt(lay, first!.x + 30, first!.y + DECK_STEP / 2)).toEqual({ kind: 'card', id: first!.id })
+    expect(hitAt(lay, second!.x + 30, second!.y + DECK_STEP / 2)).toEqual({ kind: 'card', id: second!.id })
+    expect(hitAt(lay, last!.x + 30, last!.y + NODE_H - 2)).toEqual({ kind: 'card', id: last!.id })
   })
 })
 

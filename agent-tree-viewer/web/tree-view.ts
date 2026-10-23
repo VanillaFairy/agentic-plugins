@@ -54,7 +54,7 @@ export class TreeView {
   private readonly reduced = matchMedia('(prefers-reduced-motion: reduce)')
 
   private input: ViewInput | undefined
-  private lay: Layout = { placed: [], width: 0, height: 0 }
+  private lay: Layout = { placed: [], decks: [], width: 0, height: 0 }
   private collapsed = new Set<string>()
   private compacted = new Set<string>()
   // Compacted nodes opened by hand; they stay open for as long as the session stays on screen.
@@ -160,7 +160,8 @@ export class TreeView {
     this.compacted = this.input.autocompact && !this.input.hideDone ? allDoneUnder(shown) : new Set()
     const folds = new Set(this.collapsed)
     for (const id of this.compacted) if (!this.opened.has(id)) folds.add(id)
-    this.lay = layout(shown, folds)
+    // The selected card leaves its deck, so the card the details describe is in sight whole.
+    this.lay = layout(shown, folds, new Set(this.input.selected === undefined ? [] : [this.input.selected]))
 
     const animate = !this.reduced.matches && this.at.size > 0
     const ids = new Set(this.lay.placed.map(p => p.id))
@@ -318,6 +319,8 @@ export class TreeView {
         palette: this.palette,
         snap: this.input.snap,
         placed: this.lay.placed,
+        decks: this.lay.decks,
+        view: { x0: -t.x / t.k, y0: -t.y / t.k, x1: (this.width - t.x) / t.k, y1: (this.height - t.y) / t.k },
         at: this.at,
         now: Date.now() + this.input.skew,
         t: time,

@@ -11,9 +11,17 @@ export const GAP_Y = 14
 export const PAD = 40
 // The fold mark sits centred on a card's right edge, where its wires leave.
 export const FOLD_R = 8
+// How much of each card a deck shows above the next one.
+export const DECK_STEP = 10
+// Fewer finished siblings in a row than this stay as cards.
+export const MIN_DECK = 3
 
 // What a folded node keeps out of sight: how many agents, and whether any of them still runs.
 export type Folded = { hidden: number; running: boolean }
+
+// Finished siblings in a row with nothing under them, piled so each shows only its top strip and
+// the last shows whole. `ids` in start order.
+export type Deck = { parent: string; ids: string[]; height: number }
 
 // `x`, `y` are the card's top-left corner. `fold` is set on a node with agents under it:
 // 'open' while they show.
@@ -25,17 +33,25 @@ export type Placed = {
   y: number
   depth: number
   fold?: 'open' | Folded
+  deck?: Deck
 }
 
-export type Layout = { placed: Placed[]; width: number; height: number }
+export type Layout = { placed: Placed[]; decks: Deck[]; width: number; height: number }
 
 function childrenOf(nodes: Record<string, AgentNode>): Map<string, AgentNode[]> {
   const kids = new Map<string, AgentNode[]>()
   for (const node of Object.values(nodes).sort((a, b) => a.startedAt - b.startedAt)) {
     const parent = node.parentId !== undefined && nodes[node.parentId] ? node.parentId : ROOT
-    kids.set(parent, [...(kids.get(parent) ?? []), node])
+    const list = kids.get(parent)
+    if (list === undefined) kids.set(parent, [node])
+    else list.push(node)
   }
   return kids
+}
+
+// The height a card takes in the column: a deck card's strip, or the whole card.
+export function slot(p: Placed): number {
+  return p.deck !== undefined && p.deck.ids[p.deck.ids.length - 1] !== p.id ? DECK_STEP : NODE_H
 }
 
 // The tree with every done agent left out, unless something under it is not done.
@@ -72,14 +88,41 @@ function folded(kids: Map<string, AgentNode[]>, id: string): Folded {
   return { hidden: all.length, running: all.some(n => n.status === 'running') }
 }
 
+// A node's children as the column shows them: single cards, and decks where enough finished
+// leaves sit in a row. A card in `whole` never joins a deck.
+function rows(id: string, list: AgentNode[], kids: Map<string, AgentNode[]>, whole: ReadonlySet<string>): (AgentNode | Deck)[] {
+  const out: (AgentNode | Deck)[] = []
+  let run: AgentNode[] = []
+  const flush = () => {
+    if (run.length >= MIN_DECK) out.push({ parent: id, ids: run.map(n => n.id), height: (run.length - 1) * DECK_STEP + NODE_H })
+    else out.push(...run)
+    run = []
+  }
+  for (const child of list) {
+    if (child.status !== 'running' && !kids.has(child.id) && !whole.has(child.id)) run.push(child)
+    else {
+      flush()
+      out.push(child)
+    }
+  }
+  flush()
+  return out
+}
+
 // A sideways tree: one column per depth, siblings stacked in start order, and a parent level
-// with the middle of its children. Nothing under a node in `collapsed` is placed.
-export function layout(nodes: Record<string, AgentNode>, collapsed: ReadonlySet<string> = new Set()): Layout {
+// with the middle of its children. Nothing under a node in `collapsed` is placed. Finished
+// leaves in a row pile into decks; running agents and those in `whole` always show whole.
+export function layout(nodes: Record<string, AgentNode>, collapsed: ReadonlySet<string> = new Set(), whole: ReadonlySet<string> = new Set()): Layout {
   const kids = childrenOf(nodes)
-  const shown = (id: string) => (collapsed.has(id) ? [] : (kids.get(id) ?? []))
+  const shown = new Map<string, (AgentNode | Deck)[]>()
+  const rowsOf = (id: string) => {
+    let got = shown.get(id)
+    if (got === undefined) shown.set(id, (got = collapsed.has(id) ? [] : rows(id, kids.get(id) ?? [], kids, whole)))
+    return got
+  }
   const span = new Map<string, number>()
   const measure = (id: string): number => {
-    const parts = shown(id).map(c => measure(c.id))
+    const parts = rowsOf(id).map(r => ('ids' in r ? r.height : measure(r.id)))
     const height = Math.max(NODE_H, parts.reduce((a, b) => a + b, 0) + GAP_Y * Math.max(0, parts.length - 1))
     span.set(id, height)
     return height
@@ -87,6 +130,7 @@ export function layout(nodes: Record<string, AgentNode>, collapsed: ReadonlySet<
   const total = measure(ROOT)
 
   const placed: Placed[] = []
+  const decks: Deck[] = []
   let deepest = 0
   const place = (id: string, node: AgentNode | undefined, parent: string | undefined, top: number, depth: number): number => {
     deepest = Math.max(deepest, depth)
@@ -95,16 +139,28 @@ export function layout(nodes: Record<string, AgentNode>, collapsed: ReadonlySet<
     placed.push(here)
     const ys: number[] = []
     let at = top
-    for (const child of shown(id)) {
-      ys.push(place(child.id, child, id, at, depth + 1))
-      at += (span.get(child.id) ?? NODE_H) + GAP_Y
+    for (const row of rowsOf(id)) {
+      if ('ids' in row) {
+        decks.push(row)
+        row.ids.forEach((kid, i) => {
+          const n = nodes[kid]
+          placed.push({ id: kid, ...(n ? { node: n } : {}), parent: id, x: PAD + (depth + 1) * (NODE_W + GAP_X), y: at + i * DECK_STEP, depth: depth + 1, deck: row })
+        })
+        deepest = Math.max(deepest, depth + 1)
+        // A deck lines up with its parent by its middle, as a card does.
+        ys.push(at + (row.height - NODE_H) / 2)
+        at += row.height + GAP_Y
+      } else {
+        ys.push(place(row.id, row, id, at, depth + 1))
+        at += (span.get(row.id) ?? NODE_H) + GAP_Y
+      }
     }
     if (ys.length > 0) here.y = ((ys[0] ?? top) + (ys[ys.length - 1] ?? top)) / 2
     return here.y
   }
   place(ROOT, undefined, undefined, PAD, 0)
 
-  return { placed, width: PAD * 2 + (deepest + 1) * NODE_W + deepest * GAP_X, height: total + PAD * 2 }
+  return { placed, decks, width: PAD * 2 + (deepest + 1) * NODE_W + deepest * GAP_X, height: total + PAD * 2 }
 }
 
 export function foldCentre(p: Placed): { x: number; y: number } {
@@ -121,7 +177,7 @@ export function hitAt(lay: Layout, gx: number, gy: number, slack = 0): Hit | und
     const c = foldCentre(p)
     if (Math.hypot(gx - c.x, gy - c.y) <= FOLD_R + 3 + slack) return { kind: 'fold', id: p.id }
   }
-  const card = lay.placed.find(p => gx >= p.x && gx <= p.x + NODE_W && gy >= p.y && gy <= p.y + NODE_H)
+  const card = lay.placed.find(p => gx >= p.x && gx <= p.x + NODE_W && gy >= p.y && gy < p.y + slot(p))
   return card === undefined ? undefined : { kind: 'card', id: card.id }
 }
 
