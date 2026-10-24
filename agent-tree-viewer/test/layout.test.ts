@@ -78,6 +78,12 @@ describe('decks', () => {
     expect(decked).not.toContain(`d${MIN_DECK}`)
   })
 
+  it('shows every finished leaf whole when stacking is off', () => {
+    const lay = layout(tree(...done(MIN_DECK, 0)), new Set(), new Set(), false)
+    expect(lay.decks).toEqual([])
+    expect(lay.placed.every(p => p.deck === undefined)).toBe(true)
+  })
+
   it('finds the card whose strip is under the point, and the last card by its whole body', () => {
     const lay = layout(tree(...done(MIN_DECK, 0)))
     const [first, second, last] = lay.decks[0]!.ids.map(id => lay.placed.find(p => p.id === id)!)

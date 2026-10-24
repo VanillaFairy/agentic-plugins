@@ -7,6 +7,7 @@ import { TreeView } from './tree-view.ts'
 const LIST_EVERY_MS = 4000
 const HIDE_DONE_KEY = 'agent-tree-viewer:hide-done'
 const AUTOCOMPACT_KEY = 'agent-tree-viewer:autocompact-done'
+const STACK_KEY = 'agent-tree-viewer:stack-done'
 const DETAIL_WIDTH_KEY = 'agent-tree-viewer:detail-width'
 const DETAIL_MIN_PX = 300
 const BOARD_MIN_PX = 240
@@ -85,6 +86,90 @@ function Splitter({ width, onWidth }: { width: number | undefined; onWidth: (w: 
   )
 }
 
+type DoneOption = { label: string; hint: string; key: string; on: boolean; disabled?: boolean; toggle: () => void }
+
+// What the tree does with finished agents, behind one toolbar button. The menu stays open while
+// options change, and closes on Escape or a click outside it.
+// `hidden` counts the agents Hide leaves out.
+function DoneMenu({ options, hidden }: { options: DoneOption[]; hidden: number }) {
+  const [open, setOpen] = useState(false)
+  const wrapRef = useRef<HTMLDivElement>(null)
+  const buttonRef = useRef<HTMLButtonElement>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    menuRef.current?.querySelector<HTMLElement>('[role="menuitemcheckbox"]:not([aria-disabled="true"])')?.focus()
+    const onDown = (e: PointerEvent) => {
+      if (!wrapRef.current?.contains(e.target as Node)) setOpen(false)
+    }
+    addEventListener('pointerdown', onDown)
+    return () => removeEventListener('pointerdown', onDown)
+  }, [open])
+
+  const onKeyDown = (e: KeyboardEvent) => {
+    const items = [...(menuRef.current?.querySelectorAll<HTMLElement>('[role="menuitemcheckbox"]') ?? [])]
+    const at = items.indexOf(document.activeElement as HTMLElement)
+    if (e.key === 'Escape') {
+      setOpen(false)
+      buttonRef.current?.focus()
+    } else if (e.key === 'ArrowDown') items[(at + 1) % items.length]?.focus()
+    else if (e.key === 'ArrowUp') items[(at - 1 + items.length) % items.length]?.focus()
+    else return
+    e.preventDefault()
+    e.stopPropagation()
+  }
+
+  return (
+    <div class="menu-wrap" ref={wrapRef} onKeyDown={onKeyDown}>
+      <button
+        ref={buttonRef}
+        class="text menu-button"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={() => setOpen(!open)}
+        title="What the tree does with finished agents"
+      >
+        Done
+        {hidden > 0 && <span class="menu-count" aria-label={`${hidden} hidden`} title={`${hidden} finished agents left out`}>{hidden}</span>}
+        <svg class="chevron" viewBox="0 0 16 16" aria-hidden="true">
+          <path d="M4 6l4 4 4-4" />
+        </svg>
+      </button>
+      {open && (
+        <div class="menu" role="menu" aria-label="Finished agents" ref={menuRef}>
+          {options.map(o => (
+            <div
+              key={o.key}
+              class="menu-item"
+              role="menuitemcheckbox"
+              tabIndex={-1}
+              aria-checked={o.on}
+              aria-disabled={o.disabled}
+              onClick={() => !o.disabled && o.toggle()}
+              onKeyDown={e => {
+                if ((e.key === 'Enter' || e.key === ' ') && !o.disabled) {
+                  o.toggle()
+                  e.preventDefault()
+                }
+              }}
+            >
+              <span class="switch" aria-hidden="true" />
+              <span class="menu-text">
+                <span class="menu-label">
+                  {o.label}
+                </span>
+                <span class="menu-hint">{o.hint}</span>
+              </span>
+              <kbd>{o.key}</kbd>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // The session to open when none is named: the newest live one, else the newest.
 function defaultSession(groups: ProjectGroup[]): string | undefined {
   const all = groups.flatMap(g => g.sessions).sort((a, b) => b.lastAt - a.lastAt)
@@ -99,6 +184,7 @@ export function App() {
   const [hideDone, setHideDone] = useState(() => recall(HIDE_DONE_KEY) === 'true')
   const [hiddenDone, setHiddenDone] = useState(0)
   const [autocompact, setAutocompact] = useState(() => recall(AUTOCOMPACT_KEY) === 'true')
+  const [stack, setStack] = useState(() => recall(STACK_KEY) !== 'false')
   const [selected, setSelected] = useState<string>()
   const [pickerOpen, setPickerOpen] = useState(false)
   const [following, setFollowing] = useState(true)
@@ -190,8 +276,8 @@ export function App() {
   }, [detailOpen])
 
   useEffect(() => {
-    if (snap !== undefined) viewRef.current?.update({ snap: snap.data, skew: snap.skew, hideDone, autocompact, selected })
-  }, [snap, hideDone, autocompact, selected])
+    if (snap !== undefined) viewRef.current?.update({ snap: snap.data, skew: snap.skew, hideDone, stack, autocompact, selected })
+  }, [snap, hideDone, stack, autocompact, selected])
 
   const resizeDetail = (width: number | undefined) => {
     remember(DETAIL_WIDTH_KEY, width === undefined ? '' : String(width))
@@ -208,6 +294,11 @@ export function App() {
     setAutocompact(!autocompact)
   }
 
+  const toggleStack = () => {
+    remember(STACK_KEY, String(!stack))
+    setStack(!stack)
+  }
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.ctrlKey || e.metaKey || e.altKey) return
@@ -216,6 +307,7 @@ export function App() {
       else if (e.key === '0' || e.key === 'f') viewRef.current?.fit()
       else if (e.key === 'l') viewRef.current?.followSession()
       else if (e.key === 'h') toggleDone()
+      else if (e.key === 's' && !hideDone) toggleStack()
       else if (e.key === 'c' && !hideDone) toggleCompact()
       else if (e.key === 'Escape') setSelected(undefined)
     }
@@ -283,14 +375,14 @@ export function App() {
             <button class="text" aria-pressed={following} onClick={() => viewRef.current?.followSession()} title="Keep the newest running agent in sight (L)">
               Follow
             </button>
-            <button class="text" aria-pressed={hideDone} onClick={toggleDone} title="Leave out finished agents (H)">
-              {hideDone ? `Show done${hiddenDone > 0 ? ` (${hiddenDone})` : ''}` : 'Hide done'}
-            </button>
-            {!hideDone && (
-              <button class="text" aria-pressed={autocompact} onClick={toggleCompact} title="Fold every agent whose agents are all done (C)">
-                Autocompact done
-              </button>
-            )}
+            <DoneMenu
+              hidden={hiddenDone}
+              options={[
+                { label: 'Hide them', hint: 'Leave finished agents out of the tree', key: 'H', on: hideDone, toggle: toggleDone },
+                { label: 'Stack them', hint: 'Pile finished agents in a row into decks', key: 'S', on: stack, disabled: hideDone, toggle: toggleStack },
+                { label: 'Fold done branches', hint: 'Fold every agent whose agents are all done', key: 'C', on: autocompact, disabled: hideDone, toggle: toggleCompact },
+              ]}
+            />
           </div>
         </header>
         <div class="work">

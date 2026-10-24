@@ -32,6 +32,8 @@ export type ViewInput = {
   // Server clock minus page clock.
   skew: number
   hideDone: boolean
+  // Pile finished leaves in a row into decks.
+  stack: boolean
   // Fold every node whose agents are all done, unless someone opened it.
   autocompact: boolean
   selected: string | undefined
@@ -161,7 +163,7 @@ export class TreeView {
     const folds = new Set(this.collapsed)
     for (const id of this.compacted) if (!this.opened.has(id)) folds.add(id)
     // The selected card leaves its deck, so the card the details describe is in sight whole.
-    this.lay = layout(shown, folds, new Set(this.input.selected === undefined ? [] : [this.input.selected]))
+    this.lay = layout(shown, folds, new Set(this.input.selected === undefined ? [] : [this.input.selected]), this.input.stack)
 
     const animate = !this.reduced.matches && this.at.size > 0
     const ids = new Set(this.lay.placed.map(p => p.id))

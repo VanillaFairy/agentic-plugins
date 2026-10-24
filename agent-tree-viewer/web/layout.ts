@@ -89,12 +89,12 @@ function folded(kids: Map<string, AgentNode[]>, id: string): Folded {
 }
 
 // A node's children as the column shows them: single cards, and decks where enough finished
-// leaves sit in a row. A card in `whole` never joins a deck.
-function rows(id: string, list: AgentNode[], kids: Map<string, AgentNode[]>, whole: ReadonlySet<string>): (AgentNode | Deck)[] {
+// leaves sit in a row, if `stack` is on. A card in `whole` never joins a deck.
+function rows(id: string, list: AgentNode[], kids: Map<string, AgentNode[]>, whole: ReadonlySet<string>, stack: boolean): (AgentNode | Deck)[] {
   const out: (AgentNode | Deck)[] = []
   let run: AgentNode[] = []
   const flush = () => {
-    if (run.length >= MIN_DECK) out.push({ parent: id, ids: run.map(n => n.id), height: (run.length - 1) * DECK_STEP + NODE_H })
+    if (stack && run.length >= MIN_DECK) out.push({ parent: id, ids: run.map(n => n.id), height: (run.length - 1) * DECK_STEP + NODE_H })
     else out.push(...run)
     run = []
   }
@@ -111,13 +111,19 @@ function rows(id: string, list: AgentNode[], kids: Map<string, AgentNode[]>, who
 
 // A sideways tree: one column per depth, siblings stacked in start order, and a parent level
 // with the middle of its children. Nothing under a node in `collapsed` is placed. Finished
-// leaves in a row pile into decks; running agents and those in `whole` always show whole.
-export function layout(nodes: Record<string, AgentNode>, collapsed: ReadonlySet<string> = new Set(), whole: ReadonlySet<string> = new Set()): Layout {
+// leaves in a row pile into decks unless `stack` is off; running agents and those in `whole`
+// always show whole.
+export function layout(
+  nodes: Record<string, AgentNode>,
+  collapsed: ReadonlySet<string> = new Set(),
+  whole: ReadonlySet<string> = new Set(),
+  stack = true,
+): Layout {
   const kids = childrenOf(nodes)
   const shown = new Map<string, (AgentNode | Deck)[]>()
   const rowsOf = (id: string) => {
     let got = shown.get(id)
-    if (got === undefined) shown.set(id, (got = collapsed.has(id) ? [] : rows(id, kids.get(id) ?? [], kids, whole)))
+    if (got === undefined) shown.set(id, (got = collapsed.has(id) ? [] : rows(id, kids.get(id) ?? [], kids, whole, stack)))
     return got
   }
   const span = new Map<string, number>()
