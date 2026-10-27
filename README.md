@@ -8,6 +8,7 @@ VanillaFairy's Claude Code plugins, in one marketplace.
 | [improve-clauding](https://github.com/VanillaFairy/improve-clauding) | Retrospective over your recent Claude Code and Cursor sessions |
 | [socratic](https://github.com/VanillaFairy/socratic) | Adversarial multi-agent debate as a decision aid |
 | [agent-tree](https://github.com/VanillaFairy/agent-tree) | Live, zoomable graph of your session's subagents in a side pane |
+| [cache-pill](https://github.com/VanillaFairy/cache-pill) | Prompt-cache countdown pill in the prompt footer |
 
 ## Plugin repositories
 
