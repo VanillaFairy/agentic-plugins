@@ -2,7 +2,7 @@ import { appendFileSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'n
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { RunStore, RunStores, RunWatch, emptyRunLog, ingestRun, projectDirName, readRunMeta, returnOf, runNodeId, runNodes } from '../server/runs.ts'
+import { RunStore, RunStores, RunWatch, emptyRunLog, ingestRun, lastBeat, projectDirName, readRunMeta, returnOf, runNodeId, runNodes, withBeat } from '../server/runs.ts'
 import type { RunLog, RunSource } from '../server/runs.ts'
 import { emptyFacts, ingest } from '../server/transcript.ts'
 
@@ -191,5 +191,30 @@ describe('the run store', () => {
       write(events, [at(3, dispatched('s2', 'b'))])
       expect(statuses(log(store))).toEqual({ s2: 'returned' })
     })
+  })
+})
+
+describe('a run\'s heart file', () => {
+  let dir = ''
+  afterEach(() => rmSync(dir, { recursive: true, force: true }))
+  const meta = { ...readRunMeta({ ...runJson('parent', 0), pid: 7 })! }
+  it('moves the heartbeat only on a beat of the process run.json names', () => {
+    expect(withBeat(meta, { pid: 7, heartbeat_at: iso(30) }).heartbeatAt).toBe(T0 + 30_000)
+    expect(withBeat(meta, { pid: 8, heartbeat_at: iso(30) }).heartbeatAt).toBe(T0)
+    expect(withBeat(meta, undefined).heartbeatAt).toBe(T0)
+    expect(withBeat({ ...meta, heartbeatAt: T0 + 60_000 }, { pid: 7, heartbeat_at: iso(30) }).heartbeatAt).toBe(T0 + 60_000)
+  })
+  it('reads the last whole line, past a torn one, and a run store sees each new beat', () => {
+    dir = mkdtempSync(join(tmpdir(), 'atv-heart-'))
+    const home = join(dir, '.agentics', '.state', 'runs', 'r1')
+    mkdirSync(home, { recursive: true })
+    writeFileSync(join(home, 'run.json'), JSON.stringify({ ...runJson('parent', 0), pid: 7 }))
+    const heart = join(home, 'heart.jsonl')
+    writeFileSync(heart, JSON.stringify({ pid: 7, heartbeat_at: iso(10) }) + '\n{"pid":7,"heart')
+    expect(lastBeat(heart)?.heartbeat_at).toBe(iso(10))
+    const store = new RunStore(join(dir, '.agentics'))
+    expect(store.read()[0]?.meta.heartbeatAt).toBe(T0 + 10_000)
+    appendFileSync(heart, '\n' + JSON.stringify({ pid: 7, heartbeat_at: iso(20) }) + '\n')
+    expect(store.read()[0]?.meta.heartbeatAt).toBe(T0 + 20_000)
   })
 })

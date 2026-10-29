@@ -12,7 +12,7 @@
 // returns there; an execution logs only the returns, and its dispatches go to the effort's
 // `<repo>/.agentics/<effort>/.state/events.jsonl`, each naming its execution's stamp.
 
-import { readFileSync, readdirSync, statSync } from 'node:fs'
+import { closeSync, fstatSync, openSync, readFileSync, readSync, readdirSync, statSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import type { AgentNode, AgentStatus } from '../shared/model.ts'
 import { JsonlTail } from './tail.ts'
@@ -231,8 +231,46 @@ class RunLogTail {
   }
 }
 
-// A run.json is read again only when it changed: its heartbeat rewrites it every 10 seconds.
-type Home = { stamp: number; meta?: RunMeta; log?: RunLogTail }
+// A run.json is read again only when it changed. A run beats into its home's append-only
+// `heart.jsonl`, one `{pid, heartbeat_at}` line every 10 seconds; a beat counts only when its pid is
+// the one run.json names, so a file an earlier start left is no beat. A run.json written before the
+// heart file existed carries its own heartbeat_at.
+type Home = { stamp: number; base?: RunMeta; meta?: RunMeta; log?: RunLogTail }
+
+const BEAT_TAIL = 4096
+
+// The last whole line of a heart file, or undefined: it reads only the file's tail, and a torn last
+// line yields the one before it.
+export function lastBeat(path: string): Record<string, unknown> | undefined {
+  let fd: number | undefined
+  try {
+    fd = openSync(path, 'r')
+    const size = fstatSync(fd).size
+    const buf = Buffer.alloc(Math.min(size, BEAT_TAIL))
+    readSync(fd, buf, 0, buf.length, size - buf.length)
+    const lines = buf.toString('utf8').split('\n')
+    for (let i = lines.length - 1; i >= 0; i--) {
+      try {
+        const beat = record(JSON.parse(lines[i]))
+        if (beat !== undefined) return beat
+      } catch {
+        // A torn line: the one before it.
+      }
+    }
+    return undefined
+  } catch {
+    return undefined
+  } finally {
+    if (fd !== undefined) closeSync(fd)
+  }
+}
+
+// `meta` with the beat of its own process laid over it.
+export function withBeat(meta: RunMeta, beat: Record<string, unknown> | undefined): RunMeta {
+  if (beat === undefined || meta.pid === undefined || beat.pid !== meta.pid) return meta
+  const at = Date.parse(text(beat.heartbeat_at))
+  return Number.isNaN(at) || at <= meta.heartbeatAt ? meta : { ...meta, heartbeatAt: at }
+}
 
 export type StoredRun = { meta: RunMeta; log: RunLog }
 
@@ -270,12 +308,13 @@ export class RunStore {
     if (home.stamp !== stamp) {
       home.stamp = stamp
       try {
-        home.meta = readRunMeta(JSON.parse(readFileSync(join(dir, 'run.json'), 'utf8')))
+        home.base = readRunMeta(JSON.parse(readFileSync(join(dir, 'run.json'), 'utf8')))
       } catch {
         // Mid-write, or no run.json yet; the next read tries it again.
         home.stamp = -1
       }
     }
+    home.meta = home.base === undefined ? undefined : withBeat(home.base, lastBeat(join(dir, 'heart.jsonl')))
     this.homes.set(dir, home)
     return home
   }
