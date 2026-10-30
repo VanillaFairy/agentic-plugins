@@ -1,7 +1,8 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks'
 import type { AgentNode, ModelUsage, NodeDetail, SessionSnapshot } from '../shared/model.ts'
 import { sessionsUnder } from '../shared/tree.ts'
-import { ROOT, STATUS_WORD, elapsed } from './layout.ts'
+import { Elapsed } from './clock.tsx'
+import { ROOT, STATUS_WORD } from './layout.ts'
 import { Stream, latestInView } from './Stream.tsx'
 import { clockTime } from './time.ts'
 import { UsageList, dollars, modelName, totalCost } from './Usage.tsx'
@@ -11,7 +12,8 @@ const REFRESH_MS = 1500
 type Props = {
   snap: SessionSnapshot
   id: string
-  now: number
+  // The server's clock minus the page's.
+  skew: number
   onPick: (id: string | undefined) => void
 }
 
@@ -27,7 +29,6 @@ function useDetail(sessionId: string, id: string): { detail: NodeDetail | undefi
           if (!res.ok) throw new Error(((await res.json()) as { error?: string }).error ?? `The server answered ${res.status}`)
           return res.json() as Promise<NodeDetail>
         })
-        .then(detail => !stop && setState({ detail, problem: undefined }))
         .catch((err: unknown) => !stop && setState(s => ({ detail: s.detail, problem: String(err instanceof Error ? err.message : err) })))
     void load()
     const timer = setInterval(load, REFRESH_MS)
@@ -49,7 +50,7 @@ function AgentLink({ agent, onPick }: { agent: AgentNode; onPick: (id: string) =
 }
 
 // What a run dispatched, in the order it did: each session's work, role, model and how it stands.
-function RunSessions({ sessions, now, onPick }: { sessions: readonly AgentNode[]; now: number; onPick: (id: string) => void }) {
+function RunSessions({ sessions, skew, onPick }: { sessions: readonly AgentNode[]; skew: number; onPick: (id: string) => void }) {
   if (sessions.length === 0) return <p class="quiet-inline">The run has dispatched no sessions yet.</p>
   return (
     <ol class="run-sessions" aria-label="Dispatched sessions">
@@ -59,7 +60,7 @@ function RunSessions({ sessions, now, onPick }: { sessions: readonly AgentNode[]
             <button class={`run-session ${s.status}`} onClick={() => onPick(s.id)} title={s.thread}>
               <span class="status-dot" />
               <span class="run-session-work">{s.description}</span>
-              <span class="run-session-time">{s.status === 'running' ? elapsed(now - s.startedAt) : STATUS_WORD[s.status]}</span>
+              <span class="run-session-time">{s.status === 'running' ? <Elapsed from={s.startedAt} skew={skew} /> : STATUS_WORD[s.status]}</span>
               <span class="run-session-role">› {s.role || 'agent'}</span>
               <span class="run-session-model">{[s.model, s.effort].filter(Boolean).join(' ')}</span>
             </button>
@@ -87,12 +88,12 @@ type SummaryProps = {
   agent: AgentNode | undefined
   detail: NodeDetail | undefined
   spawned: readonly AgentNode[]
-  now: number
+  skew: number
   onPick: (id: string | undefined) => void
 }
 
 // The facts and cost, pinned above the activity: one compact grid, the breakdown on demand.
-function Summary({ snap, agent, detail, spawned, now, onPick }: SummaryProps) {
+function Summary({ snap, agent, detail, spawned, skew, onPick }: SummaryProps) {
   const [open, setOpen] = useState(false)
   const parent = agent?.parentId === undefined ? undefined : snap.agents[agent.parentId]
   return (
@@ -106,7 +107,7 @@ function Summary({ snap, agent, detail, spawned, now, onPick }: SummaryProps) {
             </div>
             <div class="fact">
               <dt>{agent.endedAt === undefined ? 'Running for' : 'Ended'}</dt>
-              <dd>{agent.endedAt === undefined ? elapsed(now - agent.startedAt) : clockTime(agent.endedAt)}</dd>
+              <dd>{agent.endedAt === undefined ? <Elapsed from={agent.startedAt} skew={skew} /> : clockTime(agent.endedAt)}</dd>
             </div>
             <div class="fact">
               <dt>{agent.kind === 'dispatched' ? 'Dispatched by' : agent.kind === 'run' ? 'Started by' : agent.kind === 'group' ? 'Part of' : 'Spawned by'}</dt>
@@ -132,7 +133,7 @@ function Summary({ snap, agent, detail, spawned, now, onPick }: SummaryProps) {
             )}
             <div class="fact">
               <dt>Last heartbeat</dt>
-              <dd>{elapsed(now - agent.heartbeatAt)} ago</dd>
+              <dd><Elapsed from={agent.heartbeatAt} skew={skew} /> ago</dd>
             </div>
             {agent.pid !== undefined && (
               <div class="fact">
@@ -220,7 +221,7 @@ function Summary({ snap, agent, detail, spawned, now, onPick }: SummaryProps) {
   )
 }
 
-export function Detail({ snap, id, now, onPick }: Props) {
+export function Detail({ snap, id, skew, onPick }: Props) {
   const { detail, problem } = useDetail(snap.id, id)
   const bodyRef = useRef<HTMLDivElement>(null)
   // Whether the latest step was in view as of the last frame drawn or the last scroll: the stream
@@ -279,7 +280,7 @@ export function Detail({ snap, id, now, onPick }: Props) {
             <p class={`status-line ${agent.status}`}>
               <span class="status-dot" />
               <span>{STATUS_WORD[agent.status]}</span>
-              <span class="status-time">{elapsed((agent.endedAt ?? now) - agent.startedAt)}</span>
+              <span class="status-time"><Elapsed from={agent.startedAt} to={agent.endedAt} skew={skew} /></span>
             </p>
           )}
           <button class="close" onClick={() => onPick(undefined)} aria-label="Close details" title="Close (Esc)">
@@ -290,14 +291,14 @@ export function Detail({ snap, id, now, onPick }: Props) {
         </div>
         <h2>{agent?.description ?? snap.title}</h2>
         <p class="detail-sub">{agent?.type ?? snap.project.path}</p>
-        <Summary snap={snap} agent={agent} detail={detail} spawned={plate ? [] : spawned} now={now} onPick={onPick} />
+        <Summary snap={snap} agent={agent} detail={detail} spawned={plate ? [] : spawned} skew={skew} onPick={onPick} />
       </header>
 
       <div class="detail-body" ref={bodyRef} onScroll={onScroll} aria-label="Activity">
         {problem !== undefined && <p class="problem">Could not load the details: {problem}</p>}
         {detail === undefined && problem === undefined && <p class="quiet-inline">Reading the transcript…</p>}
-        {plate && <RunSessions sessions={spawned} now={now} onPick={onPick} />}
-        {detail !== undefined && !plate && <Stream sessionId={snap.id} nodeId={id} steps={detail.steps} agent={agent} main={snap.main} spawned={spawned} now={now} onPick={onPick} />}
+        {plate && <RunSessions sessions={spawned} skew={skew} onPick={onPick} />}
+        {detail !== undefined && !plate && <Stream sessionId={snap.id} nodeId={id} steps={detail.steps} agent={agent} main={snap.main} spawned={spawned} skew={skew} onPick={onPick} />}
       </div>
       {!atLatest && detail !== undefined && (
         <button class="jump" onClick={jump} aria-label="Jump to the latest" title="Jump to the latest">

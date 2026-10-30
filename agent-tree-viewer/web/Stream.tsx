@@ -3,6 +3,7 @@
 import { Fragment } from 'preact'
 import { useEffect, useState } from 'preact/hooks'
 import type { AgentNode, AgentStatus, CallDetail, SessionSnapshot, Step } from '../shared/model.ts'
+import { Elapsed } from './clock.tsx'
 import { elapsed } from './layout.ts'
 import { clockTime } from './time.ts'
 
@@ -104,20 +105,20 @@ function useWholeCall(where: Where, call: CallDetail, open: boolean): CallDetail
   return whole !== undefined && whole.endedAt === call.endedAt ? whole : call
 }
 
-type CallRowProps = { where: Where; call: CallDetail; now: number; child: AgentNode | undefined; onPick: (id: string) => void }
+type CallRowProps = { where: Where; call: CallDetail; skew: number; child: AgentNode | undefined; onPick: (id: string) => void }
 
-function CallRow({ where, call: cut, now, child, onPick }: CallRowProps) {
+function CallRow({ where, call: cut, skew, child, onPick }: CallRowProps) {
   const [open, setOpen] = useState(false)
   const call = useWholeCall(where, cut, open)
   const state = call.endedAt === undefined ? 'open' : call.isError ? 'error' : 'done'
-  const took = elapsed((call.endedAt ?? now) - call.startedAt)
+  const took = <Elapsed from={call.startedAt} to={call.endedAt} skew={skew} />
   return (
     <li class={`call ${state}`}>
       <span class="mark" aria-hidden="true" />
       <button class="call-head" aria-expanded={open} onClick={() => setOpen(!open)} title={`Started ${clockTime(call.startedAt)}`}>
         <span class="call-tool">{call.tool}</span>
         <span class="call-arg">{call.arg}</span>
-        <span class="call-took">{state === 'error' ? `failed, ${took}` : state === 'open' ? `running ${took}` : took}</span>
+        <span class="call-took">{state === 'error' ? <>failed, {took}</> : state === 'open' ? <>running {took}</> : took}</span>
       </button>
       {child !== undefined && (
         <button class={`call-child ${child.status}`} onClick={() => onPick(child.id)}>
@@ -144,13 +145,13 @@ function CallRow({ where, call: cut, now, child, onPick }: CallRowProps) {
 const END_WORD: Record<Exclude<AgentStatus, 'running'>, string> = { completed: 'Done', failed: 'Failed', killed: 'Stopped' }
 
 // The bottom of the spine: what the agent does this moment, or how it ended.
-function Now({ agent, last, now }: { agent: AgentNode; last: Step | undefined; now: number }) {
+function Now({ agent, last, skew }: { agent: AgentNode; last: Step | undefined; skew: number }) {
   if (agent.status !== 'running') {
     return (
       <li class={`step end ${agent.status}`}>
         <span class="mark" aria-hidden="true" />
         <p>
-          {END_WORD[agent.status]} after {elapsed((agent.endedAt ?? now) - agent.startedAt)}
+          {END_WORD[agent.status]} after <Elapsed from={agent.startedAt} to={agent.endedAt} skew={skew} />
           {agent.endedAt !== undefined && <span class="step-time">at {clockTime(agent.endedAt)}</span>}
         </p>
       </li>
@@ -165,14 +166,14 @@ function Now({ agent, last, now }: { agent: AgentNode; last: Step | undefined; n
       </span>
       <p>
         Thinking
-        <span class="step-time">{elapsed(now - since)}</span>
+        <span class="step-time"><Elapsed from={since} skew={skew} /></span>
       </p>
     </li>
   )
 }
 
 // The bottom of the main loop's spine, from what the session's process reports.
-function MainNow({ main, last, now }: { main: SessionSnapshot['main']; last: Step | undefined; now: number }) {
+function MainNow({ main, last, skew }: { main: SessionSnapshot['main']; last: Step | undefined; skew: number }) {
   if (main.waitingFor !== undefined) {
     return (
       <li class="step now waiting" aria-live="polite">
@@ -191,7 +192,7 @@ function MainNow({ main, last, now }: { main: SessionSnapshot['main']; last: Ste
       </span>
       <p>
         Working
-        {last !== undefined && <span class="step-time">{elapsed(now - endOf(last))}</span>}
+        {last !== undefined && <span class="step-time"><Elapsed from={endOf(last)} skew={skew} /></span>}
       </p>
     </li>
   )
@@ -207,11 +208,11 @@ type Props = {
   main: SessionSnapshot['main']
   // The agents this transcript spawned, so a spawning call can open its agent.
   spawned: readonly AgentNode[]
-  now: number
+  skew: number
   onPick: (id: string) => void
 }
 
-export function Stream({ sessionId, nodeId, steps, agent, main, spawned, now, onPick }: Props) {
+export function Stream({ sessionId, nodeId, steps, agent, main, spawned, skew, onPick }: Props) {
   const where = { sessionId, nodeId }
   if (steps.length === 0 && agent === undefined) return <p class="quiet-inline">Nothing in the transcript yet.</p>
   const byCall = new Map(spawned.flatMap(c => (c.callId === undefined ? [] : [[c.callId, c] as const])))
@@ -258,7 +259,7 @@ export function Stream({ sessionId, nodeId, steps, agent, main, spawned, now, on
                 <ol class="call-run">
                   {block.items.map(item =>
                     item.kind === 'call' ? (
-                      <CallRow key={item.call.id} where={where} call={item.call} now={now} child={byCall.get(item.call.id)} onPick={onPick} />
+                      <CallRow key={item.call.id} where={where} call={item.call} skew={skew} child={byCall.get(item.call.id)} onPick={onPick} />
                     ) : (
                       <li key={`pause-${item.at}`} class="pause" title={clockTime(item.at)}>
                         Thought for {elapsed(item.took)}
@@ -270,7 +271,7 @@ export function Stream({ sessionId, nodeId, steps, agent, main, spawned, now, on
             )
         }
       })}
-      {agent !== undefined ? <Now agent={agent} last={steps.at(-1)} now={now} /> : <MainNow main={main} last={steps.at(-1)} now={now} />}
+      {agent !== undefined ? <Now agent={agent} last={steps.at(-1)} skew={skew} /> : <MainNow main={main} last={steps.at(-1)} skew={skew} />}
     </ol>
   )
 }

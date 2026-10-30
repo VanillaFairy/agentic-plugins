@@ -1,9 +1,12 @@
 import { useEffect, useState } from 'preact/hooks'
 import type { ProjectGroup } from '../shared/model.ts'
+import { useNow } from './clock.tsx'
 import { ago } from './time.ts'
 
 const FOLDS_KEY = 'agent-tree-viewer:closed-projects'
 const LIVE_ONLY_KEY = 'agent-tree-viewer:live-only'
+// A row says how long ago in minutes at best.
+const AGO_EVERY_MS = 10_000
 
 function loadClosed(): Set<string> {
   try {
@@ -40,12 +43,12 @@ function saveLiveOnly(on: boolean): void {
 type Props = {
   groups: ProjectGroup[] | undefined
   selected: string | undefined
-  now: number
   // `node`: the card to select in the session's tree.
   onPick: (id: string, node?: string) => void
 }
 
-export function Sidebar({ groups, selected, now, onPick }: Props) {
+export function Sidebar({ groups, selected, onPick }: Props) {
+  const now = useNow(AGO_EVERY_MS)
   const [closed, setClosed] = useState(loadClosed)
   const [filter, setFilter] = useState('')
   const [liveOnly, setLiveOnly] = useState(loadLiveOnly)

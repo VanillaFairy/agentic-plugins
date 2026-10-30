@@ -188,7 +188,6 @@ export function App() {
   const [selected, setSelected] = useState<string>()
   const [pickerOpen, setPickerOpen] = useState(false)
   const [following, setFollowing] = useState(true)
-  const [now, setNow] = useState(Date.now)
   const [detailWidth, setDetailWidth] = useState(recallWidth)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const dockRef = useRef<HTMLDivElement>(null)
@@ -214,11 +213,6 @@ export function App() {
       stop = true
       clearInterval(timer)
     }
-  }, [])
-
-  useEffect(() => {
-    const timer = setInterval(() => setNow(Date.now()), 1000)
-    return () => clearInterval(timer)
   }, [])
 
   useEffect(() => {
@@ -332,11 +326,10 @@ export function App() {
     document.title = title === undefined ? `Agent Tree Viewer ${__VIEWER_VERSION__}` : `Agent Tree Viewer ${__VIEWER_VERSION__} : ${title}`
   }, [title])
   const running = agents.filter(a => a.status === 'running').length
-  const serverNow = now + (snap?.skew ?? 0)
 
   return (
     <div class={`shell${pickerOpen ? ' picker-open' : ''}`}>
-      <Sidebar groups={groups} selected={sessionId} now={now} onPick={pick} />
+      <Sidebar groups={groups} selected={sessionId} onPick={pick} />
       <div class="scrim" onClick={() => setPickerOpen(false)} />
       <main class="stage">
         <header class="head">
@@ -392,7 +385,7 @@ export function App() {
           {data !== undefined && selected !== undefined && (
             <div class="detail-dock" ref={dockRef} style={detailWidth === undefined ? undefined : { '--detail-width': `${detailWidth}px` }}>
               <Splitter width={detailWidth} onWidth={resizeDetail} />
-              <Detail snap={data} id={selected} now={serverNow} onPick={setSelected} />
+              <Detail snap={data} id={selected} skew={snap?.skew ?? 0} onPick={setSelected} />
             </div>
           )}
         </div>
