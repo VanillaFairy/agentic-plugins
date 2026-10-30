@@ -198,11 +198,14 @@ export function App() {
 
   useEffect(() => {
     let stop = false
+    let seen: string | undefined
     const load = () =>
       fetch('/api/sessions')
-        .then(res => res.json() as Promise<ProjectGroup[]>)
-        .then(list => {
-          if (stop) return
+        .then(res => res.text())
+        .then(body => {
+          if (stop || body === seen) return
+          seen = body
+          const list = JSON.parse(body) as ProjectGroup[]
           setGroups(list)
           setSessionId(id => id ?? defaultSession(list))
         })

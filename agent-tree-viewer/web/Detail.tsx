@@ -22,12 +22,22 @@ function useDetail(sessionId: string, id: string): { detail: NodeDetail | undefi
   const [state, setState] = useState<{ detail: NodeDetail | undefined; problem: string | undefined }>({ detail: undefined, problem: undefined })
   useEffect(() => {
     let stop = false
+    let seen: string | undefined
     setState({ detail: undefined, problem: undefined })
     const load = () =>
       fetch(`/api/sessions/${encodeURIComponent(sessionId)}/nodes/${encodeURIComponent(id)}`)
         .then(async res => {
           if (!res.ok) throw new Error(((await res.json()) as { error?: string }).error ?? `The server answered ${res.status}`)
-          return res.json() as Promise<NodeDetail>
+          return res.text()
+        })
+        .then(body => {
+          if (stop) return
+          // An answer that says what the last one said leaves the pane as it is.
+          if (body === seen) setState(s => (s.problem === undefined ? s : { detail: s.detail, problem: undefined }))
+          else {
+            seen = body
+            setState({ detail: JSON.parse(body) as NodeDetail, problem: undefined })
+          }
         })
         .catch((err: unknown) => !stop && setState(s => ({ detail: s.detail, problem: String(err instanceof Error ? err.message : err) })))
     void load()
