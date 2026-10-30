@@ -12,8 +12,9 @@ export type ToolEvent = {
 }
 
 // A card of the tree: a subagent inside the session's process, an agentics run (a Node program,
-// not a model, so it makes no tool calls of its own), or a headless session that run dispatched.
-export type AgentNode = NodeBase & (SubagentNode | RunNode | DispatchedNode)
+// not a model, so it makes no tool calls of its own), a headless session that run dispatched, or a
+// group of that run's sessions.
+export type AgentNode = NodeBase & (SubagentNode | RunNode | DispatchedNode | GroupNode)
 
 export type SubagentNode = { kind: 'subagent' }
 
@@ -23,7 +24,23 @@ export type RunNode = {
   run: string
   // The program's last sign of life; a live run beats every few seconds.
   heartbeatAt: number
+  // `pid`, `startedAt` and the heartbeat are the latest start's; the counts span every start.
   pid?: number
+  starts: number
+  sessions: number
+  running: number
+}
+
+// A folder of an execution, or one activity inside it. Nothing runs here: its status, times and
+// counts are rolled up from the sessions under it.
+export type GroupNode = {
+  kind: 'group'
+  // Searches and probes gather evidence, and fold away once they finish; the rest is the work.
+  evidence: boolean
+  sessions: number
+  running: number
+  // How many separate searches or probe rounds it holds, a retried survey counting again.
+  passes: number
 }
 
 export type DispatchedNode = {

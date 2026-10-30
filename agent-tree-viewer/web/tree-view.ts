@@ -10,7 +10,7 @@ import 'd3-transition'
 import { zoom, zoomIdentity } from 'd3-zoom'
 import type { ZoomBehavior, ZoomTransform } from 'd3-zoom'
 import type { SessionSnapshot } from '../shared/model.ts'
-import { NODE_H, NODE_W, PAD, ROOT, allDoneUnder, hitAt, layout, withoutDone } from './layout.ts'
+import { NODE_H, NODE_W, PAD, ROOT, allDoneUnder, hitAt, layout, quietEvidence, withoutDone } from './layout.ts'
 import type { Layout, Placed } from './layout.ts'
 import { loadFolds, saveFolds } from './folds.ts'
 import { forgetMeasurements, paint, readPalette } from './paint.ts'
@@ -159,7 +159,7 @@ export class TreeView {
     const shown = this.input.hideDone ? withoutDone(all) : all
     this.events.hiddenDone(Object.keys(all).length - Object.keys(shown).length)
     // A fold on an agent left out by Hide done stays, so showing done agents finds it folded.
-    this.compacted = this.input.autocompact && !this.input.hideDone ? allDoneUnder(shown) : new Set()
+    this.compacted = new Set([...(this.input.autocompact && !this.input.hideDone ? allDoneUnder(shown) : []), ...quietEvidence(shown)])
     const folds = new Set(this.collapsed)
     for (const id of this.compacted) if (!this.opened.has(id)) folds.add(id)
     // The selected card leaves its deck, so the card the details describe is in sight whole.

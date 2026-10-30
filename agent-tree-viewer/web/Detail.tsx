@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks'
 import type { AgentNode, ModelUsage, NodeDetail, SessionSnapshot } from '../shared/model.ts'
+import { sessionsUnder } from '../shared/tree.ts'
 import { ROOT, STATUS_WORD, elapsed } from './layout.ts'
 import { Stream, latestInView } from './Stream.tsx'
 import { clockTime } from './time.ts'
@@ -100,7 +101,7 @@ function Summary({ snap, agent, detail, spawned, now, onPick }: SummaryProps) {
         {agent !== undefined && (
           <>
             <div class="fact">
-              <dt>Started</dt>
+              <dt>{agent.kind === 'run' && agent.starts > 1 ? 'Latest start' : 'Started'}</dt>
               <dd>{clockTime(agent.startedAt)}</dd>
             </div>
             <div class="fact">
@@ -108,7 +109,7 @@ function Summary({ snap, agent, detail, spawned, now, onPick }: SummaryProps) {
               <dd>{agent.endedAt === undefined ? elapsed(now - agent.startedAt) : clockTime(agent.endedAt)}</dd>
             </div>
             <div class="fact">
-              <dt>{agent.kind === 'dispatched' ? 'Dispatched by' : agent.kind === 'run' ? 'Started by' : 'Spawned by'}</dt>
+              <dt>{agent.kind === 'dispatched' ? 'Dispatched by' : agent.kind === 'run' ? 'Started by' : agent.kind === 'group' ? 'Part of' : 'Spawned by'}</dt>
               <dd>
                 {parent === undefined ? (
                   <button class="link" onClick={() => onPick(ROOT)}>
@@ -123,6 +124,12 @@ function Summary({ snap, agent, detail, spawned, now, onPick }: SummaryProps) {
         )}
         {agent?.kind === 'run' && (
           <>
+            {agent.starts > 1 && (
+              <div class="fact">
+                <dt>Starts</dt>
+                <dd>{agent.starts}</dd>
+              </div>
+            )}
             <div class="fact">
               <dt>Last heartbeat</dt>
               <dd>{elapsed(now - agent.heartbeatAt)} ago</dd>
@@ -147,7 +154,7 @@ function Summary({ snap, agent, detail, spawned, now, onPick }: SummaryProps) {
             </div>
           </>
         )}
-        {agent?.kind !== 'run' && (
+        {agent?.kind !== 'run' && agent?.kind !== 'group' && (
           <div class="fact">
             <dt>Tool calls</dt>
             <dd>{agent?.toolCount ?? snap.main.toolCount}</dd>
@@ -236,9 +243,13 @@ export function Detail({ snap, id, now, onPick }: Props) {
 
   const agent = id === ROOT ? undefined : snap.agents[id]
   if (id !== ROOT && agent === undefined) return null
-  const spawned = Object.values(snap.agents)
-    .filter(a => (id === ROOT ? a.parentId === undefined : a.parentId === id))
-    .sort((a, b) => a.startedAt - b.startedAt)
+  // A run or a group has no transcript: it shows the sessions below it instead.
+  const plate = agent?.kind === 'run' || agent?.kind === 'group'
+  const spawned = plate
+    ? sessionsUnder(snap.agents, id)
+    : Object.values(snap.agents)
+        .filter(a => (id === ROOT ? a.parentId === undefined : a.parentId === id))
+        .sort((a, b) => a.startedAt - b.startedAt)
   const onScroll = () => {
     const body = bodyRef.current
     if (body === null) return
@@ -279,14 +290,14 @@ export function Detail({ snap, id, now, onPick }: Props) {
         </div>
         <h2>{agent?.description ?? snap.title}</h2>
         <p class="detail-sub">{agent?.type ?? snap.project.path}</p>
-        <Summary snap={snap} agent={agent} detail={detail} spawned={agent?.kind === 'run' ? [] : spawned} now={now} onPick={onPick} />
+        <Summary snap={snap} agent={agent} detail={detail} spawned={plate ? [] : spawned} now={now} onPick={onPick} />
       </header>
 
       <div class="detail-body" ref={bodyRef} onScroll={onScroll} aria-label="Activity">
         {problem !== undefined && <p class="problem">Could not load the details: {problem}</p>}
         {detail === undefined && problem === undefined && <p class="quiet-inline">Reading the transcript…</p>}
-        {agent?.kind === 'run' && <RunSessions sessions={spawned} now={now} onPick={onPick} />}
-        {detail !== undefined && agent?.kind !== 'run' && <Stream sessionId={snap.id} nodeId={id} steps={detail.steps} agent={agent} main={snap.main} spawned={spawned} now={now} onPick={onPick} />}
+        {plate && <RunSessions sessions={spawned} now={now} onPick={onPick} />}
+        {detail !== undefined && !plate && <Stream sessionId={snap.id} nodeId={id} steps={detail.steps} agent={agent} main={snap.main} spawned={spawned} now={now} onPick={onPick} />}
       </div>
       {!atLatest && detail !== undefined && (
         <button class="jump" onClick={jump} aria-label="Jump to the latest" title="Jump to the latest">

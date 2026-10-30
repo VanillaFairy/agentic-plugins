@@ -23,7 +23,9 @@ that ships bumps it, in the same commit series as the change:
   dispatches and returns in its `state.jsonl`; an execution logs only returns there, and its
   dispatches go to the effort's `.state/events.jsonl`, tagged with the execution's stamp. The two
   are matched by `seq`, never by read order. Runs and dispatched sessions are their own node kinds
-  (`kind: 'run' | 'dispatched'` in `shared/model.ts`), painted apart from subagents. The picker reads the
+  (`kind: 'run' | 'dispatched'` in `shared/model.ts`), painted apart from subagents. `runNodes` sorts a run's sessions into `kind: 'group'` cards, a folder
+  and then an activity; `placeOf` is the one reader of agentics' thread names. A group has no
+  transcript: its status, times and counts roll up from the sessions under it. The picker reads the
   same stores (`RunStores`) and folds each dispatched session into the row of the session that
   started its run (`foldRuns`); the stream of a folded session redirects to that session's.
 - `server/sessions.ts` names sessions: the desktop app's records under

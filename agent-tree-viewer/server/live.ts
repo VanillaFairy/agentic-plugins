@@ -8,6 +8,7 @@ import { RunWatch, projectsDirOf, runNodeId, runNodes } from './runs.ts'
 import type { RunSource } from './runs.ts'
 import { JsonlTail } from './tail.ts'
 import type { SessionFiles } from './sessions.ts'
+import { sessionsUnder } from '../shared/tree.ts'
 import { buildSnapshot, emptyFacts, fullCall, ingest, nodeDetail, sumUsage } from './transcript.ts'
 import type { AgentMeta, FileFacts } from './transcript.ts'
 
@@ -102,6 +103,12 @@ export class SessionWatch {
     // A run has no transcript of its own; what it cost is what its sessions cost.
     const run = this.runs.find(r => runNodeId(r.meta.run) === id)
     if (run !== undefined) return { id, steps: [], usage: sumUsage(this.runFacts(run)) }
+    // Nor has a group; what it cost is what the sessions under it cost.
+    const nodes = Object.fromEntries(this.runs.flatMap(r => runNodes(r, Date.now())).map(n => [n.id, n]))
+    if (nodes[id]?.kind === 'group') {
+      const under = sessionsUnder(nodes, id).flatMap(n => this.factsOf(n.id) ?? [])
+      return { id, steps: [], usage: sumUsage(under) }
+    }
     const facts = this.factsOf(id)
     return facts === undefined ? undefined : nodeDetail(id, facts)
   }

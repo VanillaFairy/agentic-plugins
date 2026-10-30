@@ -82,9 +82,14 @@ export function allDoneUnder(nodes: Record<string, AgentNode>): Set<string> {
   return found
 }
 
+// Finished evidence groups: they start folded, so a run opens on its work.
+export function quietEvidence(nodes: Record<string, AgentNode>): Set<string> {
+  return new Set(Object.values(nodes).flatMap(n => (n.kind === 'group' && n.evidence && n.status !== 'running' ? [n.id] : [])))
+}
+
 function folded(kids: Map<string, AgentNode[]>, id: string): Folded {
   const under = (one: string): AgentNode[] => (kids.get(one) ?? []).flatMap(kid => [kid, ...under(kid.id)])
-  const all = under(id)
+  const all = under(id).filter(n => n.kind !== 'group')
   return { hidden: all.length, running: all.some(n => n.status === 'running') }
 }
 

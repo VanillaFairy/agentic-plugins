@@ -1,7 +1,7 @@
 // Paints the tree on a canvas: wires, cards, fold marks. Knows nothing of zoom or input; the
 // caller sets the transform and says where every card is this frame.
 
-import type { AgentNode, AgentStatus, DispatchedNode, RunNode, SessionSnapshot } from '../shared/model.ts'
+import type { AgentNode, AgentStatus, DispatchedNode, GroupNode, RunNode, SessionSnapshot } from '../shared/model.ts'
 import { DECK_STEP, FOLD_R, NODE_H, NODE_W, ROOT, STATUS_WORD, current, elapsed, foldCentre, slot } from './layout.ts'
 import type { Deck, Placed } from './layout.ts'
 
@@ -277,12 +277,13 @@ function runCard(f: Frame, p: Placed, n: AgentNode & RunNode, x: number, y: numb
   const after = left + ctx.measureText(program).width + 8
   ctx.font = FONT.meta
   ctx.fillStyle = palette.muted
-  ctx.fillText(fit(ctx, n.pid === undefined ? 'process' : `pid ${n.pid}`, Math.max(0, left + room - timeW - 10 - after)), after, y + 24)
+  const process = n.pid === undefined ? 'process' : `pid ${n.pid}`
+  // The pid and the clock are the latest start's, whatever the sessions below add up to.
+  ctx.fillText(fit(ctx, n.starts > 1 ? `latest ${process}` : process, Math.max(0, left + room - timeW - 10 - after)), after, y + 24)
 
-  const kids = Object.values(f.snap.agents).filter(a => a.parentId === n.id)
-  const running = kids.filter(a => a.status === 'running').length
-  const sessions = `${kids.length} ${kids.length === 1 ? 'session' : 'sessions'}`
-  pair(ctx, n.run, running > 0 ? `${sessions}, ${running} running` : sessions, left, y + 45, room - FOLD_R - 4)
+  const sessions = `${n.sessions} ${n.sessions === 1 ? 'session' : 'sessions'}`
+  const tally = n.running > 0 ? `${sessions}, ${n.running} running` : sessions
+  pair(ctx, n.starts > 1 ? `${n.starts} starts` : n.run, tally, left, y + 45, room - FOLD_R - 4)
 
   const beating = n.status === 'running'
   heartbeat(f, left, y + 62, 44, colour, beating)
@@ -291,6 +292,36 @@ function runCard(f: Frame, p: Placed, n: AgentNode & RunNode, x: number, y: numb
   const since = elapsed(Math.max(0, f.now - n.heartbeatAt))
   const word = beating ? `beat ${since} ago` : n.status === 'killed' ? `no beat for ${since}` : STATUS_WORD[n.status]
   ctx.fillText(fit(ctx, word, room - 54), left + 54, y + 66)
+}
+
+// A folder or an activity of a run: a plain plate with its counts. It does nothing itself, so it
+// keeps a clock only while something under it runs.
+function groupCard(f: Frame, p: Placed, n: AgentNode & GroupNode, x: number, y: number): void {
+  const { ctx, palette } = f
+  const colour = palette.status[n.status]
+  roundRect(ctx, x, y, NODE_W, NODE_H, RUN_RADIUS)
+  ctx.fillStyle = palette.card
+  ctx.fill()
+  ctx.lineWidth = f.selected === p.id ? 2 : 1
+  ctx.strokeStyle = f.selected === p.id ? palette.select : f.hovered === p.id ? palette.ink : palette.line
+  ctx.stroke()
+
+  const left = x + INSET
+  const room = NODE_W - INSET * 2
+  ctx.textBaseline = 'alphabetic'
+  ctx.textAlign = 'left'
+  ctx.font = FONT.title
+  ctx.fillStyle = n.evidence ? palette.muted : palette.ink
+  ctx.fillText(fit(ctx, n.description, room), left, y + 24)
+
+  ctx.font = FONT.meta
+  ctx.fillStyle = palette.muted
+  const sessions = `${n.sessions} ${n.sessions === 1 ? 'session' : 'sessions'}`
+  const passes = n.passes > 1 ? `, ${n.passes} passes` : ''
+  ctx.fillText(fit(ctx, sessions + passes, room - FOLD_R - 4), left, y + 45)
+
+  ctx.fillStyle = colour
+  ctx.fillText(fit(ctx, n.running > 0 ? `${n.running} running` : STATUS_WORD[n.status], room - FOLD_R - 4), left, y + 66)
 }
 
 // The session's own card, set apart by a heavier edge and a larger title. It carries the running
@@ -314,7 +345,7 @@ function rootCard(f: Frame, p: Placed, x: number, y: number): void {
   }
   const left = x + INSET
   const room = NODE_W - INSET * 2
-  const agents = Object.values(snap.agents).filter(a => a.kind !== 'run')
+  const agents = Object.values(snap.agents).filter(a => a.kind !== 'run' && a.kind !== 'group')
   const running = agents.filter(a => a.status === 'running').length
   ctx.textAlign = 'left'
   ctx.font = FONT.rootTitle
@@ -469,6 +500,7 @@ export function paint(f: Frame): void {
     if (p.deck !== undefined && f.hovered === p.id) lifted = p
     if (p.node !== undefined && slot(p) < NODE_H) deckStrip(f, p.node, x, y)
     else if (p.node?.kind === 'run') runCard(f, p, p.node, x, y)
+    else if (p.node?.kind === 'group') groupCard(f, p, p.node, x, y)
     else if (p.node) agentCard(f, p, p.node, x, y)
     else rootCard(f, p, x, y)
   }

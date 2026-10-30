@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { AgentNode, AgentStatus } from '../shared/model.ts'
-import { DECK_STEP, MIN_DECK, NODE_H, NODE_W, ROOT, allDoneUnder, foldCentre, hitAt, layout, withoutDone } from '../web/layout.ts'
+import { sessionsUnder } from '../shared/tree.ts'
+import { DECK_STEP, MIN_DECK, NODE_H, NODE_W, ROOT, allDoneUnder, foldCentre, hitAt, layout, quietEvidence, withoutDone } from '../web/layout.ts'
 
 const node = (id: string, startedAt: number, status: AgentStatus = 'running', parentId?: string): AgentNode => ({
   kind: 'subagent',
@@ -54,6 +55,32 @@ describe('layout', () => {
     expect(lay.placed.map(p => p.id)).toEqual([ROOT, 'a'])
     expect(lay.placed[1]?.fold).toEqual({ hidden: 2, running: true })
     expect(lay.placed[0]?.fold).toBe('open')
+  })
+})
+
+describe('groups', () => {
+  const group = (id: string, status: AgentStatus, evidence: boolean, parentId?: string): AgentNode => ({
+    ...node(id, 1, status, parentId),
+    kind: 'group',
+    evidence,
+    sessions: 1,
+    running: 0,
+    passes: 1,
+  })
+
+  it('count only what they hold when folded, never themselves', () => {
+    const nodes = tree(group('folder', 'completed', false), group('survey', 'completed', true, 'folder'), node('s', 2, 'completed', 'survey'))
+    expect(layout(nodes, new Set(['folder'])).placed.find(p => p.id === 'folder')?.fold).toEqual({ hidden: 1, running: false })
+  })
+
+  it('fold evidence that has finished, and leave running evidence and the work open', () => {
+    const nodes = tree(group('done', 'completed', true), group('live', 'running', true), group('stopped', 'killed', true), group('build', 'completed', false))
+    expect([...quietEvidence(nodes)].sort()).toEqual(['done', 'stopped'])
+  })
+
+  it('reach the sessions under any depth of them', () => {
+    const nodes = tree(group('folder', 'completed', false), group('survey', 'completed', true, 'folder'), node('s', 3, 'completed', 'survey'), node('t', 2, 'completed', 'folder'))
+    expect(sessionsUnder(nodes, 'folder').map(n => n.id)).toEqual(['t', 's'])
   })
 })
 

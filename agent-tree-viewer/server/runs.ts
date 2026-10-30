@@ -22,6 +22,7 @@ import type { FileFacts } from './transcript.ts'
 // agentics takes a run whose heartbeat is older than this as no longer beating.
 const RUN_STALE_MS = 120_000
 const RUN_NODE = 'run:'
+const GROUP_NODE = 'group:'
 
 export type RunMeta = { run: string; program: string; session: string; startedAt: number; heartbeatAt: number; pid?: number }
 
@@ -47,11 +48,13 @@ export type RunLog = {
   returns: Map<string, Return>
   // The status the run ended with, when the latest start of it ended.
   ended?: string
+  // How many times the program started; a relaunch logs into the same home.
+  starts: number
   // Stands in for `seq` on a line without one: the order lines were read in.
   lines: number
 }
 
-export const emptyRunLog = (): RunLog => ({ sessions: new Map(), returns: new Map(), lines: 0 })
+export const emptyRunLog = (): RunLog => ({ sessions: new Map(), returns: new Map(), starts: 0, lines: 0 })
 
 // How the latest dispatch of `session` returned; undefined while it has not.
 export function returnOf(log: RunLog, session: string): string | undefined {
@@ -88,8 +91,10 @@ function ingestDispatch(log: RunLog, e: Record<string, unknown>): void {
 export function ingestRun(log: RunLog, raw: unknown): void {
   const e = record(raw)
   if (e === undefined) return
-  if (e.kind === 'run') delete log.ended
-  else if (e.kind === 'ended') log.ended = text(record(e.result)?.status) || 'done'
+  if (e.kind === 'run') {
+    delete log.ended
+    log.starts++
+  } else if (e.kind === 'ended') log.ended = text(record(e.result)?.status) || 'done'
   else if (e.kind === 'dispatched') ingestDispatch(log, e)
   else if (e.kind === 'returned' && typeof e.session === 'string') log.returns.set(e.session, { status: text(e.status), seq: seqOf(log, e) })
 }
@@ -117,12 +122,105 @@ function dispatchStatus(returned: string | undefined, runLive: boolean): AgentSt
   return 'failed'
 }
 
-// The run as a card under the session's main loop, and each of its sessions as a card under it.
+type Activity = 'survey' | 'probe' | 'plan' | 'rule' | 'build' | 'other'
+
+const ACTIVITY_NAME: Record<Activity, string> = { survey: 'Survey', probe: 'Probes', plan: 'Planning', rule: 'Rulings', build: 'Build', other: 'Other' }
+const NO_FOLDER = 'Everything else'
+
+const topFolder = (path: string) => {
+  const top = path.split('/')[0] ?? ''
+  return top === '.' ? '' : top
+}
+
+// Which folder of the effort a dispatch serves and what it does there. The one reader of agentics'
+// thread names: a search names no node, so its thread is all that says. A name it does not know
+// falls to the dispatch's node and 'other'.
+export function placeOf(d: { thread: string; node: string }): { folder: string; activity: Activity } {
+  const [head = '', second = '', third = ''] = d.thread.split(':')
+  switch (head) {
+    case 'survey':
+      return { folder: topFolder(second), activity: 'survey' }
+    case 'probe':
+      return { folder: topFolder(second), activity: 'probe' }
+    case 'planner':
+      return { folder: topFolder(second), activity: 'plan' }
+    case 'ruler':
+      return { folder: second === 'drift' || second === 'contention' ? (third.split('.')[0] ?? '') : topFolder(d.node), activity: 'rule' }
+    case 'producer':
+    case 'reviewer':
+    case 'integration':
+    case 'auditor':
+      return { folder: topFolder(second), activity: 'build' }
+    default:
+      return { folder: topFolder(d.node), activity: 'other' }
+  }
+}
+
+const isEvidence = (a: Activity) => a === 'survey' || a === 'probe'
+
+function groupNode(id: string, parentId: string, description: string, type: string, evidence: boolean, under: readonly AgentNode[], passes: number): AgentNode {
+  const running = under.filter(n => n.status === 'running').length
+  const latest = under.reduce((a, b) => (b.startedAt > a.startedAt ? b : a))
+  return {
+    kind: 'group',
+    evidence,
+    sessions: under.length,
+    running,
+    passes,
+    id,
+    parentId,
+    type,
+    description,
+    // An earlier attempt that failed says nothing about a group a later one finished.
+    status: running > 0 ? 'running' : latest.status,
+    startedAt: Math.min(...under.map(n => n.startedAt)),
+    ...(running > 0 ? {} : { endedAt: Math.max(...under.map(n => n.endedAt ?? n.startedAt)) }),
+    toolCount: under.reduce((sum, n) => sum + n.toolCount, 0),
+    activity: [],
+  }
+}
+
+// Sorts a run's sessions into folders and activities, sets each session's parent, and returns the
+// groups. A level holding a single thing is left out, so a small run stays flat; evidence keeps its
+// group whatever its siblings, because that is what folds it away.
+function groupSessions(run: string, sessions: readonly (AgentNode & { kind: 'dispatched' })[]): AgentNode[] {
+  const folders = new Map<string, Map<Activity, (AgentNode & { kind: 'dispatched' })[]>>()
+  for (const s of sessions) {
+    const { folder, activity } = placeOf(s)
+    const acts = folders.get(folder) ?? new Map<Activity, (AgentNode & { kind: 'dispatched' })[]>()
+    folders.set(folder, acts)
+    acts.set(activity, [...(acts.get(activity) ?? []), s])
+  }
+  const groups: AgentNode[] = []
+  const runId = runNodeId(run)
+  for (const [folder, acts] of folders) {
+    const under = [...acts.values()].flat()
+    const folderShown = folders.size > 1 && under.length > 1
+    const folderId = `${GROUP_NODE}${run}:${folder}`
+    const parent = folderShown ? folderId : runId
+    if (folderShown) groups.push(groupNode(folderId, runId, folder || NO_FOLDER, 'folder', false, under, 0))
+    for (const [activity, list] of acts) {
+      const evidence = isEvidence(activity)
+      if (list.length < 2 || (acts.size === 1 && !evidence)) {
+        for (const s of list) s.parentId = parent
+        continue
+      }
+      const id = `${folderId}:${activity}`
+      for (const s of list) s.parentId = id
+      const passes = evidence ? new Set(list.map(s => s.thread.split('/')[0])).size : 0
+      groups.push(groupNode(id, parent, ACTIVITY_NAME[activity], 'activity', evidence, list, passes))
+    }
+  }
+  return groups
+}
+
+// The run as a card under the session's main loop, its groups under it, and each of its sessions as
+// a card under those.
 export function runNodes(src: RunSource, now: number): AgentNode[] {
   const { meta, log } = src
   const live = log.ended === undefined && now - meta.heartbeatAt <= RUN_STALE_MS
   const id = runNodeId(meta.run)
-  const kids: AgentNode[] = []
+  const kids: (AgentNode & { kind: 'dispatched' })[] = []
   for (const [session, d] of log.sessions) {
     const t = src.transcripts.get(session)
     const status = dispatchStatus(returnOf(log, session), live)
@@ -152,6 +250,9 @@ export function runNodes(src: RunSource, now: number): AgentNode[] {
     run: meta.run,
     heartbeatAt: meta.heartbeatAt,
     ...(meta.pid !== undefined ? { pid: meta.pid } : {}),
+    starts: Math.max(1, log.starts),
+    sessions: kids.length,
+    running: kids.filter(k => k.status === 'running').length,
     id,
     type: 'agentics run',
     description: `${meta.program} ${meta.run}`,
@@ -161,7 +262,7 @@ export function runNodes(src: RunSource, now: number): AgentNode[] {
     toolCount: 0,
     activity: [],
   }
-  return [run, ...kids]
+  return [run, ...groupSessions(meta.run, kids), ...kids]
 }
 
 // Claude Code keeps a folder's sessions in a project directory named after the folder's path.

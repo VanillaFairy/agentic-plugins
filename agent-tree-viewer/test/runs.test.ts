@@ -90,6 +90,72 @@ describe('a run started by a session', () => {
     expect(nodes[runNodeId('r1')]).toMatchObject({ kind: 'run', program: 'survey', heartbeatAt: T0, toolCount: 0 })
     expect(nodes.s1).toMatchObject({ kind: 'dispatched', role: 'analyst', node: 'auth/login', model: 'haiku', description: 'auth/login' })
   })
+
+  it('counts every start of the run and every session under it, wherever a session hangs', () => {
+    const log = [{ kind: 'run' }, ...execution, { kind: 'ended', result: { status: 'done' } }, { kind: 'run' }]
+    expect(byId(source(0, log), 10)[runNodeId('r1')]).toMatchObject({ starts: 2, sessions: execution.length, running: execution.length })
+  })
+})
+
+// A session's thread as an execution names it; its node as the dispatch records it.
+const session = (id: string, thread: string, node = '') => ({ ...dispatched(id, thread), node })
+const execution = [
+  session('a1', 'survey:roamers:write:37:0/scout:one'),
+  session('a2', 'survey:roamers:write:37:0/plan'),
+  session('a3', 'survey:roamers:write:37:0:retry:865/scout:one'),
+  session('a4', 'probe:roamers:1/locate'),
+  session('a5', 'probe:roamers:2/locate'),
+  session('a6', 'producer:roamers/critters/roam', 'roamers/critters/roam'),
+  session('a7', 'reviewer:roamers/critters/roam:1', 'roamers/critters/roam'),
+  session('a8', 'ruler:drift:roamers:6eb4c26c', '.'),
+  session('b1', 'producer:critter-body/pursuit', 'critter-body/pursuit'),
+  session('b2', 'integration:critter-body:1', 'critter-body'),
+  session('c1', 'ruler:21b04334', '.'),
+]
+
+describe('an execution’s sessions', () => {
+  const nodes = byId(source(0, [{ kind: 'run' }, ...execution]), 10)
+  const parentOf = (id: string) => nodes[id]?.parentId ?? ''
+  const groups = Object.values(nodes).flatMap(n => (n.kind === 'group' ? [n] : []))
+
+  it('hang under their folder, then their activity', () => {
+    expect(nodes[parentOf(parentOf('a1'))]).toMatchObject({ kind: 'group', description: 'roamers', sessions: 8 })
+    expect(nodes[parentOf('a1')]).toMatchObject({ kind: 'group', description: 'Survey', evidence: true })
+    expect(parentOf('a4')).not.toBe(parentOf('a1'))
+    expect(nodes[parentOf('a6')]).toMatchObject({ description: 'Build', evidence: false, sessions: 2 })
+    expect(parentOf('a7')).toBe(parentOf('a6'))
+  })
+
+  it('read the folder off the thread when the dispatch names no node', () => {
+    expect(nodes[parentOf('a8')]?.description).toBe('roamers')
+  })
+
+  it('count a retried survey as another pass of one survey', () => {
+    expect(nodes[parentOf('a1')]).toMatchObject({ sessions: 3, passes: 2 })
+  })
+
+  it('skip a level that would hold a single thing', () => {
+    // The only activity of its folder, and not evidence to fold away.
+    expect(nodes[parentOf('b1')]?.description).toBe('critter-body')
+    // A folder of one session.
+    expect(parentOf('c1')).toBe(runNodeId('r1'))
+    expect(groups.map(g => g.description).sort()).toEqual(['Build', 'Probes', 'Survey', 'critter-body', 'roamers'])
+  })
+
+  it('leave a run of one folder and one activity flat', () => {
+    const flat = byId(source(0, [{ kind: 'run' }, dispatched('s1', 'judge:1'), dispatched('s2', 'plan')]), 10)
+    expect(flat.s1?.parentId).toBe(runNodeId('r1'))
+    expect(Object.values(flat).some(n => n.kind === 'group')).toBe(false)
+  })
+
+  it('give a group the state of its latest session unless one still runs', () => {
+    const log = [{ kind: 'run' }, session('p', 'probe:x:1/locate'), session('q', 'probe:x:2/locate'), returned('p', 'failed'), returned('q')]
+    const ran = (transcripts: Record<string, object[]>, extra: object[] = []) =>
+      Object.values(byId(source(0, [...log, ...extra], transcripts), 10)).find(n => n.kind === 'group')
+    const transcripts = { p: [toolCall(1, 'c1')], q: [toolCall(2, 'c2')] }
+    expect(ran(transcripts)?.status).toBe('completed')
+    expect(ran(transcripts, [{ ...session('r', 'probe:x:3/locate') }])?.status).toBe('running')
+  })
 })
 
 describe('the run store', () => {
