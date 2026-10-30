@@ -43,9 +43,10 @@ describe('the session list', () => {
     const top = listed.find(s => s.id === parent)
     expect(top?.runs).toEqual([{ node: 'run:r1', run: 'r1', program: 'survey', agents: 2 }])
     expect(top?.lastAt).toBeGreaterThan(now - 6000)
-    expect(index.parentOf(child)).toBe(parent)
-    expect(index.parentOf(orphan)).toBeUndefined()
-    expect(index.find(child)).toBeUndefined()
+    const known = index.known()
+    expect(known.parents.get(child)).toBe(parent)
+    expect(known.parents.get(orphan)).toBeUndefined()
+    expect(known.rows.get(child)).toBeUndefined()
   })
 })
 

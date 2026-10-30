@@ -10,8 +10,7 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { APP_NAME, PACKAGE_VERSION, createApp } from './app.ts'
 import { configPath, readConfig } from './config.ts'
-import { noShellCheck, pidOnlyCheck, readPresence, windowsProcessCheck, windowsShellCheck } from './presence.ts'
-import { SessionIndex } from './sessions.ts'
+import { Listing } from './listing.ts'
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url))
 const DAY_MS = 24 * 60 * 60 * 1000
@@ -84,16 +83,13 @@ async function main(): Promise<void> {
   }
 
   const appData = process.env.APPDATA ?? join(homedir(), 'AppData', 'Roaming')
-  const pidDir = join(homedir(), '.claude', 'sessions')
-  const check = process.platform === 'win32' ? windowsProcessCheck() : pidOnlyCheck
-  const shells = process.platform === 'win32' ? windowsShellCheck() : noShellCheck
-  const index = new SessionIndex({
+  const listing = new Listing({
     projectsDir: join(homedir(), '.claude', 'projects'),
     desktopDir: join(appData, 'Claude', 'claude-code-sessions'),
     maxAgeMs: config.maxAgeDays * DAY_MS,
-    presence: () => readPresence(pidDir, check, shells),
+    pidDir: join(homedir(), '.claude', 'sessions'),
   })
-  const app = createApp({ port: config.port, distDir: join(ROOT, 'dist'), index, staleMs: config.staleMinutes * MINUTE_MS, now: Date.now })
+  const app = createApp({ port: config.port, distDir: join(ROOT, 'dist'), listing, staleMs: config.staleMinutes * MINUTE_MS, now: Date.now })
   await new Promise<void>(done => app.server.on('listening', done))
   console.log(`agent tree viewer ${PACKAGE_VERSION} at ${url}`)
   if (open) openBrowser(url)

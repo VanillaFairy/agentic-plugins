@@ -4,9 +4,9 @@ import http from 'node:http'
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
 import { extname, join, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import type { ProjectGroup, SessionSnapshot } from '../shared/model.ts'
+import type { SessionSnapshot } from '../shared/model.ts'
+import type { Listing } from './listing.ts'
 import { SessionWatch } from './live.ts'
-import type { SessionIndex } from './sessions.ts'
 
 const HERE = fileURLToPath(new URL('.', import.meta.url))
 export const PACKAGE_VERSION = (JSON.parse(readFileSync(join(HERE, '..', 'package.json'), 'utf8')) as { version: string }).version
@@ -25,8 +25,6 @@ const MIME: Record<string, string> = {
 const SSE_HEADERS = { 'content-type': 'text/event-stream', 'cache-control': 'no-cache', connection: 'keep-alive' }
 const POLL_MS = 600
 const HEARTBEAT_MS = 15000
-// A listing walks every project folder, so callers within this long share one.
-const LIST_REUSE_MS = 1500
 
 // Only pages served from this server may read it: no other site in the browser can.
 export function hostAllowed(headers: http.IncomingHttpHeaders, port: number): boolean {
@@ -43,7 +41,7 @@ type Stream = { watch: SessionWatch; clients: Set<http.ServerResponse>; last: st
 export type AppDeps = {
   port: number
   distDir: string
-  index: SessionIndex
+  listing: Listing
   staleMs: number
   now: () => number
 }
@@ -63,18 +61,17 @@ function readPage(dir: string): Map<string, Buffer> {
 export function createApp(deps: AppDeps): { server: http.Server; close: () => Promise<void> } {
   const streams = new Map<string, Stream>()
   const page = readPage(deps.distDir)
-  let listed: { at: number; groups: ProjectGroup[] } | undefined
+  const { listing } = deps
 
-  const list = (): ProjectGroup[] => {
-    const now = deps.now()
-    if (listed === undefined || now - listed.at > LIST_REUSE_MS) listed = { at: now, groups: deps.index.list(now) }
-    return listed.groups
+  // A session the latest listing does not know may be younger than it, so it gets one more listing.
+  const lookUp = async (id: string): Promise<void> => {
+    if (listing.find(id) === undefined && listing.parentOf(id) === undefined) await listing.next()
   }
 
   const push = (stream: Stream, id: string, force: boolean): void => {
-    const found = deps.index.find(id)
+    const found = listing.find(id)
     if (found === undefined) return
-    const project = list().find(g => g.sessions.some(s => s.id === id))
+    const project = listing.groupOf(id)
     const { live, waitingFor } = found.row
     const presence = waitingFor === undefined ? { live } : { live, waitingFor }
     const snap = stream.watch.snapshot(deps.now(), found.row.title, { path: found.row.path, name: project?.name ?? found.row.path }, presence)
@@ -85,15 +82,17 @@ export function createApp(deps: AppDeps): { server: http.Server; close: () => Pr
     for (const res of stream.clients) res.write(frame)
   }
 
-  const openStream = (id: string, res: http.ServerResponse): void => {
-    list()
+  const openStream = async (id: string, res: http.ServerResponse): Promise<void> => {
+    await lookUp(id)
+    // Gone while it waited: its close has already fired, so a stream opened now would never end.
+    if (res.destroyed) return
     // A session an agentics run dispatched shows as a card in the tree of the session that started the run.
-    const parent = deps.index.parentOf(id)
+    const parent = listing.parentOf(id)
     if (parent !== undefined) {
       res.writeHead(307, { location: `/api/sessions/${encodeURIComponent(parent)}/stream` }).end()
       return
     }
-    const found = deps.index.find(id)
+    const found = listing.find(id)
     if (found === undefined) {
       res.writeHead(404, { 'content-type': 'application/json' }).end(JSON.stringify({ error: `No session ${id} in the last listing` }))
       return
@@ -133,11 +132,11 @@ export function createApp(deps: AppDeps): { server: http.Server; close: () => Pr
   }
 
   // The session's open stream when there is one, so its transcripts are read only once.
-  const watchOf = (sessionId: string): SessionWatch | undefined => {
+  const watchOf = async (sessionId: string): Promise<SessionWatch | undefined> => {
     const open = streams.get(sessionId)?.watch
     if (open !== undefined) return open
-    list()
-    const found = deps.index.find(sessionId)
+    await lookUp(sessionId)
+    const found = listing.find(sessionId)
     return found === undefined ? undefined : new SessionWatch(found.files, deps.staleMs, found.row.path)
   }
   const json = (res: http.ServerResponse, body: unknown) =>
@@ -156,7 +155,7 @@ export function createApp(deps: AppDeps): { server: http.Server; close: () => Pr
     res.writeHead(200, { 'content-type': MIME[extname(name)] ?? 'application/octet-stream' }).end(body)
   }
 
-  const server = http.createServer((req, res) => {
+  const server = http.createServer(async (req, res) => {
     if (!hostAllowed(req.headers, deps.port)) {
       res.writeHead(403).end()
       return
@@ -169,13 +168,13 @@ export function createApp(deps: AppDeps): { server: http.Server; close: () => Pr
       if (url.pathname === '/api/health') {
         res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ app: APP_NAME, version: PACKAGE_VERSION }))
       } else if (url.pathname === '/api/sessions') {
-        res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(list()))
+        res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(await listing.groups()))
       } else if (stream?.[1] !== undefined) {
-        openStream(decodeURIComponent(stream[1]), res)
+        await openStream(decodeURIComponent(stream[1]), res)
       } else if (node?.[1] !== undefined && node[2] !== undefined) {
-        json(res, watchOf(decodeURIComponent(node[1]))?.detail(decodeURIComponent(node[2])))
+        json(res, (await watchOf(decodeURIComponent(node[1])))?.detail(decodeURIComponent(node[2])))
       } else if (call?.[1] !== undefined && call[2] !== undefined && call[3] !== undefined) {
-        json(res, watchOf(decodeURIComponent(call[1]))?.call(decodeURIComponent(call[2]), decodeURIComponent(call[3])))
+        json(res, (await watchOf(decodeURIComponent(call[1])))?.call(decodeURIComponent(call[2]), decodeURIComponent(call[3])))
       } else if (url.pathname.startsWith('/api/')) {
         res.writeHead(404).end()
       } else {

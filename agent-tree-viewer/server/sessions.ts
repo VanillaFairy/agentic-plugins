@@ -303,15 +303,9 @@ export class SessionIndex {
     return groupSessions(folded.rows)
   }
 
-  // The session whose agentics run dispatched this one, as the last listing found it.
-  parentOf(id: string): string | undefined {
-    return this.parents.get(id)
-  }
-
-  // The files of a session the last listing found.
-  find(id: string): { files: SessionFiles; row: SessionRow } | undefined {
-    const files = this.files.get(id)
-    const row = this.rows.get(id)
-    return files && row ? { files, row } : undefined
+  // What the last listing found: each session's files and row, and the session each dispatched
+  // session belongs to.
+  known(): { files: Map<string, SessionFiles>; rows: Map<string, SessionRow>; parents: Map<string, string> } {
+    return { files: this.files, rows: this.rows, parents: this.parents }
   }
 }
