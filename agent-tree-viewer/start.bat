@@ -1,6 +1,6 @@
 @echo off
 rem Starts the agent tree viewer and opens it in the default browser. If it already runs, only opens it.
-rem Arguments pass through, so `agent-tree-viewer.bat --port 5190` serves on another port.
+rem Arguments pass through, so `start.bat --port 5190` serves on another port.
 rem The server runs in the console; close it or press Ctrl+C to stop the viewer.
 rem Opened from Explorer, cmd runs it as `cmd /c "<this file>"`, and that window closes the moment
 rem the server stops. So it reopens itself in a console of its own that stays open.

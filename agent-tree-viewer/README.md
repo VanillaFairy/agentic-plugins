@@ -8,7 +8,7 @@ It isn't a plugin and needs nothing installed in Claude Code. It reads the trans
 
 You'll need Node 26 or later.
 
-On Windows, double-click `agent-tree-viewer.bat`. It installs the dependencies the first time, starts the server in a console window and opens the app in your browser. If the viewer is already running, it only opens the browser. Close the console or press Ctrl+C to stop it.
+On Windows, double-click `start.bat`. It installs the dependencies the first time, starts the server in a console window and opens the app in your browser. If the viewer is already running, it only opens the browser. Close the console or press Ctrl+C to stop it.
 
 From a terminal:
 
@@ -47,7 +47,7 @@ Colours follow your system's light or dark setting.
 The port defaults to 5183. To change it, pass `--port`:
 
 ```bash
-agent-tree-viewer.bat --port 5190
+start.bat --port 5190
 ```
 
 or put it in `~/.agent-tree-viewer/config.json`, along with the other settings:
