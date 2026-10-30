@@ -1,7 +1,7 @@
 import type { JSX } from 'preact'
 import { useEffect, useRef, useState } from 'preact/hooks'
 import type { BoardModel, NodeView } from './model.ts'
-import { kindWord, returnLabel, returnInWords, ago, vscodeLink, needsYou, claudePrompt, claudeCodeLink, projectPath, cardFacts, nodeSpend, liveLine, writes } from './model.ts'
+import { kindWord, returnLabel, returnInWords, ago, vscodeLink, needsYou, stopWord, withSession, claudePrompt, claudeCodeLink, projectPath, cardFacts, nodeSpend, liveLine, writes } from './model.ts'
 import { inlineMarkdown } from './markdown.ts'
 import { Spend } from './Spend.tsx'
 import type { Approval, Snapshot, SnapshotNode } from '../shared/snapshot.ts'
@@ -20,13 +20,17 @@ function approvalWord(a: Approval): string {
   }
 }
 
+function sentenceCase(s: string): string {
+  return s.charAt(0).toUpperCase() + s.slice(1)
+}
+
 function commitWord(n: number): string {
   return n === 1 ? '1 commit' : `${n} commits`
 }
 
 // The status word is the most important thing on the panel, so it carries its own colour: green
-// once nothing more is needed, amber when this node waits on you, red when it escalated, plain
-// ink for everything still moving.
+// once nothing more is needed, amber when this node waits on you, red when nobody has its stop in
+// hand, plain ink for everything still moving.
 function statusTone(node: SnapshotNode): 'good' | 'hold' | 'stop' | 'ongoing' {
   if (['merged', 'integrated', 'landed', 'done', 'not_earned'].includes(node.status)) return 'good'
   return needsYou(node) ?? 'ongoing'
@@ -154,13 +158,15 @@ export function Detail(props: {
 
   const idParts = [view.id, kindWord(node.kind), node.rigor].filter((part) => part.trim() !== '')
 
-  const isParked = node.status === 'parked' && needsYou(node) === 'hold'
-  const isEscalated = needsYou(node) === 'stop'
+  const isHeld = withSession(node)
+  const isStopped = (node.status === 'parked' || node.status === 'escalated') && node.event !== null
+  const isParked = node.status === 'parked' && isStopped
+  const isEscalated = node.status === 'escalated' && isStopped
   const needsDesign = node.status === 'open'
   const prompt = claudePrompt(snapshot, node)
   const promptLink = prompt !== null ? claudeCodeLink(projectPath(snapshot), prompt) : null
   const facts = cardFacts(node)
-  const rolledUp = (node.status === 'parked' || node.status === 'escalated') && needsYou(node) === null
+  const rolledUp = (node.status === 'parked' || node.status === 'escalated') && !isStopped
   const event = node.event
 
   const showActiveLine = node.status === 'active' && node.commits !== null && node.commits.count > 0
@@ -199,9 +205,9 @@ export function Detail(props: {
       {node.title !== '' && <p class="d-title">{node.title}</p>}
 
       {(isParked || isEscalated || needsDesign) && (
-        <div class={isEscalated ? 'state stop' : 'state'}>
+        <div class={isHeld ? 'state session' : needsYou(node) === 'stop' ? 'state stop' : 'state'}>
           <div class="h">
-            {isParked ? `Waiting on you: ${returnInWords(event?.return ?? '')}` : isEscalated ? 'Escalated' : 'Needs design'}
+            {needsDesign ? 'Needs design' : `${sentenceCase(stopWord(node))}${isParked ? `: ${returnInWords(event?.return ?? '')}` : ''}`}
           </div>
           {isParked && event?.question && <p>{event.question}</p>}
           {isEscalated && event?.reason && <p>{event.reason}</p>}

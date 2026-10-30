@@ -26,7 +26,7 @@ The user's rulings from the design conversation. They bind the plan.
 | D4 | The tree is a node-link tree diagram, top down and compact (siblings in dependency order, runs of leaves stacked, alternating between a column and a row by depth), with an outline list beside it. "After" edges show only for the selected or hovered node. |
 | D5 | Open project lists projects found under configured roots, recent projects, and a Browse button that opens the native Windows folder dialog. |
 | D6 | Clicking a node opens a detail panel with its details, and links that open its files in VS Code. |
-| D7 | A node that newly parks or escalates is highlighted on the page and raises a Windows toast. |
+| D7 | A stop is drawn by who holds it, which agentics reports as `event.holder`: a question open to you is yellow and raises a Windows toast; a stop the session has is blue and quiet; a stop nobody has is red and raises a toast. |
 | D8 | Beyond status, the page shows commits in running tasks and the effort's cost so far. It does not show the executions list or the Next line. |
 | D9 | The page is built with Vite + Preact. |
 | D10 | The look in §7 and the mockup ("Nice!"). |
@@ -305,11 +305,19 @@ During development `agentics_path` points at the `design-loop` checkout
   event `seq` already alerted.
 - The first time an effort is opened, `alerted_seq` is set to the snapshot's `seq_max`. History
   raises no toast, though those nodes are still highlighted on the page.
-- After each snapshot, every node whose status is `parked` or `escalated`, and whose `event.seq`
-  is above `alerted_seq`, raises one toast. Then `alerted_seq` moves to the highest such `seq` and
-  is saved.
-- Toast wording: title "`<node name>` is waiting on you" with the question as the body, or
-  "`<node name>` escalated" with the reason. The node name is the id's last segment.
+- After each snapshot, a stopped node raises one toast by its `event.holder`:
+  - `session`: none.
+  - `user`: when `event.asked`, the question's seq, is above `alerted_seq`. A question can open
+    long after its stop, so the stop's own seq would already be under the watermark.
+  - `nobody`: when `event.seq` is above `alerted_seq`, or when the previous read found the same stop
+    with the session. Going quiet moves no seq, so the server keeps that set in memory, per effort.
+  - absent (agentics before 7.2.0): when `event.seq` is above `alerted_seq`.
+  Then `alerted_seq` moves to the highest alerted seq and is saved.
+- While any stop is with the session the project is polled as it is while a node is active, because
+  the session going quiet writes nothing under the store.
+- Toast wording: title "`<node name>` is waiting on you" with the question or reason as the body,
+  "Nobody is handling `<node name>`", or, before agentics 7.2.0, "`<node name>` escalated". The node
+  name is the id's last segment.
 - The toast runs through `powershell.exe` (Windows PowerShell 5.1, which can load WinRT types)
   using `Windows.UI.Notifications.ToastNotificationManager` under PowerShell's AppUserModelID. A
   failure is logged and never blocks a refresh.
@@ -402,9 +410,11 @@ the detail panel's first line. Hovering a block or row shows status and facts in
 | `approved` | `--work` border | "awaiting merge" or "held" (from `stage`) | none |
 | `reviewing` (a folder whose children all merged, its integration review due) | `--work` border | "awaiting review" | "`n` of `m` merged" |
 | a `review` entry (a folder's integration review, drawn as the folder's last child) | `--work` border while it has a stage, else `--rule`; `--good` border and fill once `done` or `not_earned` | the stage ("in review"), else "queued"; "reviewed" or "not earned" | none |
-| `parked`, with its own event | `--hold` border and a 16 % `--hold` fill | "waiting on you" | none |
-| `escalated`, with its own event | `--stop` border and a 16 % `--stop` fill | "escalated" | none |
-| `parked` or `escalated` with no event (agentics rolls a descendant's status up to every ancestor) | `--rule` border | none: the border says it | what is below: "1 escalated", "2 waiting on you", "4 need design" |
+| `parked` or `escalated`, `event.holder` `user` (or, before agentics 7.2.0, `parked`) | `--hold` border and a 16 % `--hold` fill | "waiting on you" | none |
+| `parked` or `escalated`, `event.holder` `session` | `--work` border | "the session has it" | none |
+| `parked` or `escalated`, `event.holder` `nobody` | `--stop` border and a 16 % `--stop` fill | "nobody is handling this" | none |
+| `escalated`, no `event.holder` (agentics before 7.2.0) | `--stop` border and a 16 % `--stop` fill | "escalated" | none |
+| `parked` or `escalated` with no event (agentics rolls a descendant's status up to every ancestor) | `--rule` border | none: the border says it | what is below: "1 with nobody", "2 waiting on you", "1 with the session", "4 need design" |
 | `merged`, `integrated`, `landed` | `--good` border and a 12 % `--good` fill | "merged", "integrated", "landed" | none |
 | `planned`, or `open` with `author: planner` | `--rule` border | "queued" | "`n` of `m` merged" for a folder |
 | `open` (a design node you write) | dashed `--hold` border and a 16 % `--hold` fill: it needs you to design it | "needs design" | "`n` blocking questions" from its folder's DESIGN.md; "not approved" or "edited since approval"; "design not started" when it has no folder of its own yet |
@@ -477,12 +487,15 @@ dispatches, nothing measured" when nothing was), and the Open project button (th
 
 **Annunciator.**
 
-- One tile per node whose status is `parked` or `escalated`: escalations first, then parks, each
-  group by `event.seq` descending.
-- A tile's first line is "`<name>` is waiting on you" or "`<name>` escalated". Its second line is
-  the question or the reason, cut to one line.
-- A tile is lit: `--hold-lit` with `--hold-ink`, or `--stop` with `--stop-ink`.
-- A tile flashes (a 1.1 s step animation) until you open its node. After that it stays lit and
+- One tile per node stopped on its own account: those nobody holds first, then those waiting on you,
+  then those with the session, each group by `event.seq` descending.
+- A tile's first line is "`<name>` is waiting on you", "Nobody is handling `<name>`", "The session
+  has `<name>`" or, before agentics 7.2.0, "`<name>` escalated". Its second line is the question or
+  the reason, cut to one line.
+- A tile is lit: `--hold-lit` with `--hold-ink`, or `--stop` with `--stop-ink`. A tile with the
+  session is a quiet `--work` tint that never flashes, and a click on it offers no prompt: nothing
+  is asked of you.
+- A lit tile flashes (a 1.1 s step animation) until you open its node. After that it stays lit and
   steady. Acknowledged tiles are remembered per browser in `localStorage`, keyed by project,
   effort, node and `event.seq`. The code wraps storage in try/catch, and without storage a tile
   simply flashes until it clears.

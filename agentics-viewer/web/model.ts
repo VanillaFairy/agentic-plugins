@@ -23,7 +23,7 @@ export interface NodeView {
 
 export interface Tile {
   node: string
-  kind: 'hold' | 'stop'
+  kind: 'hold' | 'stop' | 'session'
   seq: number
   title: string
   why: string
@@ -52,24 +52,43 @@ function mergedCount(statuses: string[]): { merged: number; total: number } {
   return { merged, total: statuses.length }
 }
 
-// A design node needs you to design it. agentics also marks a composite parked or escalated
-// when only a descendant is; the node that is itself waiting carries the event that says why,
-// and only that node needs you.
+// Stopped on its own account: agentics also marks a composite parked or escalated when only a
+// descendant is, and only the node that is itself stopped carries the event that says why.
+function isStopped(n: SnapshotNode): boolean {
+  return (n.status === 'parked' || n.status === 'escalated') && n.event !== null
+}
+
+export function withSession(n: SnapshotNode): boolean {
+  return isStopped(n) && n.event!.holder === 'session'
+}
+
+// A design node needs you to design it. A stop needs you when a question to you is open on it, or
+// when nobody has it in hand. agentics before 7.2.0 doesn't say who holds a stop: then a park
+// reads as waiting on you and an escalation as a stop.
 export function needsYou(n: SnapshotNode): 'hold' | 'stop' | null {
   if (n.status === 'open') return 'hold'
-  if (n.event === null) return null
-  if (n.status === 'parked') return 'hold'
-  if (n.status === 'escalated') return 'stop'
-  return null
+  if (!isStopped(n)) return null
+  const holder = n.event!.holder
+  if (holder === 'session') return null
+  if (holder === 'user') return 'hold'
+  if (holder === 'nobody') return 'stop'
+  return n.status === 'parked' ? 'hold' : 'stop'
+}
+
+export function stopWord(n: SnapshotNode): string {
+  if (withSession(n)) return 'the session has it'
+  if (n.event?.holder === 'nobody') return 'nobody is handling this'
+  return needsYou(n) === 'hold' ? 'waiting on you' : 'escalated'
 }
 
 export interface Below {
   waiting: number
   escalated: number
+  withSession: number
   needDesign: number
 }
 
-const NOTHING_BELOW: Below = { waiting: 0, escalated: 0, needDesign: 0 }
+const NOTHING_BELOW: Below = { waiting: 0, escalated: 0, withSession: 0, needDesign: 0 }
 
 function alertOf(b: Below): 'hold' | 'stop' | null {
   if (b.escalated > 0) return 'stop'
@@ -78,8 +97,9 @@ function alertOf(b: Below): 'hold' | 'stop' | null {
 
 function belowFacts(b: Below): string[] {
   const facts: string[] = []
-  if (b.escalated > 0) facts.push(`${b.escalated} escalated`)
+  if (b.escalated > 0) facts.push(`${b.escalated} with nobody`)
   if (b.waiting > 0) facts.push(`${b.waiting} waiting on you`)
+  if (b.withSession > 0) facts.push(`${b.withSession} with the session`)
   if (b.needDesign > 0) facts.push(`${b.needDesign} need design`)
   return facts
 }
@@ -112,7 +132,7 @@ export function lampAndWording(
     if (n.status === 'not_earned') return worded('done', 'not earned')
     return n.stage !== null ? worded('work', n.stage) : worded('idle', 'queued')
   }
-  if ((n.status === 'parked' || n.status === 'escalated') && needsYou(n) === null) {
+  if ((n.status === 'parked' || n.status === 'escalated') && !isStopped(n)) {
     // No status of its own: its border says something below needs you, its facts say what.
     return worded('idle', '', belowFacts(below))
   }
@@ -131,9 +151,8 @@ export function lampAndWording(
     case 'reviewing':
       return worded('work', 'awaiting review', [mergedFact(childStatuses)])
     case 'parked':
-      return worded('hold', 'waiting on you')
     case 'escalated':
-      return worded('stop', 'escalated')
+      return worded(needsYou(n) ?? 'work', stopWord(n))
     case 'merged':
     case 'integrated':
     case 'landed':
@@ -225,16 +244,18 @@ export function buildModel(s: Snapshot): BoardModel {
   function countBelow(id: string): Below {
     const cached = belowOf.get(id)
     if (cached) return cached
-    const b = { waiting: 0, escalated: 0, needDesign: 0 }
+    const b = { waiting: 0, escalated: 0, withSession: 0, needDesign: 0 }
     for (const c of childrenOf.get(id) ?? []) {
       const child = byId.get(c)!
       const need = needsYou(child)
       if (child.status === 'open') b.needDesign++
       else if (need === 'hold') b.waiting++
       else if (need === 'stop') b.escalated++
+      else if (withSession(child)) b.withSession++
       const sub = countBelow(c)
       b.waiting += sub.waiting
       b.escalated += sub.escalated
+      b.withSession += sub.withSession
       b.needDesign += sub.needDesign
     }
     belowOf.set(id, b)
@@ -311,19 +332,21 @@ export function buildModel(s: Snapshot): BoardModel {
 
   const tiles: Tile[] = []
   for (const n of s.nodes) {
-    if (n.event === null) continue
-    if (n.status === 'parked') {
-      const why = n.event.question ?? returnInWords(n.event.return ?? '')
-      tiles.push({ node: n.id, kind: 'hold', seq: n.event.seq, title: `${shownName(n, s.effort)} is waiting on you`, why })
-    } else if (n.status === 'escalated') {
-      const why = n.event.reason ?? n.event.detail ?? ''
-      tiles.push({ node: n.id, kind: 'stop', seq: n.event.seq, title: `${shownName(n, s.effort)} escalated`, why })
-    }
+    if (!isStopped(n)) continue
+    const event = n.event!
+    const why = n.status === 'parked'
+      ? event.question ?? returnInWords(event.return ?? '')
+      : event.reason ?? event.detail ?? ''
+    const name = shownName(n, s.effort)
+    const seq = event.seq
+    const need = needsYou(n)
+    if (need === null) tiles.push({ node: n.id, kind: 'session', seq, title: `The session has ${name}`, why })
+    else if (event.holder === 'nobody') tiles.push({ node: n.id, kind: 'stop', seq, title: `Nobody is handling ${name}`, why })
+    else if (need === 'hold') tiles.push({ node: n.id, kind: 'hold', seq, title: `${name} is waiting on you`, why })
+    else tiles.push({ node: n.id, kind: 'stop', seq, title: `${name} escalated`, why })
   }
-  tiles.sort((a, b) => {
-    if (a.kind !== b.kind) return a.kind === 'stop' ? -1 : 1
-    return b.seq - a.seq
-  })
+  const TILE_ORDER = { stop: 0, hold: 1, session: 2 }
+  tiles.sort((a, b) => TILE_ORDER[a.kind] - TILE_ORDER[b.kind] || b.seq - a.seq)
 
   const counts: Counts = { working: 0, merged: 0, queued: 0, needDesign: 0 }
   for (const n of s.nodes) {
@@ -368,13 +391,13 @@ export function returnInWords(ret: string): string {
   }
 }
 
-function waitingBelow(s: Snapshot, id: string): SnapshotNode[] {
+function nodesBelow(s: Snapshot, id: string): SnapshotNode[] {
   const byId = new Map(s.nodes.map((n) => [n.id, n]))
   const isBelow = (n: SnapshotNode): boolean => {
     for (let p = n.parent; p !== null; p = byId.get(p)?.parent ?? null) if (p === id) return true
     return false
   }
-  return s.nodes.filter((n) => needsYou(n) !== null && isBelow(n))
+  return s.nodes.filter(isBelow)
 }
 
 export interface CardFact {
@@ -432,13 +455,16 @@ export function projectPath(s: Snapshot): string {
 export function claudePrompt(s: Snapshot, n: SnapshotNode): string | null {
   const landable = n.id === '.' && n.status === 'integrated'
   if ((MERGED_STATUSES.has(n.status) || n.kind === 'review') && !landable) return null
+  if (withSession(n)) return null
   const need = needsYou(n)
   const where = `the agentics effort \`${s.effort}\` in \`${projectPath(s)}\``
   const lines: string[] = []
   if (landable) {
     lines.push(`Use agentics:develop on ${where}: it is integrated, so walk me through its result and land it on my go.`)
   } else if (need === null) {
-    const waiting = n.status === 'parked' || n.status === 'escalated' ? waitingBelow(s, n.id) : []
+    const below = n.status === 'parked' || n.status === 'escalated' ? nodesBelow(s, n.id) : []
+    const waiting = below.filter((b) => needsYou(b) !== null)
+    if (waiting.length === 0 && below.some(withSession)) return null
     if (waiting.length > 0) {
       lines.push(`Use agentics:develop to ask me about what waits on me under \`${n.id}\` of ${where}; relaunch only once I've answered.`)
       lines.push(`Waiting: ${waiting.map((w) => `\`${w.id}\` (${w.status})`).join(', ')}`)
@@ -449,13 +475,17 @@ export function claudePrompt(s: Snapshot, n: SnapshotNode): string | null {
     }
   } else if (n.status === 'open') {
     lines.push(`Use agentics:design on the folder \`${n.id}\` of ${where}.`)
-  } else if (need === 'hold') {
+  } else if (n.status === 'parked') {
     const ret = n.event?.return ?? ''
-    lines.push(`Use agentics:develop to ask me about the parked node \`${n.id}\` of ${where}; relaunch only once I've answered.`)
+    lines.push(n.event?.holder === 'nobody'
+      ? `Use agentics:develop to pick up the parked node \`${n.id}\` of ${where}: settle it if it is yours to settle, or ask me.`
+      : `Use agentics:develop to ask me about the parked node \`${n.id}\` of ${where}; relaunch only once I've answered.`)
     if (ret !== '') lines.push(`Return: \`${ret}\` (${returnInWords(ret)})`)
     if (n.event?.question) lines.push(`Question: ${n.event.question}`)
   } else {
-    lines.push(`Use agentics:develop to ask me about the escalated node \`${n.id}\` of ${where}; relaunch only once I've answered.`)
+    lines.push(n.event?.holder === 'nobody'
+      ? `Use agentics:develop to pick up the escalated node \`${n.id}\` of ${where}: settle it if it is yours to settle, or ask me.`
+      : `Use agentics:develop to ask me about the escalated node \`${n.id}\` of ${where}; relaunch only once I've answered.`)
     if (n.event?.reason) lines.push(`Reason: ${n.event.reason}`)
     if (n.event?.detail) lines.push(`Detail: ${n.event.detail}`)
   }

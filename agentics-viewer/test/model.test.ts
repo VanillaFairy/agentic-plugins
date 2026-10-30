@@ -4,6 +4,7 @@ import type { SnapshotFolder, SnapshotNode, Spend } from '../shared/snapshot.ts'
 import { FORMAT } from '../shared/snapshot.ts'
 import type { Tile } from '../web/model.ts'
 import {
+  needsYou,
   buildModel,
   lampAndWording,
   returnInWords,
@@ -112,7 +113,7 @@ describe('lampAndWording', () => {
 
   test('parked only through its children summarizes them instead', () => {
     const n = node('a', { status: 'parked' })
-    const r = lampAndWording(n, null, ['open', 'parked'], { waiting: 1, escalated: 0, needDesign: 2 })
+    const r = lampAndWording(n, null, ['open', 'parked'], { waiting: 1, escalated: 0, withSession: 0, needDesign: 2 })
     expect(r.lamp).toBe('idle')
     expect(r.status).toBe('')
     expect(r.wording).toBe('1 waiting on you, 2 need design')
@@ -872,4 +873,68 @@ test('a node writes its expects, or its locus from agentics before 6.0.0', () =>
   expect(writes(node('a', { expects: ['src/a.ts'] }))).toEqual(['src/a.ts'])
   expect(writes(node('a', { expects: undefined, locus: ['src/b.ts'] }))).toEqual(['src/b.ts'])
   expect(writes(node('a', { expects: undefined }))).toEqual([])
+})
+
+describe('who holds a stop', () => {
+  const stopped = (holder: 'user' | 'session' | 'nobody', status = 'parked') =>
+    node('a', { status, event: { kind: status, seq: 4, question: 'q', reason: 'r', holder } })
+
+  test('a question open on it waits on you', () => {
+    for (const status of ['parked', 'escalated']) {
+      const r = lampAndWording(stopped('user', status), null, [])
+      expect(r.lamp).toBe('hold')
+      expect(r.status).toBe('waiting on you')
+    }
+  })
+
+  test('the session having it is neither yellow nor red, and asks nothing of you', () => {
+    for (const status of ['parked', 'escalated']) {
+      const n = stopped('session', status)
+      const r = lampAndWording(n, null, [])
+      expect(r.lamp).toBe('work')
+      expect(r.status).toBe('the session has it')
+      expect(needsYou(n)).toBeNull()
+      expect(claudePrompt(snap([node('.'), n]), n)).toBeNull()
+    }
+  })
+
+  test('nobody having it is red, and offers a way to pick it up', () => {
+    for (const status of ['parked', 'escalated']) {
+      const n = stopped('nobody', status)
+      const r = lampAndWording(n, null, [])
+      expect(r.lamp).toBe('stop')
+      expect(r.status).toBe('nobody is handling this')
+      expect(claudePrompt(snap([node('.'), n]), n)).toContain('pick up')
+    }
+  })
+
+  test('tiles say the same, worst first, and only yellow and red need you', () => {
+    const s = snap([
+      node('.'),
+      node('calm', { status: 'parked', event: { kind: 'parked', seq: 9, holder: 'session' } }),
+      node('asked', { status: 'parked', event: { kind: 'parked', seq: 5, holder: 'user', asked: 6 } }),
+      node('gone', { status: 'escalated', event: { kind: 'escalated', seq: 3, holder: 'nobody' } }),
+    ])
+    expect(buildModel(s).tiles.map((t) => [t.kind, t.title])).toEqual([
+      ['stop', 'Nobody is handling gone'],
+      ['hold', 'asked is waiting on you'],
+      ['session', 'The session has calm'],
+    ])
+  })
+
+  test('a parent counts each kind of holder apart, and offers nothing when only the session is at work', () => {
+    const calm = node('p.calm', { parent: 'p', status: 'parked', event: { kind: 'parked', seq: 9, holder: 'session' } })
+    const s = snap([node('.'), node('p', { status: 'parked' }), calm])
+    const m = buildModel(s)
+    expect(m.nodes.get('p')!.facts).toEqual(['1 with the session'])
+    expect(m.nodes.get('p')!.alertBelow).toBeNull()
+    expect(claudePrompt(s, s.nodes[1]!)).toBeNull()
+  })
+
+  test('a stop from agentics before 7.2.0 reads as it always did', () => {
+    const parked = node('a', { status: 'parked', event: { kind: 'parked', seq: 1 } })
+    const escalated = node('b', { status: 'escalated', event: { kind: 'escalated', seq: 2 } })
+    expect(lampAndWording(parked, null, []).status).toBe('waiting on you')
+    expect(lampAndWording(escalated, null, []).status).toBe('escalated')
+  })
 })

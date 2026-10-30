@@ -140,3 +140,38 @@ describe('diffAlerts', () => {
     expect(result.watermark).toBe(10)
   })
 })
+
+describe('alerts follow who holds the stop', () => {
+  const parked = (holder: 'user' | 'session' | 'nobody', asked?: number) =>
+    node('team.alpha', 'parked', { kind: 'parked', seq: 3, question: 'q', holder, ...(asked === undefined ? {} : { asked }) })
+
+  test('a stop the session has raises no alert', () => {
+    const r = diffAlerts(snapshot([parked('session')], 9), 2)
+    expect(r.alerts).toEqual([])
+    expect(r.watermark).toBe(2)
+  })
+
+  test('a question opened on it alerts by the question, even past the watermark the stop is under', () => {
+    const r = diffAlerts(snapshot([parked('user', 8)], 9), 5)
+    expect(r.alerts.map((a) => a.title)).toEqual(['alpha is waiting on you'])
+    expect(r.watermark).toBe(8)
+    expect(diffAlerts(snapshot([parked('user', 8)], 9), r.watermark).alerts).toEqual([])
+  })
+
+  test('a new stop nobody holds alerts as such', () => {
+    const r = diffAlerts(snapshot([parked('nobody')], 9), 2)
+    expect(r.alerts.map((a) => a.title)).toEqual(['Nobody is handling alpha'])
+  })
+
+  test('a session going quiet alerts once, though no seq moved', () => {
+    const before = diffAlerts(snapshot([parked('session')], 9), 5)
+    expect(before.alerts).toEqual([])
+    const gone = diffAlerts(snapshot([parked('nobody')], 9), 5, before.held)
+    expect(gone.alerts.map((a) => a.title)).toEqual(['Nobody is handling alpha'])
+    expect(diffAlerts(snapshot([parked('nobody')], 9), gone.watermark, gone.held).alerts).toEqual([])
+  })
+
+  test('an old stop nobody holds, first seen that way, stays quiet', () => {
+    expect(diffAlerts(snapshot([parked('nobody')], 9), 5).alerts).toEqual([])
+  })
+})

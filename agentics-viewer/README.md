@@ -47,5 +47,5 @@ Settings are read once at start from the state file `~/.agentics-viewer/state.js
 
 ## Requirements
 
-agentics-viewer needs agentics 5.0.0 or later, and runs on Windows only. It never writes under a
+agentics-viewer needs agentics 5.0.0 or later (7.2.0 for telling whose stop it is), and runs on Windows only. It never writes under a
 project's `.agentics/`.

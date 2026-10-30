@@ -66,7 +66,7 @@ export function Annunciator(props: {
           <button
             key={key}
             type="button"
-            class={`tile ${tile.kind}${acked ? '' : ' unack'}`}
+            class={`tile ${tile.kind}${acked || tile.kind === 'session' ? '' : ' unack'}`}
             onClick={() => handleClick(tile)}
           >
             <span class="glyph"></span>

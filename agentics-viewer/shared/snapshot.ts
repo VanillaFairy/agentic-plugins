@@ -10,6 +10,8 @@ export interface SnapshotEvent {
   return?: string
   question?: string
   said?: string                   // the dispatch whose stored return holds its text; empty when there is none
+  holder?: 'user' | 'session' | 'nobody'   // who has a stop in hand; absent from agentics before 7.2.0
+  asked?: number                  // the seq of the question open on the stop, when the holder is 'user'
 }
 
 // What a session needs to move a node on, computed by agentics on every read.

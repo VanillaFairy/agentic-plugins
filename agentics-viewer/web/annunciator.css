@@ -39,6 +39,10 @@
   background: var(--stop);
   color: var(--stop-ink);
 }
+.tile.session {
+  background: color-mix(in srgb, var(--work) 14%, var(--panel));
+  color: var(--ink);
+}
 .tile.unack {
   animation: ann-flash 1.1s steps(1, end) infinite;
 }

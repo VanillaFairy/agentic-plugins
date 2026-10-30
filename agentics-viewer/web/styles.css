@@ -318,6 +318,10 @@ select {
   border-left-color: var(--stop);
   background: color-mix(in srgb, var(--stop) 7%, var(--panel));
 }
+.state.session {
+  border-left-color: var(--work);
+  background: color-mix(in srgb, var(--work) 7%, var(--panel));
+}
 .state .h {
   font-weight: 600;
   display: flex;

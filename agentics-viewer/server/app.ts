@@ -65,6 +65,7 @@ interface EffortState {
   streams: Set<StreamConn>
   snapshot: Snapshot | null
   snapshotDigest: string | null
+  heldStops: Set<string>
   listDigest: string | null
 }
 
@@ -147,11 +148,13 @@ export function createApp(deps: AppDeps): { server: http.Server; close(): Promis
       effortState.snapshot = snapResult.payload
       broadcast(effortState.streams, 'snapshot', snapResult.payload)
       for (const conn of effortState.streams) conn.hasSnapshot = true
-      effortState.scheduler.setActive(snapResult.payload.nodes.some((n) => n.status === 'active'))
+      // A stop with the session goes to nobody when the session goes quiet, which writes nothing here.
+      effortState.scheduler.setActive(snapResult.payload.nodes.some((n) => n.status === 'active' || n.event?.holder === 'session'))
     }
 
     const watermark = state.alerted[key]?.[effort]
-    const { alerts, watermark: nextWatermark } = diffAlerts(snapResult.payload, watermark)
+    const { alerts, watermark: nextWatermark, held } = diffAlerts(snapResult.payload, watermark, effortState.heldStops)
+    effortState.heldStops = held
     if (nextWatermark !== watermark) {
       saveState({ ...state, alerted: { ...state.alerted, [key]: { ...state.alerted[key], [effort]: nextWatermark } } })
     }
@@ -251,6 +254,7 @@ export function createApp(deps: AppDeps): { server: http.Server; close(): Promis
           streams: new Set(),
           snapshot: null,
           snapshotDigest: null,
+          heldStops: new Set(),
           listDigest: null,
         }
         openKeyState.efforts.set(effort, effortState)
