@@ -1,3 +1,4 @@
+import type { ComponentChildren } from 'preact'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'preact/hooks'
 import type { AgentNode, ModelUsage, NodeDetail, Plan, PlanState, SessionSnapshot, StepStatus } from '../shared/model.ts'
 import { sessionsUnder } from '../shared/tree.ts'
@@ -102,7 +103,62 @@ const PLAN_WORD: Record<PlanState, string> = {
   exited: 'left unapproved',
 }
 
-type StepRow = { key: string; text: string; status: StepStatus; running?: string }
+const HEIGHTS_KEY = 'agent-tree-viewer:plan-heights'
+const MIN_HEIGHT = 48
+
+function storedHeight(id: string): number | undefined {
+  try {
+    const h = (JSON.parse(localStorage.getItem(HEIGHTS_KEY) ?? '{}') as Record<string, unknown>)[id]
+    return typeof h === 'number' && h >= MIN_HEIGHT ? h : undefined
+  } catch {
+    return undefined
+  }
+}
+
+function storeHeight(id: string, height: number): void {
+  try {
+    const all = JSON.parse(localStorage.getItem(HEIGHTS_KEY) ?? '{}') as Record<string, unknown>
+    localStorage.setItem(HEIGHTS_KEY, JSON.stringify({ ...all, [id]: height }))
+  } catch {
+    // Storage blocked: the height lasts until the page reloads.
+  }
+}
+
+// A scrolling box with a grip under it that drags its height, remembered in this browser per `id`.
+// Until it is dragged, the stylesheet's max-height sizes it, so a short list stays short.
+function Resizable({ id, class: cls, children }: { id: string; class: string; children: ComponentChildren }) {
+  const [height, setHeight] = useState(() => storedHeight(id))
+  const boxRef = useRef<HTMLDivElement>(null)
+  const grab = (e: PointerEvent) => {
+    const box = boxRef.current
+    if (box === null) return
+    e.preventDefault()
+    const grip = e.currentTarget as HTMLElement
+    grip.setPointerCapture(e.pointerId)
+    const startY = e.clientY
+    const startHeight = box.getBoundingClientRect().height
+    const move = (m: PointerEvent) => setHeight(Math.max(MIN_HEIGHT, Math.min(window.innerHeight * 0.8, startHeight + m.clientY - startY)))
+    const drop = () => {
+      grip.removeEventListener('pointermove', move)
+      grip.removeEventListener('pointerup', drop)
+      grip.removeEventListener('pointercancel', drop)
+      storeHeight(id, box.getBoundingClientRect().height)
+    }
+    grip.addEventListener('pointermove', move)
+    grip.addEventListener('pointerup', drop)
+    grip.addEventListener('pointercancel', drop)
+  }
+  return (
+    <>
+      <div class={cls} ref={boxRef} style={height === undefined ? undefined : { height: `${height}px`, maxHeight: 'none' }}>
+        {children}
+      </div>
+      <div class="plan-grip" onPointerDown={grab} title="Drag to resize" aria-hidden="true" />
+    </>
+  )
+}
+
+type StepRow ={ key: string; text: string; status: StepStatus; running?: string }
 
 // A list of steps with how far it got, the step in progress named in the head.
 function StepsBlock({ label, rows, at, opened }: { label: string; rows: readonly StepRow[]; at?: number; opened: boolean }) {
@@ -120,14 +176,16 @@ function StepsBlock({ label, rows, at, opened }: { label: string; rows: readonly
         <span class="link plan-toggle">{open ? 'Hide' : 'Show'}</span>
       </button>
       {open && (
-        <ol class="plan-steps">
-          {rows.map(s => (
-            <li key={s.key} class={`plan-step ${s.status}`}>
-              <span class="plan-mark" aria-label={s.status.replace('_', ' ')} />
-              <span class="plan-step-text">{s.text}</span>
-            </li>
-          ))}
-        </ol>
+        <Resizable id={label} class="plan-steps">
+          <ol>
+            {rows.map(s => (
+              <li key={s.key} class={`plan-step ${s.status}`}>
+                <span class="plan-mark" aria-label={s.status.replace('_', ' ')} />
+                <span class="plan-step-text">{s.text}</span>
+              </li>
+            ))}
+          </ol>
+        </Resizable>
       )}
     </section>
   )
@@ -149,12 +207,12 @@ function PlanBlock({ plan }: { plan: Plan }) {
         <span class="link plan-toggle">{open ? 'Hide' : 'Show'}</span>
       </button>
       {open && (
-        <div class="plan-body">
+        <Resizable id="Plan mode" class="plan-body">
           {plan.text.trim() !== '' && <div class="plan-text" dangerouslySetInnerHTML={{ __html: html }} />}
           <p class="usage-note plan-source">
             {plan.fromFile ? `From ${plan.file}` : `From the transcript: ${plan.file === undefined ? 'there is no plan file' : `${plan.file} is gone`}`}
           </p>
-        </div>
+        </Resizable>
       )}
     </section>
   )

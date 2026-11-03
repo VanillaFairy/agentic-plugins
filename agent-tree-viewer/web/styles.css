@@ -787,12 +787,29 @@ h1 {
 .plan-steps {
   max-height: 24vh;
   overflow-y: auto;
-  margin: 0;
   padding: 6px 12px 8px;
   border-top: 1px solid var(--card-edge);
-  list-style: none;
   font-size: 14px;
   line-height: 1.4;
+}
+
+.plan-steps ol {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Drags the height of the box above it. */
+.plan-grip {
+  height: 9px;
+  cursor: ns-resize;
+  touch-action: none;
+  background: linear-gradient(var(--line), var(--line)) center / 28px 2px no-repeat;
+  border-top: 1px solid var(--card-edge);
+}
+
+.plan-grip:hover {
+  background-image: linear-gradient(var(--tone), var(--tone));
 }
 
 .plan-step {
