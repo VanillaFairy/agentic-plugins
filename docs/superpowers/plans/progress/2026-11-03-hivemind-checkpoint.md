@@ -1,9 +1,9 @@
-Status: NEEDS_INPUT
+Status: DONE
 # 2026-11-03-hivemind checkpoint
 
-Wave: 4 — T08a, T08b, T08c
-Integration head: d89ce11
-Remaining: T08d, T09a..T13
+Wave: 4 — T08a, T08b, T08c, T08d
+Integration head: 09c5f40
+Remaining: T09a..T13
 
 ## Tasks
 | Task | Wave | Branch | State | Review cycles | Merge commit |
@@ -21,10 +21,11 @@ Remaining: T08d, T09a..T13
 | T07 | 3 | sdd/2026-11-03-hivemind/T07 | merged | 1 | 0a440e3 |
 | T08a | 4 | sdd/2026-11-03-hivemind/T08a | merged | 1 | 5ac4783 |
 | T08b | 4 | sdd/2026-11-03-hivemind/T08b | merged | 1 | d89ce11 |
-| T08c | 4 | sdd/2026-11-03-hivemind/T08c | audited (FAIL: 9 gaps) | 0 | |
-| T08d | 4 | sdd/2026-11-03-hivemind/T08d | not started (waits on D1) | 0 | |
+| T08c | 4 | sdd/2026-11-03-hivemind/T08c | audited; gaps closed by T08d | 0 | |
+| T08d | 4 | sdd/2026-11-03-hivemind/T08d | merged | 1 | 09c5f40 |
 
 ## Decisions and deviations
+- W4 T08d D1 answered `accept` (orchestrator, standing rules): only the first foreign attack is judged; a target that did not survive it never earns novelty. Implementer skips [D1] lines; G3 stale. Merged 09c5f40: G1 fixed in checkVerification (check needs the checked claim's source read), G2 and G4-G9 test-only; suite 214/214. Review had 4 Minor findings, left in plan/T08d-review.md for the final review. G1, G2, G4-G9 closed as written. TaskList/TaskUpdate unavailable to the wave-controller; todos #23, #14 are for the orchestrator to close.
 - W4 T08a/T08b: merged 5ac4783 / d89ce11 (reviews PASS, separation PASS). Choices the tests leave open and T08b took: `rest` returns result.done; `source` pages 1-based, priced by the returned page's bytes; attacking a `#relevance` argument or an ask earns no critic pay; tools.mjs is ~290 lines. Hive.update writes through to disk; runTool never calls persist. T09/T10 consume these.
 - W4: review-package writes its diff to a workspace derived from the worktree cwd; copied to plan/ for the reviewer brief. assemble-brief auditor still needs --set D1="[D1]" for the literal tag in its template.
 - W2 T05d: merged 21e6237 (tests only, no src change; fix round 2 lines, re-review skipped). Plan tools TaskList/TaskUpdate were unavailable to the wave-controller, so todo #22 was not updated; the orchestrator should mark it completed.
@@ -37,9 +38,8 @@ Remaining: T08d, T09a..T13
 - W3: review-package must run from inside the nested repo worktree, not the outer repo.
 
 ## Open issues and escalations
-- W4 T08d: gap task extracted from T08c audit (tasks/T08d-audit-gaps.md, committed with this ledger); not dispatched, worktree not cut. Waits on D1. Audit report: plan/T08c-audit.md. T08b worktree removed (merged d89ce11). TaskCreate/TaskUpdate unavailable: orchestrator should mark todos #12 and #13 completed and create W4 todo for T08d.
+- Todos: TaskCreate/TaskUpdate unavailable to the wave-controller; orchestrator marks #12, #13, #14 (T08c) and #23 (T08d) completed.
 
 ## Pending questions
-- T08d D1: does a target that falls below standing on its first foreign attack earn novelty at the first later foreign attack it survives? `fix` = yes (novelty on the first SURVIVED foreign attack, `novelty_paid` keeps it once; acceptance lines G3 run, fails-today). `accept` = only the very first foreign attack is judged; a target that did not survive it never earns novelty (skip the [D1] lines, G3 becomes stale). Design §8 says "paid once a claim has survived its first attack from another lineage".
 
 ## Knowledge entries
