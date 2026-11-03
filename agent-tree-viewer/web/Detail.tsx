@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'preact/hooks'
-import type { AgentNode, ModelUsage, NodeDetail, Plan, PlanState, SessionSnapshot } from '../shared/model.ts'
+import type { AgentNode, Checklist, ModelUsage, NodeDetail, Plan, PlanState, SessionSnapshot } from '../shared/model.ts'
 import { sessionsUnder } from '../shared/tree.ts'
 import { Elapsed } from './clock.tsx'
 import { ROOT, STATUS_WORD } from './layout.ts'
@@ -102,7 +102,37 @@ const PLAN_WORD: Record<PlanState, string> = {
   exited: 'left unapproved',
 }
 
-// The plan Claude Code's Plan pane shows, named by its first heading, the document on demand.
+// The step checklist the desktop app's Plan pane shows, the step in progress named in the head.
+function ChecklistBlock({ list }: { list: Checklist }) {
+  const [open, setOpen] = useState(true)
+  const done = list.steps.filter(s => s.status === 'completed').length
+  const now = list.steps.find(s => s.status === 'in_progress')
+  const state = done === list.steps.length ? 'approved' : 'drafting'
+  return (
+    <section class={`plan ${state}`}>
+      <button class="plan-head" aria-expanded={open} onClick={() => setOpen(!open)}>
+        <span class="plan-label">Plan</span>
+        <span class="plan-title">{now?.text ?? (done === list.steps.length ? 'every step done' : 'nothing in progress')}</span>
+        <span class="plan-state">
+          {done} of {list.steps.length} done · {clockTime(list.at)}
+        </span>
+        <span class="link plan-toggle">{open ? 'Hide' : 'Show'}</span>
+      </button>
+      {open && (
+        <ol class="plan-steps">
+          {list.steps.map((s, i) => (
+            <li key={i} class={`plan-step ${s.status}`}>
+              <span class="plan-mark" aria-label={s.status.replace('_', ' ')} />
+              <span>{s.text}</span>
+            </li>
+          ))}
+        </ol>
+      )}
+    </section>
+  )
+}
+
+// A plan written in plan mode, named by its first heading, the document on demand.
 function PlanBlock({ plan }: { plan: Plan }) {
   const [open, setOpen] = useState(false)
   const html = useMemo(() => (open ? markdownHtml(plan.text) : ''), [open, plan.text])
@@ -110,7 +140,7 @@ function PlanBlock({ plan }: { plan: Plan }) {
   return (
     <section class={`plan ${plan.state}`}>
       <button class="plan-head" aria-expanded={open} onClick={() => setOpen(!open)}>
-        <span class="plan-label">Plan</span>
+        <span class="plan-label">Plan mode</span>
         <span class="plan-title">{title ?? (plan.text.trim() === '' ? 'nothing written yet' : 'untitled')}</span>
         <span class="plan-state">
           {PLAN_WORD[plan.state]} · {clockTime(plan.at)}
@@ -338,6 +368,7 @@ export function Detail({ snap, id, skew, onPick }: Props) {
         <h2>{agent?.description ?? snap.title}</h2>
         <p class="detail-sub">{agent?.type ?? snap.project.path}</p>
         <Summary snap={snap} agent={agent} detail={detail} spawned={plate ? [] : spawned} skew={skew} onPick={onPick} />
+        {detail?.checklist !== undefined && detail.checklist.steps.length > 0 && <ChecklistBlock list={detail.checklist} />}
         {detail?.plan !== undefined && <PlanBlock plan={detail.plan} />}
       </header>
 

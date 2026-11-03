@@ -784,6 +784,50 @@ h1 {
   grid-row: 1;
 }
 
+.plan-steps {
+  max-height: 30vh;
+  overflow-y: auto;
+  margin: 0;
+  padding: 6px 12px 8px;
+  border-top: 1px solid var(--card-edge);
+  list-style: none;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.plan-step {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 2px 0;
+}
+
+.plan-step.completed {
+  color: var(--muted);
+}
+
+.plan-step.in_progress {
+  font-weight: 600;
+}
+
+.plan-mark {
+  flex: none;
+  width: 9px;
+  height: 9px;
+  border: 1.5px solid var(--off);
+  border-radius: 50%;
+}
+
+.plan-step.in_progress .plan-mark {
+  border-color: var(--live);
+  background: var(--live);
+}
+
+.plan-step.completed .plan-mark {
+  border-color: var(--ok);
+  background: var(--ok);
+}
+
 .plan-body {
   max-height: 42vh;
   overflow-y: auto;
