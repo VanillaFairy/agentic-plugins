@@ -8,15 +8,15 @@ Remaining: T02a..T06 (wave 2), T07..T13
 ## Tasks
 | Task | Wave | Branch | State | Review cycles | Merge commit |
 | T01 | 1 | sdd/2026-11-03-hivemind/T01 | merged | 2 | 39cb119 |
-| T02a | 2 | sdd/2026-11-03-hivemind/T02a | not started | 0 | |
+| T02a | 2 | sdd/2026-11-03-hivemind/T02a | implementing | 0 | |
 | T02b | 2 | sdd/2026-11-03-hivemind/T02b | not started | 0 | |
-| T03a | 2 | sdd/2026-11-03-hivemind/T03a | not started | 0 | |
+| T03a | 2 | sdd/2026-11-03-hivemind/T03a | implementing | 0 | |
 | T03b | 2 | sdd/2026-11-03-hivemind/T03b | not started | 0 | |
-| T04 | 2 | sdd/2026-11-03-hivemind/T04 | not started | 0 | |
-| T05a | 2 | sdd/2026-11-03-hivemind/T05a | not started | 0 | |
+| T04 | 2 | sdd/2026-11-03-hivemind/T04 | implementing | 0 | |
+| T05a | 2 | sdd/2026-11-03-hivemind/T05a | implementing | 0 | |
 | T05b | 2 | sdd/2026-11-03-hivemind/T05b | not started | 0 | |
 | T05c | 2 | sdd/2026-11-03-hivemind/T05c | not started | 0 | |
-| T06 | 2 | sdd/2026-11-03-hivemind/T06 | not started | 0 | |
+| T06 | 2 | sdd/2026-11-03-hivemind/T06 | implementing | 0 | |
 
 ## Decisions and deviations
 
