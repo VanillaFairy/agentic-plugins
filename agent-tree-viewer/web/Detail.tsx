@@ -1,8 +1,9 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks'
-import type { AgentNode, ModelUsage, NodeDetail, SessionSnapshot } from '../shared/model.ts'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'preact/hooks'
+import type { AgentNode, ModelUsage, NodeDetail, Plan, PlanState, SessionSnapshot } from '../shared/model.ts'
 import { sessionsUnder } from '../shared/tree.ts'
 import { Elapsed } from './clock.tsx'
 import { ROOT, STATUS_WORD } from './layout.ts'
+import { markdownHtml } from './markdown.ts'
 import { Stream, latestInView } from './Stream.tsx'
 import { clockTime } from './time.ts'
 import { UsageList, dollars, modelName, totalCost } from './Usage.tsx'
@@ -90,6 +91,41 @@ function Cost({ rows }: { rows: readonly ModelUsage[] }) {
       {partial && '+'}
       <span class="fact-aside">{rows.map(r => modelName(r.model)).join(', ')}</span>
     </>
+  )
+}
+
+const PLAN_WORD: Record<PlanState, string> = {
+  drafting: 'being drafted',
+  awaiting: 'waiting on your approval',
+  approved: 'approved',
+  rejected: 'sent back',
+  exited: 'left unapproved',
+}
+
+// The plan Claude Code's Plan pane shows, named by its first heading, the document on demand.
+function PlanBlock({ plan }: { plan: Plan }) {
+  const [open, setOpen] = useState(false)
+  const html = useMemo(() => (open ? markdownHtml(plan.text) : ''), [open, plan.text])
+  const title = /^#{1,6}\s+(.+)$/m.exec(plan.text)?.[1]?.trim()
+  return (
+    <section class={`plan ${plan.state}`}>
+      <button class="plan-head" aria-expanded={open} onClick={() => setOpen(!open)}>
+        <span class="plan-label">Plan</span>
+        <span class="plan-title">{title ?? (plan.text.trim() === '' ? 'nothing written yet' : 'untitled')}</span>
+        <span class="plan-state">
+          {PLAN_WORD[plan.state]} · {clockTime(plan.at)}
+        </span>
+        <span class="link plan-toggle">{open ? 'Hide' : 'Show'}</span>
+      </button>
+      {open && (
+        <div class="plan-body">
+          {plan.text.trim() !== '' && <div class="plan-text" dangerouslySetInnerHTML={{ __html: html }} />}
+          <p class="usage-note plan-source">
+            {plan.fromFile ? `From ${plan.file}` : `From the transcript: ${plan.file === undefined ? 'there is no plan file' : `${plan.file} is gone`}`}
+          </p>
+        </div>
+      )}
+    </section>
   )
 }
 
@@ -302,6 +338,7 @@ export function Detail({ snap, id, skew, onPick }: Props) {
         <h2>{agent?.description ?? snap.title}</h2>
         <p class="detail-sub">{agent?.type ?? snap.project.path}</p>
         <Summary snap={snap} agent={agent} detail={detail} spawned={plate ? [] : spawned} skew={skew} onPick={onPick} />
+        {detail?.plan !== undefined && <PlanBlock plan={detail.plan} />}
       </header>
 
       <div class="detail-body" ref={bodyRef} onScroll={onScroll} aria-label="Activity">

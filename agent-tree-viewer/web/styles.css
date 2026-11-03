@@ -724,6 +724,127 @@ h1 {
   margin-top: 14px;
 }
 
+/* The session's plan-mode plan, under the facts. */
+.plan {
+  --tone: var(--muted);
+  margin-top: 12px;
+  border: 1px solid var(--card-edge);
+  border-left: 3px solid var(--tone);
+  border-radius: 6px;
+  background: var(--card);
+}
+
+.plan.drafting,
+.plan.awaiting {
+  --tone: var(--live);
+}
+
+.plan.approved {
+  --tone: var(--ok);
+}
+
+.plan.rejected {
+  --tone: var(--bad);
+}
+
+.plan-head {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: baseline;
+  gap: 2px 8px;
+  width: 100%;
+  padding: 8px 10px;
+  text-align: left;
+}
+
+.plan-label {
+  color: var(--tone);
+  font-weight: 700;
+  font-size: 12.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.plan-title {
+  min-width: 0;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.plan-state {
+  grid-column: 2;
+  color: var(--muted);
+  font-size: 12.5px;
+}
+
+.plan-toggle {
+  grid-column: 3;
+  grid-row: 1;
+}
+
+.plan-body {
+  max-height: 42vh;
+  overflow-y: auto;
+  padding: 0 14px 10px;
+  border-top: 1px solid var(--card-edge);
+}
+
+.plan-text {
+  font-size: 14.5px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.plan-source {
+  overflow-wrap: anywhere;
+}
+
+/* Above `.detail h2` and `.detail h3`, which size the pane's own headings. */
+.detail .plan-text :is(h1, h2, h3, h4, h5, h6) {
+  margin: 14px 0 6px;
+  font-size: 15px;
+}
+
+.detail .plan-text h1 {
+  font-size: 17px;
+}
+
+.plan-text p,
+.plan-text ul,
+.plan-text ol {
+  margin: 6px 0;
+}
+
+.plan-text ul,
+.plan-text ol {
+  padding-left: 20px;
+}
+
+.plan-text code {
+  font-family: var(--mono);
+  font-size: 0.88em;
+}
+
+.plan-text pre {
+  padding: 8px 10px;
+  overflow-x: auto;
+  border-radius: 4px;
+  background: var(--panel);
+}
+
+.plan-text table {
+  border-collapse: collapse;
+}
+
+.plan-text th,
+.plan-text td {
+  padding: 3px 8px;
+  border: 1px solid var(--card-edge);
+  text-align: left;
+}
+
 .detail-body {
   flex: 1;
   min-height: 0;
