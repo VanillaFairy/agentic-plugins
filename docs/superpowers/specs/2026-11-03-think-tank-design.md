@@ -2,7 +2,7 @@
 
 Status: approved for build. The rules this design serves are in
 [2026-11-03-think-tank-foundations.md](2026-11-03-think-tank-foundations.md); each mechanism names
-the foundations it serves (F1–F12). The fuller map of mechanisms considered for later is in this
+the foundations it serves (F1–F11). The fuller map of mechanisms considered for later is in this
 file's git history (commit `636b1eb`).
 
 **Balance.** Judgment and dynamics live in the role prompts, where a model handles them well.
@@ -142,21 +142,14 @@ Permissions the user grants once, because background agents can't answer prompts
 `Read(~/.think-tank/**)` and `Edit(~/.think-tank/**)` (an `Edit` rule covers every file-writing
 tool).
 
-## 8. Improving the procedure (F12)
-
-Guided, not automatic. The user starts an ordinary run whose charter is "here is the plugin's code,
-here is a real run's directory: find the issues and work on improvements". The run directory holds
-the procedure it used, the graph and its history. The output is a proposed change the user reviews
-and lands.
-
-## 9. Tests
+## 8. Tests
 
 `check` is the only logic with mistakes worth catching: a broken link is reported; coverage fails
 with one checker, or two from the same direction; a claim targeting a topic is flagged; a decided
 topic without a clash is flagged; an escalation closes once a verdict addresses it; a topic changed
 this round is listed under its root, deepest first, for that root's curator.
 
-## 10. Deferred, each with its trigger
+## 9. Deferred, each with its trigger
 
 | Mechanism | Built when |
 |---|---|
@@ -164,3 +157,4 @@ this round is listed under its root, deepest first, for that root's curator.
 | Validation that rejects writes | a real run is damaged by a malformed node that `check` only reported |
 | Limits and budgets | the user sees a run eat too much |
 | Workflow-driven rounds | the main session's context fills up during long runs |
+| Improving the procedure through a run of itself | think-tank is ready to improve itself: the user hands a run the plugin code and a real run's directory |

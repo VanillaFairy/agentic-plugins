@@ -63,9 +63,3 @@ stays open with the crux between them named, along with what would decide it.
 word reshapes the space: it can redirect, settle, reopen or set aside anything. It's built on, never
 argued with. Participants ask the human only what is theirs to decide.
 *Rules out:* participants deciding taste or priority, and a human consulted only at the end.
-
-## The procedure
-
-**12. The procedure is thinking matter too.** The way the plugin thinks changes only through a run
-of this same process that the human starts, working from the evidence of real runs.
-*Rules out:* a procedure that changes itself, and changes argued from imagined runs.
