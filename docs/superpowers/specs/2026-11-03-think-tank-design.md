@@ -26,7 +26,7 @@ handful to a dozen experts, a few to a dozen rounds. A question one good answer 
 | Composer | at the start; again when a moderator asks | decomposes the charter into root questions; writes expert cards; fills gaps; releases and recalls experts; writes the first agendas |
 | Expert | per round, only if it has an agenda | argues: raises questions, proposes, claims, objects, verifies, takes positions |
 | Moderator | per unsettled root topic per round | judges its root's subtree: admits or parks questions, sets proposal standing, decides, names cruxes, escalates, sets the phase, writes the next round's agendas |
-| Curator | per topic that changed in the round | rewrites the topic's "where it stands" summary and its links |
+| Curator | per root with a topic changed in the round | rewrites the "where it stands" summary and links of each changed topic in its root, deepest first, root last |
 | Reporter | once at the end | writes the report |
 
 The main session drives and judges nothing. It follows the skill's steps, spawns roles as
@@ -76,8 +76,8 @@ Any node may carry `escalation: "<question>"`. It's open until a verdict address
 
 **Ownership** keeps parallel writers apart. An agent creates only nodes with its own id prefix. An
 expert edits only its own card (positions, notes). A moderator edits the frontmatter of nodes in its
-root. A curator edits only its topic's summary and links. Stages run one after another, so no two
-writers touch a file at once.
+root. A curator edits only the summaries and links of the topics `check` lists for its root.
+Stages run one after another, so no two writers touch a file at once.
 
 ## 4. Settling (F1, F10, F11)
 
@@ -102,8 +102,9 @@ The moderator's prompt carries the rules, and `tt.mjs check` flags breaches:
    user's go. Changes go in as verdicts, which the composer applies.
 4. **Rounds.** `tt.mjs next`; experts with agendas, then commit; `tt.mjs check`; moderators per
    unsettled root, then commit; the composer if a moderator asked, then commit; `tt.mjs check`;
-   curators per changed topic, then commit; `tt.mjs check`. The main session shows a short status,
-   puts any open escalation to the user at once, and records answers with `tt.mjs verdict`.
+   curators per root with a changed topic, then commit; `tt.mjs check`. The main session shows a
+   short status, puts any open escalation to the user at once, and records answers with
+   `tt.mjs verdict`.
 5. **End.** When every root is settled and nothing is escalated, the reporter writes `report.md`.
    When a round produced no agendas, the main session asks the user whether to stop, redirect or
    go on.
@@ -153,7 +154,7 @@ and lands.
 `check` is the only logic with mistakes worth catching: a broken link is reported; coverage fails
 with one checker, or two from the same direction; a claim targeting a topic is flagged; a decided
 topic without a clash is flagged; an escalation closes once a verdict addresses it; a topic changed
-this round is listed for its curator.
+this round is listed under its root, deepest first, for that root's curator.
 
 ## 10. Deferred, each with its trigger
 
