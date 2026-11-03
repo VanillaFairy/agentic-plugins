@@ -57,9 +57,9 @@ Each role holds one kind of work.
   into the plugin.
 - **Reporter.** Reads the completed graph and returns the report in its hand-back.
 - **Main session.** Drives and judges nothing: it spawns the composer, the registrar, the root
-  moderators and every moderator the registrar asks for, runs `tt.mjs graph` after each hand-back, wakes the registrar on a cycle, puts every
-  escalation to the user at once, records verdicts and messages the affected moderator, and saves
-  the report.
+  moderators and every moderator the registrar asks for, runs `tt.mjs graph` after each hand-back,
+  wakes the registrar on a cycle, puts every escalation to the user at once, records verdicts and
+  messages the affected moderator, and saves the report.
 
 ## 3. What the harness provides
 
