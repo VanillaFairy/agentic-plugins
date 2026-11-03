@@ -9,14 +9,14 @@ Remaining: T02a..T06 (wave 2), T07..T13
 | Task | Wave | Branch | State | Review cycles | Merge commit |
 | T01 | 1 | sdd/2026-11-03-hivemind/T01 | merged | 2 | 39cb119 |
 | T02a | 2 | sdd/2026-11-03-hivemind/T02a | merged | 1 | 50343cf |
-| T02b | 2 | sdd/2026-11-03-hivemind/T02b | in review | 0 | |
+| T02b | 2 | sdd/2026-11-03-hivemind/T02b | merging | 1 | |
 | T03a | 2 | sdd/2026-11-03-hivemind/T03a | merged | 1 | ea4f5f8 |
-| T03b | 2 | sdd/2026-11-03-hivemind/T03b | in review | 0 | |
+| T03b | 2 | sdd/2026-11-03-hivemind/T03b | implementing (fix 1) | 1 | |
 | T04 | 2 | sdd/2026-11-03-hivemind/T04 | merged | 1 | 77f41eb |
 | T05a | 2 | sdd/2026-11-03-hivemind/T05a | merged | 1 | d38390c |
-| T05b | 2 | sdd/2026-11-03-hivemind/T05b | implementing | 0 | |
+| T05b | 2 | sdd/2026-11-03-hivemind/T05b | in review | 0 | |
 | T05c | 2 | sdd/2026-11-03-hivemind/T05c | not started | 0 | |
-| T06 | 2 | sdd/2026-11-03-hivemind/T06 | in re-review | 1 | |
+| T06 | 2 | sdd/2026-11-03-hivemind/T06 | merging | 2 | |
 
 ## Decisions and deviations
 
