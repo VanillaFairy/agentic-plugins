@@ -1,6 +1,6 @@
 # think-tank 1.0 — design
 
-Status: approved design, not yet built. The rules this design serves are in
+Status: built as think-tank 1.0.0. The rules this design serves are in
 [2026-11-03-think-tank-foundations.md](2026-11-03-think-tank-foundations.md); each mechanism names
 the foundations it serves (F1–F11).
 
@@ -133,7 +133,7 @@ whom it is waiting on, then a one-line hand-back.
 | Rule | Holds when | Outcome | Checked by |
 |---|---|---|---|
 | Consensus | every position names the same proposal; it survived at least one objection that was answered; no open objection and no unanswered ask; every `F` claim under it verified; every ballot confident, with no unanswered doubt | `decided` | script |
-| Crux | positions differ, each rival survived a clash, everyone holds, and a `crux` node naming what would decide it is acknowledged by both sides | `crux` | script |
+| Crux | positions differ, each rival survived a clash, everyone holds, and a `crux` node naming what would decide it is acknowledged by both sides on their own positions | `crux` | script |
 | Stall | everyone holds and nothing new since the last notice, with no agreed crux | the moderator asks both sides to write the crux | script |
 | Loop | an objection already answered comes back unchanged or reworded | the moderator points its author at the answer; a second time is a stall | script for exact repeats; rewording by the moderator's model |
 | Cap | an expert reaches its wake budget on the topic (charter setting, default 6) | `crux`, never `decided` | script |
@@ -169,21 +169,26 @@ and `seq`, a run-wide counter `tt.mjs` hands out under a lock.
 | `role` | Id | Key frontmatter |
 |---|---|---|
 | `charter` | `charter` | purpose, in_scope, out_of_scope, sources, cap |
-| `topic` | `q-<author>-<n>` | root (true on roots), facet, needs, status (open, blocked, complete), outcome (decided, crux, ruled, set-aside), decided_as, duplicate_of, extracted_from |
-| `proposal` | `p-<author>-<n>` | answers, refines |
-| `claim` | `c-<author>-<n>` | target, stance (pro, con, ask, reply), provenance (F, I, A), source, verified, status (open, conceded) |
-| `position` | `pos-<key>-<topic>` | topic, holds, state (arguing, holding, agreeing) |
-| `crux` | `x-<author>-<n>` | topic, between (proposals), decided_by, acknowledged_by |
+| `topic` | `q-<key>-<seq>` | root (true on roots), facet, needs, status (open, blocked, complete), outcome (decided, crux, ruled, set-aside), completed_seq, decided_as, duplicate_of, extracted_from |
+| `proposal` | `p-<key>-<seq>` | answers, refines |
+| `claim` | `c-<key>-<seq>` | target, stance (pro, con, ask, reply), provenance (F, I, A), source, verified (on a verifier's own claim targeting another expert's `F` claim), status (open, conceded) |
+| `position` | `pos-<key>-<topic>` | topic, holds, state (arguing, holding, agreeing), acknowledges (cruxes) |
+| `crux` | `x-<key>-<seq>` | topic, between (proposals), decided_by |
 | `ballot` | `b-<key>-<topic>` | topic, confidence, doubt |
-| `term` | `d-<author>-<n>` | status (proposed, ratified, contested) |
+| `term` | `d-<key>-<seq>` | status (proposed, ratified, contested) |
 | `expert` | `e-<key>` | title, lens, facets, biases, counters, checks (`"<key>: <direction>"`) |
 | `verdict` | `v-<n>` | addresses |
 
 Any node may carry `escalation: "<question>"`. It's open until a verdict addresses that node.
 
-**Ownership** keeps concurrent writers apart. An agent creates only nodes with its own id prefix. A
-moderator edits only its topic's frontmatter and summary; the registrar edits only `needs`,
-`duplicate_of` and `extracted_from`. No two agents ever edit one file.
+`<key>` is the author's key and `<seq>` the node's own `seq`, so ids stay unique when one lens
+argues on several topics.
+
+**Ownership** keeps concurrent writers apart: no two agents ever edit one file, so every mark lives
+in a node its writer owns. An agent creates only nodes with its own id prefix. An expert verifies
+or refutes another's `F` claim with a claim of its own, and acknowledges a crux on its own
+position. A moderator edits only its topic's frontmatter and summary, `needs` and `duplicate_of`
+included, writing them from the registrar's reply; the registrar writes only the topics it creates.
 
 **Commits.** Agents write at the same time, so `tt.mjs commit` is the only path to git. It takes a
 lock (an atomic `mkdir`, retried), stages only the caller's files, commits, and rewrites
@@ -215,7 +220,7 @@ lock (an atomic `mkdir`, retried), stages only the caller's files, commits, and 
 | `init <run> --charter <file>` | creates the run, copies the procedure, writes `charter`, initialises git |
 | `seq <run>` | hands out the next run-wide sequence number |
 | `commit <run> --as <agent> --message <m> <files>` | commits the caller's files under the lock and rewrites `index.md` |
-| `check <run> --topic <id>` | the topic's rule states (§5), coverage of its cast, problems in its nodes, what blocks it and which topics need it |
+| `check <run> --topic <id> [--cast <keys>]` | the topic's rule states (§5), coverage of its cast (of `--cast` before anyone is spawned), problems in its nodes, what blocks it and which topics need it |
 | `graph <run>` | cycles, blocked and newly unblocked topics, topics to reopen, open escalations, whether the run is done |
 | `verdict <run> --text <t> --addresses <ids>` | writes a verdict node |
 
