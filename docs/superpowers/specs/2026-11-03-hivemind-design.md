@@ -33,7 +33,7 @@ You ⇄ main session (/hivemind skill)
 - **Agents** are isolated Agent SDK sessions. Their only tools are the physics tools (§6), which
   run inside the scheduler process, so every action is priced, debited and written by one writer.
 - **The scheduler** is a Node process. It wakes agents, implements the physics tools, keeps the
-  books, computes strengths and the field, runs seasons (§8) and decides when the run is over.
+  books, computes strengths and the field, runs the economy (§8) and decides when the run is over.
 - **The main session** runs the `/hivemind` skill: it sets up the run with the user, launches the
   scheduler in the background, relays questions and verdicts, passes on budget levers, and saves
   the report. It judges nothing.
@@ -61,14 +61,14 @@ You ⇄ main session (/hivemind skill)
 ## 4. The graph (state) and the event log (audit)
 
 The graph is the state, as in think-tank: one Markdown file per node in `graph/`, YAML frontmatter
-and a body, a git repository. The scheduler is its only writer and commits once per season, the
-commit message summarizing the season. `events.jsonl` is the audit trail: one line per action,
+and a body, a git repository. The scheduler is its only writer and commits every `commit_every` events, the
+commit message summarizing them. `events.jsonl` is the audit trail: one line per action,
 debit, credit, birth, death, verdict and thermostat change, never edited. The field (§5) is
 derived from the graph and the run's clock, never stored.
 
 | `kind` | Holds |
 |---|---|
-| `goal` | the charter: purpose, scope, sources; the run's settings, food supply and clock (`season`, `seq`) |
+| `goal` | the charter: purpose, scope, sources; the run's settings, food supply and clock (`seq`) |
 | `question` | a question; `parent` (the goal or another question); its relevance argument (§5) |
 | `claim` | a statement by an agent; `provenance` (F, I, A), `source` for F, `verified`; at most one relation: `answers` a question, `attacks` or `supports` another claim or a question's relevance; `term: true` for a definition (F3) |
 | `agent` | an agent: genome (§7), `energy`, `species`, `niche` (a question), `born`, `died`, `parent`, session id |
@@ -97,7 +97,7 @@ question its relation chain leads to.
 - **heat:** recent activity, decaying with age in `seq` (half-life a setting);
 - **tension:** for a claim, the strength of what attacks it times its own strength; high where
   strong claims collide;
-- **crowding:** how many living agents worked the node in the last season.
+- **crowding:** how many living agents worked the node in the last `crowd_window` ticks.
 
 ## 6. Physics tools (the agents' only actions)
 
@@ -120,22 +120,25 @@ tokens of each wake are debited after it, through the pricing function (§8).
 
 **Genome:** `lens` (the angle, in words), `stance` toward the leading answers in its niche
 (`challenge`, `extend`, `orthogonal`), `constraints` (a list, e.g. "the three most obvious answers
-are off limits"), `species` (`explorer` or `critic`), `model` (`haiku`, `sonnet`, `opus`),
-`effort`, and `temperament` (appetite for risk). The system prompt is the ground rules (§10) plus
-the genome rendered as text.
+are off limits"), `species` (`explorer` or `critic`), and `temperament` (appetite for risk). The
+system prompt is the ground rules (§10) plus the genome rendered as text.
+
+**Model and effort are run settings, the same for every agent** (default: Opus). An argument is won
+by its content, not by which agent was given more capability; varying the model or the effort
+would let compute decide what ideas should.
 
 **Species.** Explorers run hot: high mutation, a large novelty bonus. Critics run cold: low
 mutation, rewarded only for attacks that lower a strong claim's strength and for checks that fail
 F claims.
 
 **Life.** An agent is born with an endowment, lives in a niche (a question), is woken for bursts of
-a few tool calls, pays upkeep every season, and dies when its balance reaches zero or the run ends.
+a few tool calls, pays upkeep on every tick, and dies when its balance reaches zero or the run ends.
 Its claims outlive it.
 
 **Mutation operators,** applied to the genome at birth: point (change one assumption or constraint
 in the lens), constraint (forbid the parent's most likely answers), inversion (flip the stance),
 transplant (a lens from an unrelated field), crossover (merge two parents' lenses; the child forks
-from the fitter one), species shift (model, effort or species).
+from the fitter one), species shift (explorer to critic or back).
 
 **Founders.** A run starts with one founder agent that reads the goal, opens the first questions,
 and seeds the first genomes, one per lens the goal calls for, with explorers and critics in a set
@@ -152,30 +155,37 @@ same unit.
 out of it; agents' spending flows back to nowhere. When the supply and every balance are spent,
 the run ends.
 
-**Seasons.** Every `season_length` wakes (a setting), the scheduler closes a season:
+**The economy runs as flows, with no global step.** The clock is `seq`: every event advances it by
+one tick, so the economy depends on what happened, never on wall time, and a run replays exactly.
+On every tick:
 
-1. **Fitness** for each living agent, from the environment only:
-   `Σ over its claims of strength × relevance × exposure` plus `novelty × temperature`. Exposure is
-   1 for a claim attacked by an agent of another lens, and lower for one never attacked, so
-   untested claims earn less. Supports count only from agents of another lens. Novelty is one
-   minus the largest word-shingle similarity of the agent's claims to earlier claims on the same
-   question.
-2. **Rewards:** the season's ration of the food supply is split in proportion to fitness.
-3. **Upkeep:** every living agent pays a fixed cost; idle agents starve.
-4. **Selection:** within each niche, the fittest agents above a reward threshold reproduce, each
-   child a fork plus one mutation drawn at the current mutation rate; the rest don't.
-5. **Death:** agents at zero balance die.
-6. **Thermostat** (below), then **commit** the season.
+- **Income.** Each standing claim pays its living author, out of the supply,
+  `rate × strength × relevance × exposure`. Exposure is 1 for a claim attacked by an agent of
+  another lens and lower for one never attacked, so untested claims earn less. Supports count
+  toward strength only from agents of another lens. Income stops the moment a claim is knocked
+  down, so a strength that flickers earns little; income accrues for as long as a claim stands.
+- **Novelty** is paid once, when a claim is posted: `novelty × temperature`, where novelty is one
+  minus the largest word-shingle similarity to earlier claims on the same question.
+- **Upkeep.** Every living agent pays a small drain; an idle agent starves.
+- **Budding.** An agent whose balance crosses the budding threshold reproduces: the scheduler forks
+  it, the child takes half the balance and one mutation drawn at the current mutation rate.
+  Selection is nothing more than this: agents whose claims stand earn more than their upkeep, grow
+  and bud; the rest drain away. Nobody ranks anyone.
+- **Death.** An agent at zero balance dies at once.
+
+Fitness, in the user's weighting (survival under attack × relevance, plus novelty that cools), is
+therefore not computed anywhere: it is the agent's net income.
 
 **Entropy thermostat.** The hive's spread is the mean, over active questions, of the Shannon
-entropy of the normalized strengths of the claims answering each question. A target spread starts
-high and cools by a factor each season. Below the target band, the hive is herding: mutation rate
-and the novelty weight rise. Above it, the hive is scattered: selection tightens (fewer
-reproduce, upkeep rises). The target is the temperature that also scales novelty in fitness.
+entropy of the normalized strengths of the claims answering each question, smoothed as a moving
+average over recent ticks. A target spread starts high and cools a little every tick. Below the
+target band the hive is herding: the mutation rate and the novelty weight rise. Above it the hive
+is scattered: upkeep and the budding threshold rise, so fewer agents can afford to reproduce. The
+target is the temperature that scales novelty.
 
-**Waking.** Between seasons, the scheduler wakes the living agent with the highest priority:
-tension in its niche plus unread inbox messages, minus crowding and minus how recently it was
-woken. Ties break by agent id. No model takes part in the choice.
+**Waking.** Whenever a waking slot frees, the scheduler wakes the living agent with the highest
+priority: tension in its niche plus unread inbox messages, minus crowding and minus how recently it
+was woken. Ties break by agent id. No model takes part in the choice.
 
 All numbers in this section and in §5–§6 live in one data file, `physics.json`, overridable per
 run.
@@ -198,7 +208,7 @@ speak at any moment; anything they say about the work becomes a verdict.
 spend more. The rating scales the next run's default supply by ×0.67, ×1 or ×1.5, and is logged
 with the run's actual spend in `~/.hivemind/budget.jsonl`.
 
-**Status.** The scheduler writes a one-line status each season (supply left, living agents,
+**Status.** The scheduler writes a one-line status every `status_every` ticks (supply left, living agents,
 temperature, hottest tension); the main session shows it.
 
 ## 10. Ground rules (every agent's system prompt)
@@ -219,7 +229,7 @@ temperature, hottest tension); the main session shows it.
 ## 11. Ending and harvest
 
 The run ends when the supply and balances are spent, when the hive is quiet (total heat below a
-threshold for a set number of seasons, with no ask outstanding), or when the user stops it.
+threshold for `quiet_ticks` ticks, with no ask outstanding), or when the user stops it.
 
 **Harvest** is a script, then a writer. The script takes, for each question in order of relevance,
 the claims answering it with strength above the harvest threshold, and checks them for coherence:
@@ -252,11 +262,11 @@ hivemind/
     events.mjs  the audit log
     strength.mjs  gradual argumentation and relevance
     field.mjs   heat, tension, crowding
-    economy.mjs pricing, ledger, fitness, seasons
+    economy.mjs pricing, ledger, income, upkeep, budding
     thermostat.mjs
     genome.mjs  genomes, mutation operators, prompt rendering
     tools.mjs   the physics tools
-    scheduler.mjs the loop: wake, seasons, end
+    scheduler.mjs the loop: ticks, waking, end
     harvest.mjs coherence check and report skeleton
     hive.mjs    CLI: init, run, sim, status
   test/
@@ -270,7 +280,9 @@ The arithmetic is where mistakes hide, and all of it is testable without a model
 - relevance: an attacked relevance argument lowers every claim under the question;
 - the ledger: a tool the agent can't afford refuses; balances never go below zero; supply,
   balances and spending always add up;
-- fitness: exposure, cross-lens supports, novelty, temperature;
+- income: exposure, cross-lens supports, income stopping when a claim is knocked down; novelty
+  paid once at the temperature of the moment;
+- budding at the threshold splits the balance, and death at zero is immediate;
 - the thermostat moves mutation and selection the right way at each side of the band;
 - waking is deterministic for a given graph;
 - mutation operators produce valid genomes;
@@ -278,14 +290,14 @@ The arithmetic is where mistakes hide, and all of it is testable without a model
 - verdicts pin and flood heat.
 
 **`hive sim`** runs the whole loop with scripted stub agents instead of models, so the physics
-(prices, rewards, upkeep, cooling) can be tuned to settle before any tokens are spent.
+(prices, income, upkeep, budding, cooling) can be tuned to settle before any tokens are spent.
 
 ## 15. Deferred, each with its trigger
 
 | Mechanism | Built when |
 |---|---|
 | API-key billing | the user needs more than the subscription gives |
-| Mixed model families | one model's shared blind spots show in real runs |
+| Mixed model families at equal capability | one model's shared blind spots show in real runs |
 | Embedding-based novelty | word shingles mis-rank novelty in real runs |
 | A shared graph package with think-tank | the two graph layers converge in real use |
 | Distribution to other users | only with Anthropic's approval for subscription logins |
