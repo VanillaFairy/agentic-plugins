@@ -138,13 +138,25 @@ export type NodeDetail = {
   usage: ModelUsage[]
   // For the main loop only: the whole session, every agent included.
   sessionUsage?: ModelUsage[]
-  // The step checklist the desktop app's Plan pane shows, as it stands now.
+  // For the main loop only: the session's task list, the one Claude Code's Plan pane shows.
+  tasks?: Task[]
+  // The step checklist the desktop app pins under the latest message, as it stands now. Not the Plan pane's.
   checklist?: Checklist
   // The latest plan this transcript wrote in plan mode.
   plan?: Plan
 }
 
-export type ChecklistStep = { text: string; status: 'pending' | 'in_progress' | 'completed' }
+export type StepStatus = 'pending' | 'in_progress' | 'completed'
+
+export type ChecklistStep = { text: string; status: StepStatus }
+
+export type Task = {
+  id: string
+  subject: string
+  status: StepStatus
+  // What the task's work is called while it runs: "Building the parser".
+  activeForm?: string
+}
 
 export type Checklist = {
   steps: ChecklistStep[]

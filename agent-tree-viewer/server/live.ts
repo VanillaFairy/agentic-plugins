@@ -2,14 +2,14 @@
 // rebuilds its agent tree from them.
 
 import { readFileSync, readdirSync } from 'node:fs'
-import { join } from 'node:path'
-import type { CallDetail, NodeDetail, Project, SessionSnapshot, SessionSummary } from '../shared/model.ts'
+import { dirname, join } from 'node:path'
+import type { CallDetail, NodeDetail, Project, SessionSnapshot, SessionSummary, StepStatus, Task } from '../shared/model.ts'
 import { RunWatch, projectsDirOf, runNodeId, runNodes } from './runs.ts'
 import type { RunSource } from './runs.ts'
 import { JsonlTail } from './tail.ts'
 import type { SessionFiles } from './sessions.ts'
 import { sessionsUnder } from '../shared/tree.ts'
-import { buildSnapshot, emptyFacts, fullCall, ingest, nodeDetail, sumUsage } from './transcript.ts'
+import { STEP_STATUS, buildSnapshot, emptyFacts, fullCall, ingest, nodeDetail, sumUsage } from './transcript.ts'
 import type { AgentMeta, FileFacts } from './transcript.ts'
 
 const META = /^agent-(.+)\.meta\.json$/
@@ -34,6 +34,32 @@ function readMeta(path: string): AgentMeta | undefined {
   } catch {
     return undefined
   }
+}
+
+// Claude Code keeps a session's task list as `~/.claude/tasks/<session id>/<n>.json`, one file a
+// task, numbered in the order they were made; `projectsDir` is `~/.claude/projects`.
+export function readTasks(projectsDir: string, sessionId: string): Task[] {
+  const dir = join(dirname(projectsDir), 'tasks', sessionId)
+  let names: string[]
+  try {
+    names = readdirSync(dir).filter(n => /^\d+\.json$/.test(n))
+  } catch {
+    return []
+  }
+  const tasks: Task[] = []
+  for (const name of names) {
+    let r: Record<string, unknown>
+    try {
+      r = JSON.parse(readFileSync(join(dir, name), 'utf8')) as Record<string, unknown>
+    } catch {
+      // Mid-write; the next read has it.
+      continue
+    }
+    if (typeof r.subject !== 'string' || typeof r.status !== 'string' || !STEP_STATUS.has(r.status)) continue
+    const id = name.slice(0, -'.json'.length)
+    tasks.push({ id, subject: r.subject, status: r.status as StepStatus, ...(typeof r.activeForm === 'string' ? { activeForm: r.activeForm } : {}) })
+  }
+  return tasks.sort((a, b) => Number(a.id) - Number(b.id))
 }
 
 // The plan file is the plan as it stands, edits after approval included; the transcript's copy
@@ -111,7 +137,11 @@ export class SessionWatch {
   // Everything one card's transcript says; undefined for an agent this session never had.
   detail(id: string): NodeDetail | undefined {
     this.catchUpAll()
-    if (id === 'main') return withPlanFile(nodeDetail(id, this.main.facts, [this.main.facts, ...[...this.agents.values()].map(a => a.facts), ...this.runFacts()]))
+    if (id === 'main') {
+      const detail = withPlanFile(nodeDetail(id, this.main.facts, [this.main.facts, ...[...this.agents.values()].map(a => a.facts), ...this.runFacts()]))
+      const tasks = readTasks(projectsDirOf(this.files.main), this.files.id)
+      return tasks.length === 0 ? detail : { ...detail, tasks }
+    }
     // A run has no transcript of its own; what it cost is what its sessions cost.
     const run = this.runs.find(r => runNodeId(r.meta.run) === id)
     if (run !== undefined) return { id, steps: [], usage: sumUsage(this.runFacts(run)) }

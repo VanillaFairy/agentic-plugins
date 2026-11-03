@@ -5,7 +5,7 @@
 // agent's type, description and the tool call that spawned it. That call sits in the
 // transcript of whoever spawned the agent, which is how the tree finds a parent.
 
-import type { AgentNode, AgentStatus, CallDetail, Checklist, ChecklistStep, InputField, ModelUsage, NodeDetail, Plan, Project, SessionSnapshot, SessionSummary, Step, ToolEvent } from '../shared/model.ts'
+import type { AgentNode, AgentStatus, CallDetail, Checklist, ChecklistStep, InputField, ModelUsage, NodeDetail, Plan, Project, SessionSnapshot, SessionSummary, Step, StepStatus, ToolEvent } from '../shared/model.ts'
 import { estimateCost } from './pricing.ts'
 
 const KEEP = 24
@@ -168,7 +168,7 @@ function notificationText(entry: Record<string, unknown>): string {
 }
 
 const UPDATE_PLAN = 'mcp__ccd_turn__update_plan'
-const STEP_STATUS = new Set<string>(['pending', 'in_progress', 'completed'])
+export const STEP_STATUS = new Set<string>(['pending', 'in_progress', 'completed'])
 
 // The desktop app keeps the checklist itself; the transcript only has the calls that changed it.
 // `items` replaces the list. `advance` completes the step in progress and starts the next pending
@@ -180,14 +180,14 @@ function applyChecklist(old: Checklist | undefined, input: Record<string, unknow
     const steps = input.items.flatMap((raw): ChecklistStep[] => {
       const item = record(raw)
       if (typeof item?.content !== 'string') return []
-      const status = typeof item.status === 'string' && STEP_STATUS.has(item.status) ? (item.status as ChecklistStep['status']) : 'pending'
+      const status = typeof item.status === 'string' && STEP_STATUS.has(item.status) ? (item.status as StepStatus) : 'pending'
       return [{ text: item.content, status }]
     })
     return { steps, at }
   }
   if (old === undefined) return undefined
   const steps = old.steps.map(s => ({ ...s }))
-  const set = (n: unknown, status: ChecklistStep['status']) => {
+  const set = (n: unknown, status: StepStatus) => {
     const step = typeof n === 'number' ? steps[n - 1] : undefined
     if (step !== undefined) step.status = status
   }
