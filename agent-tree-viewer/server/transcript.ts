@@ -5,7 +5,7 @@
 // agent's type, description and the tool call that spawned it. That call sits in the
 // transcript of whoever spawned the agent, which is how the tree finds a parent.
 
-import type { AgentNode, AgentStatus, CallDetail, InputField, ModelUsage, NodeDetail, Plan, Project, SessionSnapshot, SessionSummary, Step, ToolEvent } from '../shared/model.ts'
+import type { AgentNode, AgentStatus, CallDetail, Checklist, ChecklistStep, InputField, ModelUsage, NodeDetail, Plan, Project, SessionSnapshot, SessionSummary, Step, ToolEvent } from '../shared/model.ts'
 import { estimateCost } from './pricing.ts'
 
 const KEEP = 24
@@ -42,6 +42,9 @@ export type FileFacts = {
   // Token usage by API message id. Claude Code writes one entry per content block of a
   // response, each carrying the whole response's usage, so the id keeps it counted once.
   usage: Map<string, MessageUsage>
+  checklist?: Checklist
+  // Checklist calls waiting on their result, by call id: one the app refused changes nothing.
+  checklistCalls: Map<string, Record<string, unknown>>
   plan?: Plan
   // The ExitPlanMode call still waiting on the person's answer.
   planCall?: string
@@ -50,7 +53,7 @@ export type FileFacts = {
 type MessageUsage = Omit<ModelUsage, 'messages' | 'cost'>
 
 export function emptyFacts(): FileFacts {
-  return { calls: [], steps: [], results: new Map(), notes: new Map(), runs: new Map(), idle: false, usage: new Map() }
+  return { calls: [], steps: [], results: new Map(), notes: new Map(), runs: new Map(), idle: false, usage: new Map(), checklistCalls: new Map() }
 }
 
 // The one argument that says what a call is about: the file it touches, the command it runs,
@@ -164,6 +167,40 @@ function notificationText(entry: Record<string, unknown>): string {
   return ''
 }
 
+const UPDATE_PLAN = 'mcp__ccd_turn__update_plan'
+const STEP_STATUS = new Set<string>(['pending', 'in_progress', 'completed'])
+
+// The desktop app keeps the checklist itself; the transcript only has the calls that changed it.
+// `items` replaces the list. `advance` completes the step in progress and starts the next pending
+// one. `done` completes steps and `start` starts one, both 1-based, leaving any other step in
+// progress as it is. A wrap_up call leaves the steps as they are, whatever its description says:
+// the app's next answer still counts a step it left in progress.
+function applyChecklist(old: Checklist | undefined, input: Record<string, unknown>, at: number): Checklist | undefined {
+  if (Array.isArray(input.items)) {
+    const steps = input.items.flatMap((raw): ChecklistStep[] => {
+      const item = record(raw)
+      if (typeof item?.content !== 'string') return []
+      const status = typeof item.status === 'string' && STEP_STATUS.has(item.status) ? (item.status as ChecklistStep['status']) : 'pending'
+      return [{ text: item.content, status }]
+    })
+    return { steps, at }
+  }
+  if (old === undefined) return undefined
+  const steps = old.steps.map(s => ({ ...s }))
+  const set = (n: unknown, status: ChecklistStep['status']) => {
+    const step = typeof n === 'number' ? steps[n - 1] : undefined
+    if (step !== undefined) step.status = status
+  }
+  const current = steps.findIndex(s => s.status === 'in_progress')
+  if (input.advance === true) {
+    if (current >= 0) set(current + 1, 'completed')
+    set(steps.findIndex(s => s.status === 'pending') + 1, 'in_progress')
+  }
+  if (Array.isArray(input.done)) for (const n of input.done) set(n, 'completed')
+  if (input.start !== undefined) set(input.start, 'in_progress')
+  return { steps, at }
+}
+
 // Plan mode, as a transcript tells it: a `plan_mode` attachment on every turn spent in it, naming
 // the plan file; Write and Edit calls on that file; an ExitPlanMode call carrying the plan for
 // approval, whose result says whether the person approved it, with the plan as they left it; and a
@@ -244,12 +281,18 @@ export function ingest(facts: FileFacts, raw: unknown): void {
       const call: CallDetail = { id: part.id, tool, arg: argSummary(part.input), startedAt: at, input: inputFields(part.input) }
       facts.calls.push(call)
       planCall(facts, part.id, tool, record(part.input), at)
+      if (part.name === UPDATE_PLAN) facts.checklistCalls.set(part.id, record(part.input) ?? {})
       facts.steps.push(tool === 'SubagentHandback' && typeof handback === 'string' ? { kind: 'handback', at, text: clipText(handback, TEXT_CHARS) } : { kind: 'call', at, call })
     } else if (entry.type === 'user' && part.type === 'tool_result' && typeof part.tool_use_id === 'string') {
       const isError = part.is_error === true
       const text = textOf(part.content)
       facts.results.set(part.tool_use_id, { at, isError, async: ASYNC_LAUNCH.test(text) })
       if (part.tool_use_id === facts.planCall) planAnswer(facts, entry, isError, at)
+      const change = facts.checklistCalls.get(part.tool_use_id)
+      if (change !== undefined) {
+        facts.checklistCalls.delete(part.tool_use_id)
+        if (!isError) facts.checklist = applyChecklist(facts.checklist, change, at)
+      }
       for (const [, run] of text.matchAll(WORKFLOW_RUN)) if (run !== undefined) facts.runs.set(run, part.tool_use_id)
       const call = facts.calls.findLast(c => c.id === part.tool_use_id)
       if (call !== undefined) {
@@ -319,6 +362,7 @@ export function nodeDetail(id: string, facts: FileFacts, everyone?: readonly Fil
     steps: facts.steps.map(step => (step.kind === 'call' ? { ...step, call: clipCall(step.call) } : { ...step })),
     usage: sumUsage([facts]),
     ...(everyone !== undefined ? { sessionUsage: sumUsage(everyone) } : {}),
+    ...(facts.checklist !== undefined ? { checklist: { ...facts.checklist, steps: facts.checklist.steps.map(s => ({ ...s })) } } : {}),
     ...(facts.plan !== undefined ? { plan: { ...facts.plan } } : {}),
   }
 }

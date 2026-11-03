@@ -138,8 +138,18 @@ export type NodeDetail = {
   usage: ModelUsage[]
   // For the main loop only: the whole session, every agent included.
   sessionUsage?: ModelUsage[]
-  // The latest plan this transcript wrote in plan mode, the one Claude Code's Plan pane shows.
+  // The step checklist the desktop app's Plan pane shows, as it stands now.
+  checklist?: Checklist
+  // The latest plan this transcript wrote in plan mode.
   plan?: Plan
+}
+
+export type ChecklistStep = { text: string; status: 'pending' | 'in_progress' | 'completed' }
+
+export type Checklist = {
+  steps: ChecklistStep[]
+  // When it last changed.
+  at: number
 }
 
 // `exited`: plan mode ended with the plan never approved.

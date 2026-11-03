@@ -236,3 +236,47 @@ describe('the plan', () => {
     expect(nodeDetail('main', facts(entered(0), written(1, '# Draft'))).plan?.text).toBe('# Draft')
   })
 })
+
+describe('the checklist', () => {
+  const PLAN = 'mcp__ccd_turn__update_plan'
+  let n = 0
+  // A checklist call and the app's answer to it.
+  const change = (s: number, input: object, name = PLAN, refused = false) => {
+    const id = `c${n++}`
+    return [call(s, id, name, input), result(s, id, 'ok', refused)]
+  }
+  const items = (...statuses: string[]) => ({ items: statuses.map((status, i) => ({ content: `step ${i + 1}`, status })), scope: 'first_task' })
+  const statuses = (f: FileFacts) => f.checklist?.steps.map(s => s.status)
+
+  it('is the list the latest items call gave', () => {
+    const f = facts(...change(0, items('in_progress', 'pending')), ...change(1, items('completed', 'in_progress', 'pending')))
+    expect(f.checklist?.steps.map(s => s.text)).toEqual(['step 1', 'step 2', 'step 3'])
+    expect(statuses(f)).toEqual(['completed', 'in_progress', 'pending'])
+  })
+
+  it('advances to the next pending step, and past the last one to every step done', () => {
+    const f = facts(...change(0, items('in_progress', 'pending')), ...change(1, { advance: true }))
+    expect(statuses(f)).toEqual(['completed', 'in_progress'])
+    for (const e of change(2, { advance: true })) ingest(f, e)
+    expect(statuses(f)).toEqual(['completed', 'completed'])
+  })
+
+  it('completes and starts steps by number, leaving another in progress as it is', () => {
+    const f = facts(...change(0, items('in_progress', 'pending', 'pending', 'pending')), ...change(1, { done: [2, 3], start: 4 }))
+    expect(statuses(f)).toEqual(['in_progress', 'completed', 'completed', 'in_progress'])
+  })
+
+  it('is left as it stands by wrap_up', () => {
+    const f = facts(...change(0, items('completed', 'in_progress', 'pending')), ...change(1, { recap: 'r' }, 'mcp__ccd_turn__wrap_up'))
+    expect(statuses(f)).toEqual(['completed', 'in_progress', 'pending'])
+  })
+
+  it('ignores a call the app refused', () => {
+    const f = facts(...change(0, items('in_progress', 'pending')), ...change(1, { advance: true }, PLAN, true))
+    expect(statuses(f)).toEqual(['in_progress', 'pending'])
+  })
+
+  it('reaches the node’s details', () => {
+    expect(nodeDetail('main', facts(...change(0, items('in_progress')))).checklist?.steps).toEqual([{ text: 'step 1', status: 'in_progress' }])
+  })
+})
