@@ -1,9 +1,9 @@
-Status: ONGOING
+Status: DONE
 # 2026-11-03-hivemind checkpoint
 
 Wave: 3 — T07
-Integration head: 21e6237
-Remaining: T07..T13
+Integration head: 0a440e3
+Remaining: T08a..T13
 
 ## Tasks
 | Task | Wave | Branch | State | Review cycles | Merge commit |
@@ -18,7 +18,7 @@ Remaining: T07..T13
 | T05c | 2 | sdd/2026-11-03-hivemind/T05c | audited; gaps closed by T05d | 0 | |
 | T06 | 2 | sdd/2026-11-03-hivemind/T06 | merged | 2 | 31bfae5 |
 | T05d | 2 | sdd/2026-11-03-hivemind/T05d | merged | 2 | 21e6237 |
-| T07 | 3 | sdd/2026-11-03-hivemind/T07 | not started | 0 | |
+| T07 | 3 | sdd/2026-11-03-hivemind/T07 | merged | 1 | 0a440e3 |
 
 ## Decisions and deviations
 - W2 T05d: merged 21e6237 (tests only, no src change; fix round 2 lines, re-review skipped). Plan tools TaskList/TaskUpdate were unavailable to the wave-controller, so todo #22 was not updated; the orchestrator should mark it completed.
@@ -26,6 +26,9 @@ Remaining: T07..T13
 - W2: the audit's gap task extracted as tasks/T05d-audit-gaps.md (not T05d-economy-gaps.md as T05c named it); plan.md and T08 dependency rows name T05c, not T05d.
 - W2 T03b: reportInput returns an object {questions, verdicts, spend}, not a string; skeleton reads relevance from strengths.get(`${qid}#relevance`). T12 must consume the object shape; T08/T07 passing strengths must include the #relevance entries.
 - W2 T05b: death in economy.settleTick means balance zero, not balance plus escrow; an agent that escrows its whole balance can die mid-wake. T09 (scheduler) must decide how to avoid or handle it. Amounts are Math.round-ed whole units; source price uses 1024 bytes per KB; closed accounts are inert everywhere; a missing account throws except a claim whose author is not living.
+
+- W3 T07: initial ema is target_start (interface does not fix it); T08/T09/T11 should check it. TaskUpdate unavailable, so todo #11 not updated; mark it completed.
+- W3: review-package must run from inside the nested repo worktree, not the outer repo.
 
 ## Open issues and escalations
 
