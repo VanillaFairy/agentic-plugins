@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'preact/hooks'
-import type { AgentNode, Checklist, ModelUsage, NodeDetail, Plan, PlanState, SessionSnapshot } from '../shared/model.ts'
+import type { AgentNode, ModelUsage, NodeDetail, Plan, PlanState, SessionSnapshot, StepStatus } from '../shared/model.ts'
 import { sessionsUnder } from '../shared/tree.ts'
 import { Elapsed } from './clock.tsx'
 import { ROOT, STATUS_WORD } from './layout.ts'
@@ -102,28 +102,29 @@ const PLAN_WORD: Record<PlanState, string> = {
   exited: 'left unapproved',
 }
 
-// The step checklist the desktop app's Plan pane shows, the step in progress named in the head.
-function ChecklistBlock({ list }: { list: Checklist }) {
-  const [open, setOpen] = useState(true)
-  const done = list.steps.filter(s => s.status === 'completed').length
-  const now = list.steps.find(s => s.status === 'in_progress')
-  const state = done === list.steps.length ? 'approved' : 'drafting'
+type StepRow = { key: string; text: string; status: StepStatus; running?: string }
+
+// A list of steps with how far it got, the step in progress named in the head.
+function StepsBlock({ label, rows, at, opened }: { label: string; rows: readonly StepRow[]; at?: number; opened: boolean }) {
+  const [open, setOpen] = useState(opened)
+  const done = rows.filter(s => s.status === 'completed').length
+  const now = rows.find(s => s.status === 'in_progress')
   return (
-    <section class={`plan ${state}`}>
+    <section class={`plan ${done === rows.length ? 'approved' : 'drafting'}`}>
       <button class="plan-head" aria-expanded={open} onClick={() => setOpen(!open)}>
-        <span class="plan-label">Plan</span>
-        <span class="plan-title">{now?.text ?? (done === list.steps.length ? 'every step done' : 'nothing in progress')}</span>
+        <span class="plan-label">{label}</span>
+        <span class="plan-title">{now === undefined ? (done === rows.length ? 'all done' : 'nothing in progress') : (now.running ?? now.text)}</span>
         <span class="plan-state">
-          {done} of {list.steps.length} done · {clockTime(list.at)}
+          {done} of {rows.length} done{at === undefined ? '' : ` · ${clockTime(at)}`}
         </span>
         <span class="link plan-toggle">{open ? 'Hide' : 'Show'}</span>
       </button>
       {open && (
         <ol class="plan-steps">
-          {list.steps.map((s, i) => (
-            <li key={i} class={`plan-step ${s.status}`}>
+          {rows.map(s => (
+            <li key={s.key} class={`plan-step ${s.status}`}>
               <span class="plan-mark" aria-label={s.status.replace('_', ' ')} />
-              <span>{s.text}</span>
+              <span class="plan-step-text">{s.text}</span>
             </li>
           ))}
         </ol>
@@ -368,7 +369,12 @@ export function Detail({ snap, id, skew, onPick }: Props) {
         <h2>{agent?.description ?? snap.title}</h2>
         <p class="detail-sub">{agent?.type ?? snap.project.path}</p>
         <Summary snap={snap} agent={agent} detail={detail} spawned={plate ? [] : spawned} skew={skew} onPick={onPick} />
-        {detail?.checklist !== undefined && detail.checklist.steps.length > 0 && <ChecklistBlock list={detail.checklist} />}
+        {detail?.tasks !== undefined && (
+          <StepsBlock label="Plan" opened rows={detail.tasks.map(t => ({ key: t.id, text: t.subject, status: t.status, ...(t.activeForm !== undefined ? { running: t.activeForm } : {}) }))} />
+        )}
+        {detail?.checklist !== undefined && detail.checklist.steps.length > 0 && (
+          <StepsBlock label="Steps" opened={detail.tasks === undefined} rows={detail.checklist.steps.map((s, i) => ({ key: String(i), ...s }))} at={detail.checklist.at} />
+        )}
         {detail?.plan !== undefined && <PlanBlock plan={detail.plan} />}
       </header>
 

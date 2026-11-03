@@ -785,7 +785,7 @@ h1 {
 }
 
 .plan-steps {
-  max-height: 30vh;
+  max-height: 24vh;
   overflow-y: auto;
   margin: 0;
   padding: 6px 12px 8px;
@@ -804,6 +804,10 @@ h1 {
 
 .plan-step.completed {
   color: var(--muted);
+}
+
+.plan-step.completed .plan-step-text {
+  text-decoration: line-through;
 }
 
 .plan-step.in_progress {
