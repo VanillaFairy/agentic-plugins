@@ -2,7 +2,7 @@ Status: ONGOING
 # 2026-11-03-hivemind checkpoint
 
 Wave: 2 — T02a, T02b, T03a, T03b, T04, T05a, T05b, T05c, T06
-Integration head: 31bfae5
+Integration head: 55e1db0
 Remaining: T02a..T06 (wave 2), T07..T13
 
 ## Tasks
@@ -14,8 +14,8 @@ Remaining: T02a..T06 (wave 2), T07..T13
 | T03b | 2 | sdd/2026-11-03-hivemind/T03b | in re-review | 1 | |
 | T04 | 2 | sdd/2026-11-03-hivemind/T04 | merged | 1 | 77f41eb |
 | T05a | 2 | sdd/2026-11-03-hivemind/T05a | merged | 1 | d38390c |
-| T05b | 2 | sdd/2026-11-03-hivemind/T05b | merging | 1 | |
-| T05c | 2 | sdd/2026-11-03-hivemind/T05c | not started | 0 | |
+| T05b | 2 | sdd/2026-11-03-hivemind/T05b | merged (audit pending) | 1 | 55e1db0 |
+| T05c | 2 | sdd/2026-11-03-hivemind/T05c | auditing | 0 | |
 | T06 | 2 | sdd/2026-11-03-hivemind/T06 | merged | 2 | 31bfae5 |
 
 ## Decisions and deviations
