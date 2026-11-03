@@ -1,7 +1,7 @@
-Status: DONE
+Status: ONGOING
 # 2026-11-03-hivemind checkpoint
 
-Wave: 2 — T02a, T02b, T03a, T03b, T04, T05a, T05b, T05c, T06, T05d (gap)
+Wave: 3 — T07
 Integration head: 21e6237
 Remaining: T07..T13
 
@@ -18,6 +18,7 @@ Remaining: T07..T13
 | T05c | 2 | sdd/2026-11-03-hivemind/T05c | audited; gaps closed by T05d | 0 | |
 | T06 | 2 | sdd/2026-11-03-hivemind/T06 | merged | 2 | 31bfae5 |
 | T05d | 2 | sdd/2026-11-03-hivemind/T05d | merged | 2 | 21e6237 |
+| T07 | 3 | sdd/2026-11-03-hivemind/T07 | not started | 0 | |
 
 ## Decisions and deviations
 - W2 T05d: merged 21e6237 (tests only, no src change; fix round 2 lines, re-review skipped). Plan tools TaskList/TaskUpdate were unavailable to the wave-controller, so todo #22 was not updated; the orchestrator should mark it completed.
