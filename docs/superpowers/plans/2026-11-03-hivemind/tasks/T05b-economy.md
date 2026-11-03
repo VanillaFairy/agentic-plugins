@@ -28,9 +28,8 @@ size: ~17 turns (2 edit sites, 6 files)
 ## Positive Constraints (DO)
 - Every operation mutates the ledger it is given and keeps the invariant in `interfaces.md` §
   Economy. Draws from the supply are `Math.min(amount, supply)`.
-- Accounts: `ledger.accounts[id] = { balance, escrow, closed: false }`. A death (`deaths` from
-  `settleTick`) releases escrow to balance; the caller then spends the remaining balance with a
-  final `debit` or keeps it as the agent's leftover; the ledger never deletes an account.
+- Accounts: `ledger.accounts[id] = { balance, escrow, closed: false }`. `close` releases escrow to
+  balance and sets `closed`; the leftover balance stays in the account; the ledger never deletes one.
 
 ## Negative Constraints (DO NOT)
 - Do NOT modify `test/economy.test.mjs`: authored by T05a and locked.

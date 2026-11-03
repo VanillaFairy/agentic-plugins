@@ -1,7 +1,7 @@
-# Task T13: The skill, README and registration
+# Task T13: The skill and README
 
 rigor: verify
-size: ~20 turns (5 edit sites, 7 files)
+size: ~17 turns (3 edit sites, 5 files)
 
 ## Dispatch
 | Stage | Model | Effort | Why |
@@ -14,27 +14,22 @@ size: ~20 turns (5 edit sites, 7 files)
 ## References
 - Read: `../shared/architecture.md` § Run directory and § Design decisions
 - Read: `../shared/interfaces.md` § Outbox, inbox, status
+- Note: read §9 and §12 of `C:\work\claude\vanillafairy\docs\superpowers\specs\2026-11-03-hivemind-design.md`
+- Note: for voice, read `C:\work\claude\vanillafairy\think-tank\skills\think-tank\SKILL.md`
 
 ## Dependencies
 - Depends on: T12
 - Depended on by: —
 
 ## Scope
-**Files (hivemind repo):**
+**Files:**
 - Create: `.claude-plugin/plugin.json` (`name: hivemind`, `version: 0.1.0`, a description naming the
-  hive, its energy economy and evolution, the vanillafairy author and repository fields as in
-  think-tank's)
+  hive, its energy economy and evolution; author and repository fields as in think-tank's)
 - Create: `skills/hivemind/SKILL.md`
 - Create: `README.md`
 
-**Files outside the repo (registration):**
-- Create the junction `C:\work\claude\plugins-dev\hivemind` → `C:\work\claude\vanillafairy\hivemind`
-  (PowerShell: `New-Item -ItemType Junction -Path C:\work\claude\plugins-dev\hivemind -Target C:\work\claude\vanillafairy\hivemind`)
-- Add `{ "name": "hivemind", "source": "./hivemind", "description": "<same as plugin.json>" }` to
-  `C:\work\claude\plugins-dev\.claude-plugin\marketplace.json`'s `plugins`
-
-**BOUNDARY — nothing else.** Read the spec's §9 and §12, and think-tank's
-`skills/think-tank/SKILL.md` for voice.
+**BOUNDARY — you MUST NOT modify any other file, inside the repo or outside it.** Registration in
+the local-dev marketplace is the orchestrator's step after the merge.
 
 ## Positive Constraints (DO)
 `SKILL.md` (frontmatter `name: hivemind` and a description for `/hivemind`), sections:
@@ -65,17 +60,11 @@ its limits, and that it isn't for distribution to other users.
 
 ## Implementation Steps
 ### Step 1: Write the three files
-### Step 2: Register
-Create the junction, add the marketplace entry, then run:
-```bash
-claude plugin marketplace update local-dev
-claude plugin install hivemind@local-dev
-```
-### Step 3: Verify
+### Step 2: Verify
 Run: `node --test test/` — Expected: PASS.
 Run: `node -e "console.log(require('./.claude-plugin/plugin.json').version)"` — Expected: `0.1.0`.
-Run: `claude plugin list` — Expected: `hivemind@local-dev` listed.
-### Step 4: Commit (hivemind repo only)
+Run: `grep -n "^## \|^### " skills/hivemind/SKILL.md` — Expected: the seven sections.
+### Step 3: Commit
 ```bash
 git add .claude-plugin/plugin.json skills/hivemind/SKILL.md README.md
 git commit -m "Add the /hivemind skill and README, as 0.1.0"
@@ -86,5 +75,5 @@ git commit -m "Add the /hivemind skill and README, as 0.1.0"
 - [ ] The skill launches the scheduler in the background and waits on the outbox, not on a timer
 - [ ] Asks are answered with pins on their candidates; unsolicited words are confirmed before they become a verdict
 - [ ] The README says the plugin runs on the user's subscription and is not for distribution
-- [ ] `hivemind@local-dev` is installed
+- [ ] `plugin.json` is version `0.1.0`
 - [ ] No other files were modified

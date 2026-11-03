@@ -73,6 +73,7 @@ test('the genome turn carries every gene', () => {
 test('the mutation prompt names the operator and asks for JSON, and the answer parses back', () => {
   const p = mutationPrompt(G, 'crossover', { ...G, lens: 'what the child sees' });
   assert.ok(p.includes('crossover') && p.includes('what the child sees') && /JSON/.test(p));
+  assert.deepEqual(parseMutation(p), G);
   assert.deepEqual(parseMutation(`Sure, here it is:\n${JSON.stringify(G)}\nDone.`), G);
   assert.throws(() => parseMutation('no json here'), /genome/);
 });
@@ -101,6 +102,7 @@ git commit -m "Add genomes, the operator draw, lineages and the mutation prompt"
 - [ ] `childLineage` starts a new lineage only for a transplant → test 'a transplant starts a new lineage; every other operator keeps the parent's'
 - [ ] `renderGenomeTurn` includes lens, stance, constraints and species → test 'the genome turn carries every gene'
 - [ ] `mutationPrompt` names the operator and the other genome and asks for JSON → test 'the mutation prompt names the operator and asks for JSON, and the answer parses back'
+- [ ] `mutationPrompt` puts the parent genome's JSON before any other JSON, so `parseMutation` of the prompt returns the parent → test 'the mutation prompt names the operator and asks for JSON, and the answer parses back'
 - [ ] `parseMutation` extracts the first JSON object and throws without one → test 'the mutation prompt names the operator and asks for JSON, and the answer parses back'
 - [ ] `speciesForBud` returns the species below its floor, else null → test 'a bud takes the species that is below its floor'
 - [ ] No files outside Scope were modified

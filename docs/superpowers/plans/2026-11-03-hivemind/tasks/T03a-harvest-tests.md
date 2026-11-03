@@ -32,7 +32,9 @@ size: ~22 turns (4 edit sites, 6 files)
   task: `g`, `agent(lineage)`, `claim(author, provenance, rel)`) and pass a hand-built `strengths`
   map, so harvest is tested independently of the strength model.
 - Expected extensions come from the definition (maximal admissible sets), worked out by hand for
-  each small graph.
+  each small graph. Remember a claim has exactly one relation, so attacks among claims form trees;
+  the only cycles are the implicit rivalry between answers of one question (`rivalEdges` in
+  `src/graph/lineage.mjs`, from T01).
 
 ## Negative Constraints (DO NOT)
 - Do NOT implement either module beyond the stubs.
@@ -55,10 +57,13 @@ git commit -m "Pin preferred extensions and the harvest's worldviews in tests"
 - [ ] Extensions and their members come back sorted → test 'extensions are sorted'
 - [ ] More than `max` extensions are cut to `max` and the result is flagged `truncated` → test 'too many extensions are cut and flagged'
 - [ ] `questionSubtree` holds the question's answers and every claim below them through attacks and supports, and nothing from another question → test 'a question's subtree stops at its own claims'
-- [ ] Two rival answers whose attacks sit in separate claims (X answers, Y answers, c1 by X's rival attacks X, c2 attacks Y, c1 and c2 attack each other) come back as two worldviews → test 'rival answers with attacks in separate claims are two worldviews'
+- [ ] `questionSubtree`'s attacks include both directions between every two answers of the question → test 'the subtree carries the answers' rivalry'
+- [ ] Two answers to one question, each attacked by claims of two other lineages that nothing defeats, come back as two worldviews → test 'two surviving answers are two worldviews'
+- [ ] An answer whose only attacker is itself defeated, beside a rival with an undefeated attacker, leaves one worldview with the first answer → test 'a defeated rival leaves one worldview'
 - [ ] An answer below harvest_threshold is left out of every worldview → test 'a weak answer is not harvested'
-- [ ] An answer attacked by fewer than two lineages other than its own is left out → test 'an answer two other families never attacked is not harvested'
-- [ ] Two worldviews produce one crux naming one answer from each, the attack chain between them, and the strongest claim whose `decides` names that pair → test 'a crux names its answers, its chain and what decides it'
+- [ ] An answer attacked directly by claims of fewer than two lineages other than its own is left out, and rivalry alone doesn't count as being attacked → test 'an answer two other families never attacked is not harvested'
+- [ ] Two worldviews produce one crux naming one answer from each, the attack chain between them (the rival pair itself), and the strongest claim whose `decides` names that pair → test 'a crux names its answers, its chain and what decides it'
+- [ ] `reportInput` carries the skeleton, every verdict's text and addresses, and the books it is given → test 'the report input carries rulings and spend'
 - [ ] A crux with no `decides` claim reports `decides: null` → test 'a crux nobody decided says so'
 - [ ] `skeleton` lists questions in descending relevance, each with its worldviews → test 'the skeleton orders questions by relevance'
 - [ ] No files outside Scope were modified

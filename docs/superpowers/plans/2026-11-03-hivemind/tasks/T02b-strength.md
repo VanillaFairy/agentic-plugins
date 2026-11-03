@@ -39,6 +39,7 @@ size: ~17 turns (2 edit sites, 6 files)
 // 5. clamp claims to their ceiling; return Map(id → s)
 ```
 
+- Rival answers come from `rivalEdges` in `src/graph/lineage.mjs` (T01); add them as attacks.
 - `relevance(graph, strengths)` reads `<qid>#relevance` strengths; relevance bases need parents'
   relevance, so compute strengths of relevance arguments in topological order of `parent`, running
   the claim iteration once per level or iterating jointly with bases refreshed each step.

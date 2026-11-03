@@ -43,7 +43,7 @@ const base = { 'g-1': { kind: 'goal' }, 'q-1': { kind: 'question', parent: 'g-1'
 
 test('writes to a node are the ticks of the nodes naming it, verdicts included', () => {
   const graph = g({ ...base, 'c-3': { kind: 'claim', author: 'a-1', answers: 'q-1', tick: 5 }, 'c-4': { kind: 'claim', author: 'a-2', attacks: 'c-3', tick: 9 },
-    'v-5': { kind: 'verdict', author: 'user', addresses: 'c-3', tick: 12 } });
+    'v-5': { kind: 'verdict', author: 'user', addresses: ['c-3'], tick: 12 } });
   assert.deepEqual(writesTo(graph, 'c-3').map((w) => w.tick).sort((a, b) => a - b), [9, 12]);
 });
 
@@ -51,8 +51,14 @@ test('heat halves every half-life and verdicts weigh verdict_heat', () => {
   const graph = g({ ...base, 'c-3': { kind: 'claim', author: 'a-1', answers: 'q-1', tick: 0 }, 'c-4': { kind: 'claim', author: 'a-2', attacks: 'c-3', tick: 10 } });
   const h = P.heat_half_life;
   assert.ok(Math.abs(heat(graph, 'c-3', 10 + h, P) - 0.5) < 1e-9);
-  const withVerdict = g({ ...base, 'c-3': { kind: 'claim', tick: 0 }, 'v-5': { kind: 'verdict', author: 'user', addresses: 'c-3', tick: 10 } });
+  const withVerdict = g({ ...base, 'c-3': { kind: 'claim', tick: 0 }, 'v-5': { kind: 'verdict', author: 'user', addresses: ['c-3'], tick: 10 } });
   assert.ok(Math.abs(heat(withVerdict, 'c-3', 10, P) - P.verdict_heat) < 1e-9);
+});
+
+test('a rival answer counts as an attacker in tension', () => {
+  const graph = g({ ...base, 'c-3': { kind: 'claim', author: 'a-1', answers: 'q-1' }, 'c-4': { kind: 'claim', author: 'a-2', answers: 'q-1' } });
+  const s = new Map([['c-3', 0.6], ['c-4', 0.5]]);
+  assert.ok(Math.abs(tension(graph, s, 'c-3') - 0.3) < 1e-9);
 });
 
 test('tension is the strongest attacker times the target, zero when unattacked', () => {
@@ -91,6 +97,8 @@ git commit -m "Derive heat, tension and crowding from the graph"
 - [ ] `heat` decays by half per half-life → test 'heat halves every half-life and verdicts weigh verdict_heat'
 - [ ] A verdict's write weighs `verdict_heat` → test 'heat halves every half-life and verdicts weigh verdict_heat'
 - [ ] `tension` is strongest attacker × own strength, 0 unattacked → test 'tension is the strongest attacker times the target, zero when unattacked'
+- [ ] A rival answer counts as an attacker in `tension` → test 'a rival answer counts as an attacker in tension'
+- [ ] `writesTo` reads a verdict's `addresses` as a list → test 'writes to a node are the ticks of the nodes naming it, verdicts included'
 - [ ] `crowding` counts distinct living authors inside `crowd_window` → test 'crowding counts distinct living authors within the window'
 - [ ] `activeQuestions` lists questions with a write under them inside the window → test 'a question is active while anything under it was written within the window'
 - [ ] No files outside Scope were modified

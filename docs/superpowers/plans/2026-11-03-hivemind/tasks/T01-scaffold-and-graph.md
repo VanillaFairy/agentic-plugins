@@ -1,7 +1,7 @@
 # Task T01: Scaffold, graph store, events, physics
 
 rigor: tdd
-size: ~34 turns (9 edit sites, 10 files)
+size: ~36 turns (10 edit sites, 10 files)
 
 ## Dispatch
 | Stage | Model | Effort | Why |
@@ -36,13 +36,16 @@ empty commit on `master`; your worktree branches from it. Add:
 point for `parseNode`; copy its parsing code, don't import it.
 
 ## Positive Constraints (DO)
-- `parseNode` behaves as think-tank's, and also parses a value starting with `{` as JSON (genomes
-  and settings are objects).
+- `parseValue` tries `JSON.parse` on every value first (objects, arrays, numbers, `true`, `false`,
+  `null`, quoted strings) and falls back to think-tank's bare-YAML rules only when that throws.
+  `parseNode`'s `body` excludes the `# title` line (think-tank's keeps it; hivemind's doesn't).
+- `author` and `seq` are not in any kind's `required`: the Hive stamps them on every node.
 - `serializeNode({ id, fm, title, body })` writes `---`, one `key: <JSON.stringify(value)>` line per
   field in the order `id, kind, author, seq, tick` then the rest sorted, `---`, `# <title>`, a blank
   line, the body.
 - `SCHEMA` holds, per kind, `required`, `refs` (fields naming other node ids; a value
-  `<qid>#relevance` refers to `qid`), `lists` (ref fields holding arrays: `decides`, `candidates`)
+  `<qid>#relevance` refers to `qid`), `lists` (ref fields holding arrays: `decides`, `candidates`,
+  `addresses`)
   and `values` (allowed sets: claim `provenance` F/I/A, agent `species` explorer/critic,
   `genome.stance` challenge/extend/orthogonal).
 - `initRun(dir, goal)` creates `graph/`, `outbox/`, `inbox/`, writes `seq` as `1`, writes the goal
@@ -78,8 +81,8 @@ import { nodeProblems } from '../src/graph/schema.mjs';
 
 const g = (nodes) => new Map(Object.entries(nodes).map(([id, fm]) => [id, { id, fm: { id, ...fm }, title: id, body: '' }]));
 
-test('a node round-trips through serialize and parse, objects included', () => {
-  const n = { id: 'a-7', fm: { id: 'a-7', kind: 'agent', author: 'hive', seq: 7, tick: 3, genome: { lens: 'cost', stance: 'challenge', constraints: ['x'], species: 'critic', temperament: 0.4 } }, title: 'An agent', body: 'Body text.' };
+test('a node round-trips through serialize and parse, objects, booleans and null included', () => {
+  const n = { id: 'a-7', fm: { id: 'a-7', kind: 'agent', author: 'hive', seq: 7, tick: 3, died: null, founder: true, session: 's-1', genome: { lens: 'cost', stance: 'challenge', constraints: ['x'], species: 'critic', temperament: 0.4 } }, title: 'An agent', body: 'Body text.' };
   const back = parseNode(serializeNode(n));
   assert.deepEqual([back.fm, back.title, back.body.trim()], [n.fm, n.title, n.body]);
 });
@@ -103,6 +106,14 @@ test('lineage comes from the author agent', async () => {
   const { lineageOf } = await import('../src/graph/lineage.mjs');
   const graph = g({ 'a-5': { kind: 'agent', lineage: 'L2' }, 'c-6': { kind: 'claim', author: 'a-5', provenance: 'I' }, 'v-7': { kind: 'verdict', author: 'user' }, 'c-8': { kind: 'claim', author: 'a-99', provenance: 'I' } });
   assert.deepEqual(['c-6', 'v-7', 'c-8'].map((id) => lineageOf(graph, id)), ['L2', 'user', null]);
+});
+
+test('rival edges pair every two answers of a question', async () => {
+  const { rivalEdges } = await import('../src/graph/lineage.mjs');
+  const graph = g({ 'q-1': { kind: 'question' }, 'q-2': { kind: 'question' }, 'c-3': { kind: 'claim', provenance: 'I', answers: 'q-1' },
+    'c-4': { kind: 'claim', provenance: 'I', answers: 'q-1' }, 'c-5': { kind: 'claim', provenance: 'I', answers: 'q-2' }, 'c-6': { kind: 'claim', provenance: 'I', attacks: 'c-3' } });
+  assert.deepEqual(rivalEdges(graph), [['c-3', 'c-4'], ['c-4', 'c-3']]);
+  assert.deepEqual(rivalEdges(graph, 'q-2'), []);
 });
 
 test('a claim with two relations is a problem', () => {
@@ -190,12 +201,13 @@ git commit -m "Scaffold hivemind with its graph store, event log and physics def
 ```
 
 ## Acceptance Criteria
-- [ ] `serializeNode` and `parseNode` round-trip fields, objects, title and body → test 'a node round-trips through serialize and parse, objects included'
+- [ ] `serializeNode` and `parseNode` round-trip fields, objects, booleans, null, title and body (the body without its title line) → test 'a node round-trips through serialize and parse, objects, booleans and null included'
 - [ ] A missing required field is a problem → test 'a missing required field is a problem'
 - [ ] A ref to a missing node is a problem, and `q-9#relevance` resolves to `q-9` → test 'a ref to a missing node is a problem, and a relevance ref names its question'
 - [ ] A value outside its set is a problem → test 'a value outside its set is a problem'
 - [ ] A claim with two relations is a problem → test 'a claim with two relations is a problem'
 - [ ] `lineageOf` returns the author agent's lineage, `user` for the user, null for an unknown author → test 'lineage comes from the author agent'
+- [ ] `rivalEdges` returns both directions for every two answers of a question, sorted, and only that question's when given → test 'rival edges pair every two answers of a question'
 - [ ] `initRun` creates `graph/`, `outbox/`, `inbox/`, `seq` and `g-1` → test 'initRun lays out a run with its goal node and a first commit'
 - [ ] `initRun` refuses a directory that already holds a run → test 'initRun refuses a directory that already holds a run'
 - [ ] `nextSeq` counts up from the file → test 'seq counts up from the file and survives a reload'

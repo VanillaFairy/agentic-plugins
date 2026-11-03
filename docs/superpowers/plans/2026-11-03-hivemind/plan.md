@@ -28,7 +28,9 @@ mkdir C:/work/claude/vanillafairy/hivemind && cd C:/work/claude/vanillafairy/hiv
 git init -b master && git commit --allow-empty -m "Start hivemind"
 ```
 
-Then the integration branch `hivemind-0.1` in its own worktree, as for any plan.
+Add `hivemind/` to `C:\work\claude\vanillafairy\.gitignore` (as `think-tank/` is), so the nested
+repository doesn't show as untracked there. Then the integration branch `hivemind-0.1` in its own
+worktree, as for any plan.
 
 ## Global Constraints
 
@@ -55,7 +57,7 @@ Then the integration branch `hivemind-0.1` in its own worktree, as for any plan.
    T09a ('the plan limit pauses and resumes the hive') and T10 ('a usage-limit error is reported
    as limit, not thrown').
 4. A run started with `ANTHROPIC_API_KEY` set in the shell must still bill the subscription →
-   pinned in T10 ('the environment keeps no API key or Claude variables except the config dir').
+   pinned in T10 ('an API key in the shell never reaches an agent').
 5. A whole run's books must balance to the energy put in → pinned in T05a ('the books balance under
    random operations') and T09a ('the books balance over a whole run').
 
@@ -76,23 +78,26 @@ Then the integration branch `hivemind-0.1` in its own worktree, as for any plan.
 | T05c | audit | T05b | — (a gap becomes tasks/T05d-economy-gaps.md) |
 | T06 | — | T01 | src/genome.mjs, test/genome.test.mjs |
 | T07 | — | T03b, T04 | src/thermostat.mjs, test/thermostat.test.mjs |
-| T08a | red | T02b, T04, T05c, T06 | test/tools+hive (authored), src/hive.mjs, src/tools.mjs (stubs) |
+| T08a | red | T02b, T03b, T04, T05c, T06, T07 | test/tools+hive (authored), src/hive.mjs, src/tools.mjs (stubs) |
 | T08b | green | T08a | src/hive.mjs, src/tools.mjs (tests READ-ONLY) |
-| T09a | red | T07, T08b | test/scheduler.test.mjs, test/fixtures/script-runner.mjs (authored), src/scheduler.mjs (stub) |
+| T08c | audit | T08b | — (a gap becomes tasks/T08d-tools-gaps.md) |
+| T09a | red | T07, T08c | test/scheduler.test.mjs, test/fixtures/script-runner.mjs (authored), src/scheduler.mjs (stub) |
 | T09b | green | T09a | src/scheduler.mjs, prompts/founder.md (tests READ-ONLY) |
-| T10 | — | T06, T08b | src/runner-sdk.mjs, test/runner-sdk.test.mjs, prompts/ground-rules.md, prompts/reporter.md |
-| T11 | — | T09b | src/sim.mjs, test/sim.test.mjs, physics.json (sim_cost) |
+| T09c | audit | T09b | — (a gap becomes tasks/T09d-scheduler-gaps.md) |
+| T10 | — | T06, T08c | src/runner-sdk.mjs, test/runner-sdk.test.mjs, prompts/ground-rules.md, prompts/reporter.md |
+| T11 | — | T09c | src/sim.mjs, test/sim.test.mjs, physics.json (sim_cost) |
 | T12 | — | T03b, T10, T11 | src/cli.mjs, test/cli.test.mjs |
-| T13 | — | T12 | .claude-plugin/plugin.json, skills/hivemind/SKILL.md, README.md; plugins-dev junction and marketplace entry |
+| T13 | — | T12 | .claude-plugin/plugin.json, skills/hivemind/SKILL.md, README.md |
 
 ```dot
 digraph deps {
     T01 -> T02a -> T02b; T01 -> T03a -> T03b; T01 -> T04; T01 -> T05a -> T05b -> T05c; T01 -> T06;
     T03b -> T07; T04 -> T07;
-    T02b -> T08a; T04 -> T08a; T05c -> T08a; T06 -> T08a; T08a -> T08b;
-    T07 -> T09a; T08b -> T09a; T09a -> T09b;
-    T06 -> T10; T08b -> T10;
-    T09b -> T11;
+    T02b -> T08a; T03b -> T08a; T04 -> T08a; T05c -> T08a; T06 -> T08a; T07 -> T08a;
+    T08a -> T08b -> T08c;
+    T07 -> T09a; T08c -> T09a; T09a -> T09b -> T09c;
+    T06 -> T10; T08c -> T10;
+    T09c -> T11;
     T03b -> T12; T10 -> T12; T11 -> T12;
     T12 -> T13;
 }
@@ -101,14 +106,22 @@ digraph deps {
 **Wave Schedule:**
 - Wave 1: T01 — controller: sonnet/medium — the scaffold every task builds on
 - Wave 2: T02a → T02b, T03a → T03b, T04, T05a → T05b → T05c, T06 — controller: sonnet/high — the pure engines in parallel: two pairs, the economy triad and two tdd tasks; if T05c writes T05d it runs in this wave
-- Wave 3: T07, T08a → T08b — controller: sonnet/high — the thermostat beside the Hive and its tools
-- Wave 4: T09a → T09b, T10 — controller: sonnet/high — the scheduler pair beside the SDK runner
-- Wave 5: T11 — controller: sonnet/medium — the simulator
-- Wave 6: T12 — controller: sonnet/medium — the CLI
-- Wave 7: T13 — controller: sonnet/medium — the skill, README and registration
+- Wave 3: T07 — controller: sonnet/medium — the thermostat, which the Hive loads
+- Wave 4: T08a → T08b → T08c — controller: sonnet/high — the Hive and its tools, audited; if T08c writes T08d it runs in this wave
+- Wave 5: T09a → T09b → T09c, T10 — controller: sonnet/high — the scheduler triad beside the SDK runner; if T09c writes T09d it runs in this wave
+- Wave 6: T11 — controller: sonnet/medium — the simulator
+- Wave 7: T12 — controller: sonnet/medium — the CLI
+- Wave 8: T13 — controller: sonnet/medium — the skill and README
 
-After the final review the orchestrator merges `hivemind-0.1` into `master` locally; the repository
-has no remote, so nothing is pushed.
+## After the final review (orchestrator)
+
+1. Merge `hivemind-0.1` into `master` locally; the repository has no remote, so nothing is pushed.
+2. Register the plugin, now that `master` holds it:
+   - `New-Item -ItemType Junction -Path C:\work\claude\plugins-dev\hivemind -Target C:\work\claude\vanillafairy\hivemind`
+   - add `{ "name": "hivemind", "source": "./hivemind", "description": <plugin.json's> }` to
+     `C:\work\claude\plugins-dev\.claude-plugin\marketplace.json`
+   - `claude plugin marketplace update local-dev`, then `claude plugin install hivemind@local-dev`
+3. Check: `claude plugin list` shows `hivemind@local-dev`, and `npm ci` in the plugin directory succeeds.
 
 ## Task Index
 
@@ -127,12 +140,14 @@ has no remote, so nothing is pushed.
 | T07 | Thermostat | tasks/T07-thermostat.md | Spread and the clamped controller |
 | T08a | Hive and tools — tests | tasks/T08a-tools-tests.md | Pin every physics tool and the Hive's persistence |
 | T08b | Hive and tools — implementation | tasks/T08b-tools.md | src/hive.mjs, src/tools.mjs |
+| T08c | Hive and tools — audit | tasks/T08c-tools-audit.md | Mutation sweep of persistence and tool guards |
 | T09a | Scheduler — tests | tasks/T09a-scheduler-tests.md | Pin births, waking, ticks, asks, inbox, pauses, the end |
 | T09b | Scheduler — implementation | tasks/T09b-scheduler.md | src/scheduler.mjs, the founder prompt |
+| T09c | Scheduler — audit | tasks/T09c-scheduler-audit.md | Mutation sweep of the loop's guards |
 | T10 | The SDK runner | tasks/T10-sdk-runner.md | Isolated SDK sessions, the tools server, limits, ground rules |
 | T11 | The simulator | tasks/T11-simulator.md | Stub agents, cost model, replayable runs |
 | T12 | The CLI | tasks/T12-cli.md | init, run, sim, status, verdict, feed, stop, report, rate |
-| T13 | The skill, README and registration | tasks/T13-skill-and-release.md | /hivemind, the README, plugins-dev and install |
+| T13 | The skill and README | tasks/T13-skill-and-release.md | /hivemind and the README, as 0.1.0 |
 
 ## Execution Handoff
 

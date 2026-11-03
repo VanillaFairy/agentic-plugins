@@ -17,7 +17,7 @@ size: ~20 turns (2 edit sites, 8 files)
 
 ## Dependencies
 - Depends on: T03b, T04
-- Depended on by: T09, T11
+- Depended on by: T08a, T09a, T11
 
 ## Scope
 **Files:**
@@ -102,12 +102,16 @@ test('spread is zero with one worldview and highest with two equal ones', () => 
   const base = { 'g-1': { kind: 'goal' }, 'q-1': { kind: 'question', parent: 'g-1', tick: 0 }, 'a-1': ag('L1'), 'a-2': ag('L2'), 'a-3': ag('L3'), 'a-4': ag('L4') };
   const ans = (id, author) => ({ [id]: { kind: 'claim', author, provenance: 'I', answers: 'q-1', tick: 90 } });
   const att = (id, author, target) => ({ [id]: { kind: 'claim', author, provenance: 'I', attacks: target, tick: 95 } });
-  // X and Y answer q-1; each is attacked by two other lineages; X's and Y's defenders attack each other
-  const graph = g({ ...base, ...ans('c-x', 'a-1'), ...ans('c-y', 'a-2'), ...att('c-1', 'a-3', 'c-x'), ...att('c-2', 'a-4', 'c-x'),
-    ...att('c-3', 'a-3', 'c-y'), ...att('c-4', 'a-4', 'c-y'), ...att('c-5', 'a-1', 'c-y'), ...att('c-6', 'a-2', 'c-5'), ...att('c-7', 'a-2', 'c-x'), ...att('c-8', 'a-1', 'c-7') });
+  // X and Y answer q-1 and are rivals. Each is attacked by lineages L3 and L4, and each attack is
+  // defeated by the answer's own family, so both survive: two worldviews of equal mass.
+  const graph = g({ ...base, ...ans('c-x', 'a-1'), ...ans('c-y', 'a-2'),
+    ...att('c-1', 'a-3', 'c-x'), ...att('c-2', 'a-4', 'c-x'), ...att('c-5', 'a-1', 'c-1'), ...att('c-6', 'a-1', 'c-2'),
+    ...att('c-3', 'a-3', 'c-y'), ...att('c-4', 'a-4', 'c-y'), ...att('c-7', 'a-2', 'c-3'), ...att('c-8', 'a-2', 'c-4') });
   const s = new Map([...graph.keys()].filter((k) => k.startsWith('c-')).map((k) => [k, 0.7]));
-  const v = spread(graph, s, P, 100);
-  assert.ok(v >= 0 && v <= 1 + 1e-9);
+  assert.ok(Math.abs(spread(graph, s, P, 100) - 1) < 1e-9);
+  const unequal = new Map(s); unequal.set('c-y', P.harvest_threshold);
+  const v = spread(graph, unequal, P, 100);
+  assert.ok(v > 0 && v < 1);
   const one = g({ ...base, ...ans('c-x', 'a-1') });
   assert.equal(spread(one, new Map([['c-x', 0.9]]), P, 100), 0);
 });
@@ -129,5 +133,7 @@ git commit -m "Steer mutation and selection from the hive's spread"
 - [ ] Above the band, upkeep and the budding factor rise; mutation doesn't move → test 'scattering raises upkeep and the budding factor'
 - [ ] Inside the band nothing moves → test 'inside the band no lever moves'
 - [ ] Levers stay within their clamps → test 'levers never leave their clamps however long herding lasts'
-- [ ] `spread` is 0 for a single worldview and within [0, 1] otherwise → test 'spread is zero with one worldview and highest with two equal ones'
+- [ ] `spread` is 0 for a single worldview → test 'spread is zero with one worldview and highest with two equal ones'
+- [ ] `spread` is 1 for two worldviews of equal mass (entropy normalized by log k) → test 'spread is zero with one worldview and highest with two equal ones'
+- [ ] `spread` is strictly between 0 and 1 for two worldviews of unequal mass → test 'spread is zero with one worldview and highest with two equal ones'
 - [ ] No files outside Scope were modified

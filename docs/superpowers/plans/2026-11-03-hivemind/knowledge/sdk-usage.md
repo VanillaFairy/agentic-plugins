@@ -29,8 +29,13 @@ session id from the `system`/`init` message (`m.session_id`). Wake: `options.res
 Fork: `options.resume = parentId, options.forkSession = true` (the result's `session_id` is the
 child's).
 
-**Usage:** take it from the `result` message: `m.usage.input_tokens`,
-`m.usage.cache_read_input_tokens`, `m.usage.cache_creation_input_tokens`, `m.usage.output_tokens`.
+**Effort:** a top-level `effort` option on `query()` (`'low' | 'medium' | 'high' | 'xhigh' | 'max'`).
+
+**Usage:** a wake that ends by `q.interrupt()` gets no `result` message, so sum usage over the
+`assistant` messages instead, counting each `m.message.id` once (`m.message.usage` carries the same
+four fields). Without `includePartialMessages` there are no partial snapshots to double-count. When
+a `result` message does arrive, its usage covers the same calls; prefer the sum. The fields: `input_tokens`,
+`cache_read_input_tokens`, `cache_creation_input_tokens`, `output_tokens`.
 `total_cost_usd` and `modelUsage` are cumulative over the session and are not used.
 
 **Stop:** `await q.interrupt()` ends the stream fast; the iterator then throws an error result, so

@@ -16,7 +16,7 @@ size: ~24 turns (4 edit sites, 9 files)
 - Read: `../shared/architecture.md` § physics.json
 
 ## Dependencies
-- Depends on: T09b
+- Depends on: T09c
 - Depended on by: T12
 
 ## Scope
@@ -29,7 +29,8 @@ size: ~24 turns (4 edit sites, 9 files)
 ## Positive Constraints (DO)
 - `createSimRunner({ physics, rng })` returns a Runner with no model behind it. Each stub agent
   follows its species, reading the world only through `tools.call`:
-  - founder: one `question`, then `seed` with three explorer and two critic genomes, then `rest`;
+  - founder: one `question`, then `seed` with two critic genomes first and three explorer genomes
+    after them, then `rest`;
   - explorer: `look`; if its niche has fewer than two answers by it, `claim` an answer (provenance
     `I`, text built from its lens and the tick so shingles differ); else support its strongest
     answer with a new claim; then `rest`;
@@ -38,8 +39,9 @@ size: ~24 turns (4 edit sites, 9 files)
 - Usage per wake from the cost model: start/fork `cache_write = start_write`; each accepted call
   adds `turn_output` to output and `turn_context` to `cache_read`, growing with the agent's
   number of wakes. `mutate(prompt)` parses the parent genome out of the prompt with `parseMutation` (the
-  mutation prompt carries it as JSON) and returns it as JSON with the operator name appended to the
-  lens; the runner charges nothing for it (the scheduler prices it).
+  mutation prompt carries it as JSON first) and returns `{ text, usage }`: the genome as JSON with
+  the operator name appended to the lens, and usage `{ output: sim_cost.mutate }` (the scheduler
+  prices and debits it). `report(text)` returns `{ text, usage: {} }` with the input unchanged.
 - `fitCostModel(events)` returns `sim_cost` values from a real run's `events.jsonl` lines of type
   `usage` (means of the fields per wake kind).
 
@@ -62,7 +64,7 @@ const lcg = (seed) => () => (seed = (seed * 1664525 + 1013904223) % 4294967296) 
 const fresh = (supply) => { const dir = join(mkdtempSync(join(tmpdir(), 'hive-')), 'run'); initRun(dir, { purpose: 'p', scope: 's', sources: [], supply }); return dir; };
 
 test('a simulated hive argues and ends without a model', async () => {
-  const dir = fresh(300000);
+  const dir = fresh(600000); // founder + five seeds at endowment_seed each, with room to argue
   const P = JSON.parse(readFileSync(new URL('../physics.json', import.meta.url)));
   const r = await runHive(dir, createSimRunner({ physics: P, rng: lcg(3) }), { rng: lcg(4), sleep: async () => {} });
   assert.ok(['quiet', 'spent'].includes(r.reason));
@@ -74,7 +76,7 @@ test('a simulated hive argues and ends without a model', async () => {
 
 test('the same seeds replay the same run', async () => {
   const P = JSON.parse(readFileSync(new URL('../physics.json', import.meta.url)));
-  const run = async () => { const dir = fresh(200000); await runHive(dir, createSimRunner({ physics: P, rng: lcg(3) }), { rng: lcg(4), sleep: async () => {} }); return readFileSync(join(dir, 'events.jsonl'), 'utf8'); };
+  const run = async () => { const dir = fresh(600000); await runHive(dir, createSimRunner({ physics: P, rng: lcg(3) }), { rng: lcg(4), sleep: async () => {} }); return readFileSync(join(dir, 'events.jsonl'), 'utf8'); };
   assert.equal(await run(), await run());
 });
 

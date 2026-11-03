@@ -1,7 +1,7 @@
 # Task T10: The SDK runner
 
 rigor: tdd
-size: ~28 turns (5 edit sites, 10 files)
+size: ~30 turns (5 edit sites, 12 files)
 
 ## Dispatch
 | Stage | Model | Effort | Why |
@@ -15,35 +15,37 @@ size: ~28 turns (5 edit sites, 10 files)
 - Read: `../shared/interfaces.md` § Runner and scheduler and § Tools and the Hive
 - Read: `../shared/architecture.md` § Design decisions
 - Read: `../knowledge/sdk-usage.md`
+- Note: the ground rules to copy are §10 of `C:\work\claude\vanillafairy\docs\superpowers\specs\2026-11-03-hivemind-design.md`
 
 ## Dependencies
-- Depends on: T06, T08b
+- Depends on: T06, T08c
 - Depended on by: T12
 
 ## Scope
 **Files:**
 - Create: `src/runner-sdk.mjs`, `test/runner-sdk.test.mjs`
 - Create: `prompts/ground-rules.md`: the twelve ground rules of the spec's §10, word for word
-  (`C:\work\claude\vanillafairy\docs\superpowers\specs\2026-11-03-hivemind-design.md`)
-- Create: `prompts/reporter.md`: write the report from the skeleton given, in plain language, by
+- Create: `prompts/reporter.md`: write the report from the input given, in plain language, by
   question; never add, drop or reorder a worldview, crux or answer; say "undecided" for a crux with
-  no `decides` claim
+  no `decides` claim; end with what the user ruled and what the run spent
 
 **BOUNDARY — you MUST NOT modify any files outside this list.**
 
 ## Positive Constraints (DO)
 - `createSdkRunner({ dir, physics, sdk })` returns a Runner. `sdk` defaults to the real module
-  (`await import('@anthropic-ai/claude-agent-sdk')`); tests pass a fake with `query`, `tool`,
-  `createSdkMcpServer` that records options and yields scripted messages.
-- Options for every agent call: exactly the isolation block of `knowledge/sdk-usage.md`, with
-  `systemPrompt` = `prompts/ground-rules.md`, `model` and `effort` from `physics.run`,
-  `maxTurns` = `physics.run.burst + 2`, `cwd` = `dir`, `env` = `cleanEnv(process.env)`.
-- The physics tools as one `createSdkMcpServer({ name: 'hive', ... , alwaysLoad: true })`, one
+  (`await import('@anthropic-ai/claude-agent-sdk')`); tests pass a fake.
+- Options for every call (agents, `mutate`, `report`): the isolation block of
+  `knowledge/sdk-usage.md`, `model` and `effort` from `physics.run`, `cwd` = `dir`,
+  `env` = `cleanEnv(process.env)`. Agents add `systemPrompt` = `prompts/ground-rules.md`,
+  `maxTurns` = `physics.run.burst + 2`, the `hive` server and its `allowedTools`. `mutate` and
+  `report` add `allowedTools: []`, no `mcpServers`, `persistSession: false`; `report`'s system
+  prompt is `prompts/reporter.md`.
+- The physics tools as one `createSdkMcpServer({ name: 'hive', ..., alwaysLoad: true })`, one
   `tool()` per name in `TOOL_NAMES` with a zod schema mirroring the input table; each handler
-  calls `tools.call(name, input)` and returns its JSON as text; when the call resolves `done`, the
-  runner calls `q.interrupt()` after the handler returns.
-- `mutate` and `report` use the same isolation with no `mcpServers` and `allowedTools: []`, and
-  `persistSession: false`; `report`'s system prompt is `prompts/reporter.md`.
+  calls `tools.call(name, input)` and returns its JSON as text; when it resolves `done`, the runner
+  calls `q.interrupt()` once the handler returns.
+- Usage: sum `assistant` messages' `message.usage`, each `message.id` once; `context` = the last
+  assistant message's input + cache read + cache write.
 - Limit: an error or error result whose text matches `/usage limit|rate limit|429/i` → `limit: true`.
 
 ## Implementation Steps
@@ -76,24 +78,39 @@ function fakeSdk(script) {
       return it;
     } };
 }
-const ok = (session, usage = { input_tokens: 2, cache_read_input_tokens: 800, cache_creation_input_tokens: 60, output_tokens: 40 }) =>
-  [{ type: 'system', subtype: 'init', session_id: session }, { type: 'result', subtype: 'success', session_id: session, usage }];
+const U = { input_tokens: 2, cache_read_input_tokens: 800, cache_creation_input_tokens: 60, output_tokens: 40 };
+const init = (session) => ({ type: 'system', subtype: 'init', session_id: session });
+const said = (id, usage = U) => ({ type: 'assistant', message: { id, usage, content: [] } });
+const done = (session) => ({ type: 'result', subtype: 'success', session_id: session, usage: U, result: 'ok' });
+const ok = (session) => [init(session), said('m1'), done(session)];
 const agent = { id: 'a-5', session: 's-parent' };
 const tools = { call: async () => ({ ok: true, result: {}, done: false }) };
+const isolated = (o) => o.settingSources.length === 0 && o.strictMcpConfig === true && o.settings.autoMemoryEnabled === false;
 
-test('every agent runs isolated, on the run model, with only the hive tools', async () => {
+test('every agent runs isolated, on the run model and effort, with only the hive tools', async () => {
   const sdk = fakeSdk([ok('s-1')]);
   await createSdkRunner({ dir: '/run', physics: P, sdk }).start(agent, 'genome', tools);
   const o = sdk.calls[0].options;
-  assert.deepEqual([o.settingSources, o.strictMcpConfig, o.settings.autoMemoryEnabled, o.model], [[], true, false, 'opus']);
-  assert.ok(o.allowedTools.every((t) => t.startsWith('mcp__hive__')));
+  assert.ok(isolated(o));
+  assert.deepEqual([o.model, o.effort], ['opus', 'high']);
+  assert.ok(o.allowedTools.length > 0 && o.allowedTools.every((t) => t.startsWith('mcp__hive__')));
   assert.ok(o.mcpServers.hive);
   assert.match(o.systemPrompt, /balance is your life/);
 });
 
-test('the environment keeps no API key or Claude variables except the config dir', () => {
+test('cleanEnv keeps no API key or Claude variables except the config dir', () => {
   const env = cleanEnv({ PATH: 'p', ANTHROPIC_API_KEY: 'k', CLAUDE_CODE_OAUTH_TOKEN: 't', CLAUDE_CONFIG_DIR: 'c' });
   assert.deepEqual(env, { PATH: 'p', CLAUDE_CONFIG_DIR: 'c' });
+});
+
+test('an API key in the shell never reaches an agent', async () => {
+  process.env.ANTHROPIC_API_KEY = 'sk-test';
+  try {
+    const sdk = fakeSdk([ok('s-1')]);
+    await createSdkRunner({ dir: '/run', physics: P, sdk }).start(agent, 'g', tools);
+    assert.ok(sdk.calls[0].options.env);
+    assert.equal(sdk.calls[0].options.env.ANTHROPIC_API_KEY, undefined);
+  } finally { delete process.env.ANTHROPIC_API_KEY; }
 });
 
 test('start sends the genome turn, wake resumes, fork resumes as a fork', async () => {
@@ -108,32 +125,35 @@ test('start sends the genome turn, wake resumes, fork resumes as a fork', async 
   assert.deepEqual([a.session, f.session], ['s-1', 's-2']);
 });
 
-test('usage comes from the result message in the four fields', async () => {
-  const sdk = fakeSdk([ok('s-1')]);
+test('usage is summed over the wake's assistant messages, each once', async () => {
+  const sdk = fakeSdk([[init('s-1'), said('m1'), said('m1'), said('m2'), done('s-1')]]);
   const w = await createSdkRunner({ dir: '/run', physics: P, sdk }).start(agent, 'g', tools);
+  assert.deepEqual(w.usage, { input: 4, cache_read: 1600, cache_write: 120, output: 80 });
+  assert.equal(w.context, 2 + 800 + 60);
+});
+
+test('a wake ended by rest still reports its usage', async () => {
+  const sdk = fakeSdk([[init('s-1'), said('m1'), { callTool: 'rest' }]]);
+  const ends = { call: async () => ({ ok: true, result: {}, done: true }) };
+  const w = await createSdkRunner({ dir: '/run', physics: P, sdk }).start(agent, 'g', ends);
+  assert.ok(sdk.calls.some((c) => c.interrupt));
   assert.deepEqual(w.usage, { input: 2, cache_read: 800, cache_write: 60, output: 40 });
 });
 
 test('a usage-limit error is reported as limit, not thrown', async () => {
-  const sdk = fakeSdk([[{ type: 'system', subtype: 'init', session_id: 's-1' }, new Error('Claude AI usage limit reached')]]);
+  const sdk = fakeSdk([[init('s-1'), new Error('Claude AI usage limit reached')]]);
   const w = await createSdkRunner({ dir: '/run', physics: P, sdk }).wake({ ...agent, session: 's-1' }, 'go', tools);
   assert.equal(w.limit, true);
 });
 
-test('a tool call that ends the wake interrupts the query', async () => {
-  const [init, result] = ok('s-1');
-  const sdk = fakeSdk([[init, { callTool: 'rest' }, result]]);
-  const done = { call: async () => ({ ok: true, result: {}, done: true }) };
-  await createSdkRunner({ dir: '/run', physics: P, sdk }).start(agent, 'g', done);
-  assert.ok(sdk.calls.some((c) => c.interrupt));
-});
-
-test('mutate and report run with no tools', async () => {
-  const sdk = fakeSdk([[{ type: 'result', subtype: 'success', result: '{"lens":"x"}', usage: {} }], [{ type: 'result', subtype: 'success', result: 'REPORT', usage: {} }]]);
+test('mutate and report run isolated with no tools and return text with usage', async () => {
+  const sdk = fakeSdk([[said('m1'), { ...done('x'), result: '{"lens":"x"}' }], [said('m2'), { ...done('y'), result: 'REPORT' }]]);
   const r = createSdkRunner({ dir: '/run', physics: P, sdk });
-  assert.equal(await r.mutate('m'), '{"lens":"x"}');
-  assert.equal(await r.report('skeleton'), 'REPORT');
-  for (const c of sdk.calls) assert.deepEqual(c.options.allowedTools, []);
+  const m = await r.mutate('m');
+  const rep = await r.report('input');
+  assert.deepEqual([m.text, rep.text], ['{"lens":"x"}', 'REPORT']);
+  assert.equal(m.usage.output, 40);
+  for (const c of sdk.calls) { assert.ok(isolated(c.options)); assert.deepEqual(c.options.allowedTools, []); assert.equal(c.options.env.ANTHROPIC_API_KEY, undefined); }
 });
 ```
 
@@ -147,15 +167,16 @@ git commit -m "Run agents as isolated Agent SDK sessions on the subscription"
 ```
 
 ## Acceptance Criteria
-- [ ] Every agent call carries `settingSources: []`, `strictMcpConfig: true`, `autoMemoryEnabled: false`, the run model and the ground rules as system prompt → test 'every agent runs isolated, on the run model, with only the hive tools'
-- [ ] `allowedTools` names only `mcp__hive__*` tools from the one `hive` server → test 'every agent runs isolated, on the run model, with only the hive tools'
-- [ ] `cleanEnv` drops every `CLAUDE*` and `ANTHROPIC*` variable except `CLAUDE_CONFIG_DIR` → test 'the environment keeps no API key or Claude variables except the config dir'
+- [ ] Every agent call carries the isolation flags, the run model and effort, and the ground rules as system prompt → test 'every agent runs isolated, on the run model and effort, with only the hive tools'
+- [ ] `allowedTools` names only `mcp__hive__*` tools from the one `hive` server → test 'every agent runs isolated, on the run model and effort, with only the hive tools'
+- [ ] `cleanEnv` drops every `CLAUDE*` and `ANTHROPIC*` variable except `CLAUDE_CONFIG_DIR` → test 'cleanEnv keeps no API key or Claude variables except the config dir'
+- [ ] The options' `env` never carries `ANTHROPIC_API_KEY`, even when the shell has one → test 'an API key in the shell never reaches an agent'
 - [ ] `start` sends the genome turn as the prompt → test 'start sends the genome turn, wake resumes, fork resumes as a fork'
 - [ ] `wake` resumes the agent's session → test 'start sends the genome turn, wake resumes, fork resumes as a fork'
 - [ ] `fork` resumes the parent's session with `forkSession: true` and returns the child's session → test 'start sends the genome turn, wake resumes, fork resumes as a fork'
-- [ ] Usage maps to `{ input, cache_read, cache_write, output }` from the result message → test 'usage comes from the result message in the four fields'
+- [ ] Usage is summed over assistant messages, each id once, and `context` is the last call's → test 'usage is summed over the wake's assistant messages, each once'
+- [ ] A tool call resolving `done` interrupts the query, and the wake still reports its usage → test 'a wake ended by rest still reports its usage'
 - [ ] A usage-limit error returns `limit: true` → test 'a usage-limit error is reported as limit, not thrown'
-- [ ] A tool call resolving `done` interrupts the query → test 'a tool call that ends the wake interrupts the query'
-- [ ] `mutate` and `report` run with `allowedTools: []` and return the result text → test 'mutate and report run with no tools'
+- [ ] `mutate` and `report` run isolated, with `allowedTools: []` and a clean env, and return `{ text, usage }` → test 'mutate and report run isolated with no tools and return text with usage'
 - [ ] `prompts/ground-rules.md` holds the spec's twelve ground rules word for word
 - [ ] No files outside Scope were modified

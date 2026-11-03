@@ -64,9 +64,13 @@ Each node is a Markdown file: YAML frontmatter, a `# title`, a body. Every node 
 | `goal` | purpose, sources, supply, settings | scope |
 | `question` | parent | |
 | `claim` | provenance | source, answers, attacks, supports, checks, decides, term, pinned, novelty_paid |
-| `agent` | genome, lineage, species, niche, energy, escrow, born | died, parent, buds, session, sources_read, last_wake |
-| `verdict` | addresses, effect | |
-| `ask` | candidates | |
+| `agent` | genome, lineage, species, niche, energy, escrow, born | died, parent, buds, session, sources_read, last_wake, inbox, founder |
+| `verdict` | addresses (a list) | pins |
+| `ask` | candidates | sent |
+
+- Answers to one question are rivals by default (spec §5): no field marks it.
+- `agent.inbox` is a list of `{ from, text, tick, read }`; `look` marks entries read.
+- The goal's `settings` holds `tick`, `physics`, `ledger`, `thermostat`, `births` and `inbox_last`.
 
 - A claim has exactly one of `answers` (a question id), `attacks` or `supports` (a claim id, or
   `<question id>#relevance` for a question's relevance argument), or none for a `term: true`
