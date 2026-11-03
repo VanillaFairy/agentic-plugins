@@ -138,7 +138,8 @@ think-tank/
 ```
 
 Permissions the user grants once, because background agents can't answer prompts:
-`Read(~/.think-tank/**)`, `Write(~/.think-tank/**)`, `Edit(~/.think-tank/**)`.
+`Read(~/.think-tank/**)` and `Edit(~/.think-tank/**)` (an `Edit` rule covers every file-writing
+tool).
 
 ## 8. Improving the procedure (F12)
 
