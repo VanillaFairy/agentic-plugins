@@ -105,6 +105,12 @@ Strength is recomputed after every write.
 - **Aggregation by lineage.** Attacks and supports on a claim are aggregated per lineage before
   they combine: within one lineage only the strongest counts. Ten weak attacks from one family
   weigh as one.
+- **Rival answers.** Every two answers to the same question attack each other, implicitly, with no
+  claim needed: answers to one question are alternatives, and a question with several true answers
+  is argued as one composite answer. A claim has one relation, so without this no two answers
+  could ever be in conflict. Implicit rivalry counts in strengths and in harvest's extensions, but
+  never as being tested: income, novelty, critics' pay and harvest's two-lineage rule count only
+  attack claims.
 
 **Relevance (F1).** Questions are never refuted. Each question has a relevance argument whose base
 score is its parent's relevance times `question_base_factor` (below 1), so a new sub-question
@@ -293,9 +299,10 @@ the supply, balances and escrows are spent, or when the user stops it.
 
 **Harvest** is a script, then a writer. For each question in order of relevance, the script takes
 its whole argument subtree, the answers and every attack and support beneath them, and computes the
-preferred extensions (Dung semantics) of its attack relation. It projects each extension onto the
-answers, keeping only answers with strength above `harvest_threshold` that were attacked by at least
-two other lineages and survived (F10). One extension is one coherent answer. Several are rival
+preferred extensions (Dung semantics) of its attack relation, including the implicit rivalry
+between its answers. It projects each extension onto the answers, keeping only answers with
+strength above `harvest_threshold` that attack claims from at least two other lineages targeted
+directly and that survived (F10). One extension is one coherent answer. Several are rival
 worldviews: the attack chains between them are the cruxes, each reported with its strongest
 `decides` claim, or marked undecided if none was posted. A reporter agent writes the report from
 that skeleton and cannot change it; its text comes back in its final result and the main session
