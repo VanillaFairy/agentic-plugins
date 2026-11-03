@@ -36,6 +36,18 @@ function readMeta(path: string): AgentMeta | undefined {
   }
 }
 
+// The plan file is the plan as it stands, edits after approval included; the transcript's copy
+// stands in once Claude Code has cleared the file away.
+function withPlanFile(detail: NodeDetail): NodeDetail {
+  const file = detail.plan?.file
+  if (detail.plan === undefined || file === undefined) return detail
+  try {
+    return { ...detail, plan: { ...detail.plan, text: readFileSync(file, 'utf8'), fromFile: true } }
+  } catch {
+    return detail
+  }
+}
+
 export class SessionWatch {
   private main: Followed
   private agents = new Map<string, Followed & { meta: AgentMeta }>()
@@ -99,7 +111,7 @@ export class SessionWatch {
   // Everything one card's transcript says; undefined for an agent this session never had.
   detail(id: string): NodeDetail | undefined {
     this.catchUpAll()
-    if (id === 'main') return nodeDetail(id, this.main.facts, [this.main.facts, ...[...this.agents.values()].map(a => a.facts), ...this.runFacts()])
+    if (id === 'main') return withPlanFile(nodeDetail(id, this.main.facts, [this.main.facts, ...[...this.agents.values()].map(a => a.facts), ...this.runFacts()]))
     // A run has no transcript of its own; what it cost is what its sessions cost.
     const run = this.runs.find(r => runNodeId(r.meta.run) === id)
     if (run !== undefined) return { id, steps: [], usage: sumUsage(this.runFacts(run)) }
@@ -110,7 +122,7 @@ export class SessionWatch {
       return { id, steps: [], usage: sumUsage(under) }
     }
     const facts = this.factsOf(id)
-    return facts === undefined ? undefined : nodeDetail(id, facts)
+    return facts === undefined ? undefined : withPlanFile(nodeDetail(id, facts))
   }
 
   // One tool call of one card, whole; undefined when that card made no such call.

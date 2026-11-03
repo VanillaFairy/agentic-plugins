@@ -184,3 +184,55 @@ describe('inputFields', () => {
     expect(fields).toContainEqual({ name: 'replace all', text: 'false' })
   })
 })
+
+describe('the plan', () => {
+  const FILE = 'C:\plans\a.md'
+  const entered = (s: number) => ({ type: 'attachment', timestamp: at(s), attachment: { type: 'plan_mode', planFilePath: FILE } })
+  const left = (s: number) => ({ type: 'attachment', timestamp: at(s), attachment: { type: 'plan_mode_exit', planFilePath: FILE } })
+  const written = (s: number, content: string) => call(s, `w${s}`, 'Write', { file_path: FILE, content })
+  const asked = (s: number, plan: string) => call(s, `x${s}`, 'ExitPlanMode', { plan, planFilePath: FILE })
+  const answered = (s: number, asking: number, edited?: string) => ({ ...result(s, `x${asking}`, 'User has approved your plan.'), toolUseResult: edited === undefined ? {} : { plan: edited } })
+
+  it('is absent from a transcript that never entered plan mode', () => {
+    expect(facts(said(0), written(1, 'not a plan')).plan).toBeUndefined()
+  })
+
+  it('is drafted in its file, then awaits approval with the text it was sent with', () => {
+    const f = facts(entered(0), written(1, '# Draft'))
+    expect(f.plan).toMatchObject({ state: 'drafting', text: '# Draft', file: FILE })
+    ingest(f, asked(2, '# Sent'))
+    expect(f.plan).toMatchObject({ state: 'awaiting', text: '# Sent' })
+  })
+
+  it('takes the text the person approved, edits made in the dialog included', () => {
+    const f = facts(entered(0), asked(1, '# Sent'), answered(2, 1, '# Edited'), left(2))
+    expect(f.plan).toMatchObject({ state: 'approved', text: '# Edited', at: T0 + 2000 })
+  })
+
+  it('goes back to drafting after a rejection, keeping its text', () => {
+    const f = facts(entered(0), asked(1, '# Sent'), result(2, 'x1', 'The user doesn’t want to proceed', true))
+    expect(f.plan?.state).toBe('rejected')
+    ingest(f, entered(3))
+    expect(f.plan).toMatchObject({ state: 'drafting', text: '# Sent' })
+  })
+
+  it('is exited when plan mode ends without an approval', () => {
+    expect(facts(entered(0), written(1, '# Draft'), left(2)).plan?.state).toBe('exited')
+  })
+
+  it('applies edits to the file, new text taken as written', () => {
+    const f = facts(entered(0), written(1, 'one two one'), call(2, 'e', 'Edit', { file_path: FILE, old_string: 'one', new_string: '$&!' }))
+    expect(f.plan?.text).toBe('$&! two one')
+    ingest(f, call(3, 'e2', 'Edit', { file_path: FILE, old_string: 'one', new_string: '1', replace_all: true }))
+    expect(f.plan?.text).toBe('$&! two 1')
+  })
+
+  it('starts afresh when plan mode is entered again after an approval', () => {
+    const f = facts(entered(0), asked(1, '# First'), answered(2, 1), left(2), entered(10))
+    expect(f.plan).toMatchObject({ state: 'drafting', text: '' })
+  })
+
+  it('reaches the node’s details', () => {
+    expect(nodeDetail('main', facts(entered(0), written(1, '# Draft'))).plan?.text).toBe('# Draft')
+  })
+})

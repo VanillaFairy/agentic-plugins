@@ -138,6 +138,23 @@ export type NodeDetail = {
   usage: ModelUsage[]
   // For the main loop only: the whole session, every agent included.
   sessionUsage?: ModelUsage[]
+  // The latest plan this transcript wrote in plan mode, the one Claude Code's Plan pane shows.
+  plan?: Plan
+}
+
+// `exited`: plan mode ended with the plan never approved.
+export type PlanState = 'drafting' | 'awaiting' | 'approved' | 'rejected' | 'exited'
+
+export type Plan = {
+  state: PlanState
+  // Markdown; empty while nothing is written yet.
+  text: string
+  // The plan file under `~/.claude/plans`, which Claude Code clears away in time.
+  file?: string
+  // The text is the file's, not the transcript's copy.
+  fromFile: boolean
+  // When the state or the text last changed.
+  at: number
 }
 
 export type ModelUsage = {

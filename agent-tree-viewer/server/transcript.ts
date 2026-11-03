@@ -5,7 +5,7 @@
 // agent's type, description and the tool call that spawned it. That call sits in the
 // transcript of whoever spawned the agent, which is how the tree finds a parent.
 
-import type { AgentNode, AgentStatus, CallDetail, InputField, ModelUsage, NodeDetail, Project, SessionSnapshot, SessionSummary, Step, ToolEvent } from '../shared/model.ts'
+import type { AgentNode, AgentStatus, CallDetail, InputField, ModelUsage, NodeDetail, Plan, Project, SessionSnapshot, SessionSummary, Step, ToolEvent } from '../shared/model.ts'
 import { estimateCost } from './pricing.ts'
 
 const KEEP = 24
@@ -42,6 +42,9 @@ export type FileFacts = {
   // Token usage by API message id. Claude Code writes one entry per content block of a
   // response, each carrying the whole response's usage, so the id keeps it counted once.
   usage: Map<string, MessageUsage>
+  plan?: Plan
+  // The ExitPlanMode call still waiting on the person's answer.
+  planCall?: string
 }
 
 type MessageUsage = Omit<ModelUsage, 'messages' | 'cost'>
@@ -161,6 +164,51 @@ function notificationText(entry: Record<string, unknown>): string {
   return ''
 }
 
+// Plan mode, as a transcript tells it: a `plan_mode` attachment on every turn spent in it, naming
+// the plan file; Write and Edit calls on that file; an ExitPlanMode call carrying the plan for
+// approval, whose result says whether the person approved it, with the plan as they left it; and a
+// `plan_mode_exit` attachment once plan mode ends, approved or not.
+function hearPlan(facts: FileFacts, entry: Record<string, unknown>, at: number): void {
+  const attachment = record(entry.attachment)
+  if (entry.type !== 'attachment' || attachment === undefined) return
+  const file = typeof attachment.planFilePath === 'string' ? attachment.planFilePath : undefined
+  const old = facts.plan
+  if (attachment.type === 'plan_mode') {
+    if (old === undefined || old.state === 'approved' || old.state === 'exited') facts.plan = { state: 'drafting', text: '', ...(file !== undefined ? { file } : {}), fromFile: false, at }
+    else if (old.state === 'rejected') facts.plan = { ...old, state: 'drafting', at }
+  } else if (attachment.type === 'plan_mode_exit' && old !== undefined && old.state !== 'approved' && old.state !== 'exited') {
+    facts.plan = { ...old, state: 'exited', at }
+    facts.planCall = undefined
+  }
+}
+
+function planCall(facts: FileFacts, id: string, tool: string, input: Record<string, unknown> | undefined, at: number): void {
+  const old = facts.plan
+  if (tool === 'ExitPlanMode') {
+    const file = typeof input?.planFilePath === 'string' ? input.planFilePath : old?.file
+    const text = typeof input?.plan === 'string' ? input.plan : (old?.text ?? '')
+    facts.plan = { state: 'awaiting', text, ...(file !== undefined ? { file } : {}), fromFile: false, at }
+    facts.planCall = id
+    return
+  }
+  if (old?.file === undefined || input?.file_path !== old.file) return
+  if (tool === 'Write' && typeof input.content === 'string') facts.plan = { ...old, text: input.content, at }
+  else if (tool === 'Edit' && typeof input.old_string === 'string' && typeof input.new_string === 'string') {
+    // A function, so a `$&` in the new text stays as written.
+    const to = input.new_string
+    const text = input.replace_all === true ? old.text.replaceAll(input.old_string, () => to) : old.text.replace(input.old_string, () => to)
+    facts.plan = { ...old, text, at }
+  }
+}
+
+function planAnswer(facts: FileFacts, entry: Record<string, unknown>, isError: boolean, at: number): void {
+  const old = facts.plan
+  if (old === undefined) return
+  const edited = record(entry.toolUseResult)?.plan
+  facts.plan = { ...old, state: isError ? 'rejected' : 'approved', ...(typeof edited === 'string' && !isError ? { text: edited } : {}), at }
+  facts.planCall = undefined
+}
+
 export function ingest(facts: FileFacts, raw: unknown): void {
   const entry = record(raw)
   if (entry === undefined) return
@@ -171,6 +219,7 @@ export function ingest(facts: FileFacts, raw: unknown): void {
 
   const note = notificationText(entry)
   if (note !== '') hearNotifications(facts, note, at)
+  hearPlan(facts, entry, at)
 
   const message = record(entry.message)
   if (entry.type === 'assistant') facts.idle = message?.stop_reason === 'end_turn'
@@ -194,11 +243,13 @@ export function ingest(facts: FileFacts, raw: unknown): void {
       const handback = record(part.input)?.message
       const call: CallDetail = { id: part.id, tool, arg: argSummary(part.input), startedAt: at, input: inputFields(part.input) }
       facts.calls.push(call)
+      planCall(facts, part.id, tool, record(part.input), at)
       facts.steps.push(tool === 'SubagentHandback' && typeof handback === 'string' ? { kind: 'handback', at, text: clipText(handback, TEXT_CHARS) } : { kind: 'call', at, call })
     } else if (entry.type === 'user' && part.type === 'tool_result' && typeof part.tool_use_id === 'string') {
       const isError = part.is_error === true
       const text = textOf(part.content)
       facts.results.set(part.tool_use_id, { at, isError, async: ASYNC_LAUNCH.test(text) })
+      if (part.tool_use_id === facts.planCall) planAnswer(facts, entry, isError, at)
       for (const [, run] of text.matchAll(WORKFLOW_RUN)) if (run !== undefined) facts.runs.set(run, part.tool_use_id)
       const call = facts.calls.findLast(c => c.id === part.tool_use_id)
       if (call !== undefined) {
@@ -268,6 +319,7 @@ export function nodeDetail(id: string, facts: FileFacts, everyone?: readonly Fil
     steps: facts.steps.map(step => (step.kind === 'call' ? { ...step, call: clipCall(step.call) } : { ...step })),
     usage: sumUsage([facts]),
     ...(everyone !== undefined ? { sessionUsage: sumUsage(everyone) } : {}),
+    ...(facts.plan !== undefined ? { plan: { ...facts.plan } } : {}),
   }
 }
 
