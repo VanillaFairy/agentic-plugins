@@ -1,4 +1,4 @@
-Status: NEEDS_INPUT
+Status: ONGOING
 # 2026-11-03-hivemind checkpoint
 
 Wave: 5 — T09a, T09b, T09c (+ gap task if any), T10
@@ -26,10 +26,11 @@ Remaining: T09d (gap task, waits on D1-D3), T11, T12, T13
 | T09a | 5 | sdd/2026-11-03-hivemind/T09a | merged | 2 | cb90579 |
 | T09b | 5 | sdd/2026-11-03-hivemind/T09b | merged | 2 | fd2abfb |
 | T09c | 5 | sdd/2026-11-03-hivemind/T09c | audited; gaps in T09d | 0 | |
-| T09d | 5 | sdd/2026-11-03-hivemind/T09d | blocked (decisions D1-D3 for the user) | 0 | |
+| T09d | 5 | sdd/2026-11-03-hivemind/T09d | implementing (D1 fix, D2 accept, D3 fix) | 0 | |
 | T10 | 5 | sdd/2026-11-03-hivemind/T10 | merged | 2 | 50ae99e |
 
 ## Decisions and deviations
+- W5 T09d: user answers D1 fix, D2 accept (implementer skips [D2] lines; rule 6 "above" read as standing >=), D3 fix. D3 also changes the verdict step of the test corrected in 4bbd374 (answer asks by ask id).
 - W5 T09: audit T09c returned FAIL on separation only because T09b's branch carries commit 4bbd374, a one-line correction to the locked test 'an ask reaches the user once' (it expected `quiet` with three unanswered sent asks, contradicting rule 9 and the test 'an outstanding ask keeps a hive that nobody can wake waiting'). A fresh agent made it after T09b's review, the green fix then removed the scheduler's rule-9 workaround; the gate passes with --red 4bbd374 and was run by the wave-controller. Gap D3 asks whether a verdict on an ask's candidate claims answers it (4bbd374 answers the asks that way).
 - W5 T09b/T10: the runner gets a flat view `{ ...fm }` (id, session, founder, genome); T11's sim runner takes the same view (knowledge/runner-agent-view.md, referenced from T11). Real runner `mutate`/`report` throw on failure or usage limit and have no `limit` field; the scheduler logs a thrown mutate as a failed birth, but a thrown `report` (T12) must be handled by the CLI. Idle guard: an agent whose wake made no accepted call is ineligible until the tick moves. T12 must write inbox files atomically (a half-written .json is logged rejected and consumed).
 - W5 T09b: a dead agent's wake usage is never charged (chargeUsage on a closed account returns the cost unpaid; books still balance). Economy (T05) territory, not fixed; the tokens of that last wake never reach `spent`.
@@ -49,9 +50,7 @@ Remaining: T09d (gap task, waits on D1-D3), T11, T12, T13
 - Todos: TaskCreate/TaskUpdate unavailable to the wave-controller; orchestrator marks #12, #13, #14 (T08c) and #23 (T08d) completed.
 
 ## Pending questions
-- T09d D1: is a wake whose runner call throws written off (rule 5, no usage reported)? `fix`: yes; `accept`: released as now.
-- T09d D2: does an attacking claim exactly at standing_threshold hold an ask past ask_max_ticks? `fix`: no (rule 6 says "above"); `accept`: yes as now (>=, matching economy and tools).
-- T09d D3: does a verdict addressing only an ask's candidate claims (not the ask id) answer the ask? `fix`: no (design §9, only addresses holding the ask id); `accept`: yes as now.
+- none
 
 ## Knowledge entries
 - run-scheduler-tests, runner-agent-view (W5)
