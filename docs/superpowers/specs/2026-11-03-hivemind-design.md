@@ -185,7 +185,9 @@ crossover (merge two lenses), species shift.
 **Founders.** A run starts with one founder agent that reads the goal, opens the first questions,
 and returns a list of genomes, one per lens the goal calls for, with explorers and critics in the
 `species_ratio`. The scheduler starts each as a fresh agent endowed from the supply, then the
-founder dies like any agent.
+founder dies like any agent. Nothing later sends an agent to a question nobody works, so the
+founder staffs every question it opens: its first turn and its `look` say how many seeds the supply
+covers, and `seed` refuses a list with fewer explorers than open questions.
 
 ## 8. Energy, fitness and the thermostat
 
@@ -207,7 +209,11 @@ is paid, and a newborn that cannot cover the reserve is not woken until it can.
 
 **The clock.** One tick is one agent tool call. Ledger lines, income, upkeep and thermostat changes
 are written to the log but never advance the clock, so time moves only when an agent acts and a run
-replays exactly. At every tick the scheduler settles the flows:
+replays exactly. One exception: when every agent due a wake is short of its cost and one of them is
+earning, the clock ticks idle, one `idle_tick` line at a time, settling the flows without a call
+until an earner can pay or the others starve. Without it a hive whose grace has run out freezes with
+food left in the supply, since income comes only with ticks. While an ask is with the user the clock
+stays still. At every tick the scheduler settles the flows:
 
 - **Income.** Each standing claim (strength above `standing_threshold`) by a living author pays
   `rate × strength × relevance × exposure` out of the supply. Exposure is 0 until an agent of
@@ -252,7 +258,8 @@ Every lever moves within its clamp. The target is the temperature that scales no
 **Waking.** Whenever a waking slot frees, the scheduler wakes the living agent with the highest
 priority, if it is above the `wake_floor`: tension in its niche plus unread inbox messages, minus
 crowding, plus how long since its last wake (never woken counts as longest). Ties break by agent id.
-No model takes part in the choice.
+No model takes part in the choice. A wake that made no call is not repeated until there is news:
+another agent's call or a verdict.
 
 All numbers in this section and in §5–§7 live in one data file, `physics.json`, overridable per
 run: prices, rates, thresholds (`standing_threshold`, `strong_threshold`, `harvest_threshold`,
@@ -280,6 +287,9 @@ put to the user beside their earlier answer.
 **Verdicts** (F11) outrank everything. A verdict pins the addressed node: an answered `ask` pins
 the candidates the user chose to strength 1 and the rest to 0, a verdict on a claim pins it, a
 verdict on a question pins its relevance. It floods heat into everything that depends on the node.
+It is mail from the user for every living agent working a question it lands in (the question of
+each node it addresses or pins, an ask's through its candidates), which puts them first in line to
+wake.
 The user may speak at any moment. When what they say isn't an answer to an ask, the main session
 restates it as the nodes it would pin and confirms that with the user before writing the verdict.
 
@@ -380,7 +390,9 @@ The arithmetic is where mistakes hide, and all of it is testable without a model
   score; one from the same lineage doesn't;
 - relevance: an attacked relevance argument lowers every claim under the question; a new
   sub-question starts below its parent;
-- the clock: ledger lines and flows never advance it; a run with no tool calls makes no ticks;
+- the clock: ledger lines and flows never advance it; a run with no tool calls makes no ticks
+  unless a short agent is earning, and then it idles exactly until the earner can pay, never while
+  an ask is with the user;
 - the ledger: escrow before a wake, write-off on an interrupt with no usage; balances never go
   below zero; supply, balances, escrows, spending and write-offs always add up;
 - income: none before another lineage attacks; stopping when a claim falls; novelty paid once,
@@ -392,7 +404,9 @@ The arithmetic is where mistakes hide, and all of it is testable without a model
 - the operator draw and lineage assignment; transplants start a new lineage;
 - harvest: one worldview for a coherent subtree, two with their crux for rival answers whose
   attacks sit in separate claims, answers attacked by fewer than two lineages left out;
-- asks reach the outbox by threshold or by timeout; verdicts pin and flood heat.
+- asks reach the outbox by threshold or by timeout; verdicts pin, flood heat, and are mail for the
+  agents working where they land, waking one that went quiet;
+- `seed` refuses a list with fewer explorers than open questions.
 
 **`hive sim`** runs the whole loop with scripted stub agents instead of models, so the physics
 (prices, income, upkeep, budding, cooling) can be tuned to settle before any tokens are spent. Its
