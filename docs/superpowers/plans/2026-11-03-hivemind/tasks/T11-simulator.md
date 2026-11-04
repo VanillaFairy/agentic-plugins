@@ -14,6 +14,7 @@ size: ~24 turns (4 edit sites, 9 files)
 ## References
 - Read: `../shared/interfaces.md` § Runner and scheduler and § Tools and the Hive and § Economy and § Thermostat and § Genome
 - Read: `../shared/architecture.md` § physics.json
+- Read: `../knowledge/runner-agent-view.md`
 
 ## Dependencies
 - Depends on: T09c
