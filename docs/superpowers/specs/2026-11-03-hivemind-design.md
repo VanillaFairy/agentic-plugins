@@ -28,7 +28,7 @@ You ⇄ main session (/hivemind skill)
      scheduler (Node, Agent SDK; no model)  ──►  agents (isolated SDK sessions)
          │ sole writer                          │ act only through physics tools
          ▼                                      ▼
-     run directory: graph/ (git) · events.jsonl · outbox/ · inbox/ · status · report.md
+     run directory: graph/ (git) · events.jsonl · outbox/ · asking/ · inbox/ · status · report.md
 ```
 
 - **Agents** are isolated Agent SDK sessions. Their only tools are the physics tools (§6), which
@@ -262,12 +262,20 @@ run: prices, rates, thresholds (`standing_threshold`, `strong_threshold`, `harve
 ## 9. The user
 
 **Questions.** An agent raises an `ask` with `ask_user`, free of charge, naming the claims an
-answer would settle. Other agents support it or attack it ("evidence settles this, not taste") like
+answer would settle. `ask_user` refuses an ask that repeats an earlier one, open or answered: one
+whose candidates are all among the earlier ask's, or whose text overlaps it by `ask_overlap` or more.
+The refusal names the earlier ask, and the user's answer when there is one; `look` lists every ask
+and where it stands. Other agents support it or attack it ("evidence settles this, not taste") like
 any claim. It reaches `outbox/` once its strength crosses `ask_threshold`, or with no attack standing
 against it after `ask_max_ticks` or when the hive goes quiet, whichever comes first. The main session waits on one background watcher that wakes it
-only when a file lands in `outbox/` or the scheduler exits. It puts the question to the user in
-plain words, with the candidate claims as the choices, without stopping the run, and writes the
-answer to `inbox/` as a verdict.
+only when a file lands in `outbox/` or the scheduler exits. It is the user's one channel and
+keeps them from being asked the same thing twice: `hive asks` shows every ask as queued (in
+`outbox/`), asking (moved to `asking/` by `hive take`) or answered (a verdict addresses it), and
+the main session groups the queued asks that are the same question, with each other or with one
+being asked. Each group goes to the user once, in plain words, with its candidates as the choices,
+without stopping the run, and one verdict in `inbox/` answers every ask in it. A repeat of an
+answered ask is answered from that answer when its candidates were all offered then, and otherwise
+put to the user beside their earlier answer.
 
 **Verdicts** (F11) outrank everything. A verdict pins the addressed node: an answered `ask` pins
 the candidates the user chose to strength 1 and the rest to 0, a verdict on a claim pins it, a
@@ -304,7 +312,8 @@ arrives; it is never pushed on a timer.
 10. An answer is settled only once it survives attack from other families: when one of yours is
     attacked, answer the attack.
 11. Ask the user what only they can say: taste, priority, purpose (F11). Asking is free: whenever
-    an answer turns on it, ask with `ask_user` rather than assume or answer for each case.
+    an answer turns on it, ask with `ask_user` rather than assume or answer for each case. First
+    read the asks `look` lists: support one that already asks it, and build on what the user answered.
 12. If a question needs a lens nobody brings, spawn one.
 13. Your genome is who you are; argue from it.
 14. When the goal's sources include `web`, WebSearch and WebFetch are yours too: an observed claim
