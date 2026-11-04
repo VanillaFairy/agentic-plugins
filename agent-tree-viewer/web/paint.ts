@@ -368,8 +368,8 @@ function foldMark(f: Frame, p: Placed, x: number, y: number): void {
   if (p.fold === undefined) return
   const { ctx, palette } = f
   const c = foldCentre({ ...p, x, y })
-  const live = p.fold !== 'open' && p.fold.running
-  const ink = live ? palette.status.running : palette.muted
+  const hid = p.fold === 'open' ? undefined : p.fold
+  const ink = hid?.failed ? palette.status.failed : hid?.running ? palette.status.running : palette.muted
   ctx.beginPath()
   ctx.arc(c.x, c.y, FOLD_R, 0, Math.PI * 2)
   ctx.fillStyle = palette.card

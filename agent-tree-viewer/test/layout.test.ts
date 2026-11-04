@@ -58,8 +58,13 @@ describe('layout', () => {
     const nodes = tree(node('a', 1, 'completed'), node('b', 2, 'running', 'a'), node('c', 3, 'completed', 'b'))
     const lay = layout(nodes, new Set(['a']))
     expect(lay.placed.map(p => p.id)).toEqual([ROOT, 'a'])
-    expect(lay.placed[1]?.fold).toEqual({ hidden: 2, running: true })
+    expect(lay.placed[1]?.fold).toMatchObject({ hidden: 2, running: true, failed: false })
     expect(lay.placed[0]?.fold).toBe('open')
+  })
+
+  it('tells a folded node that something under it failed, however deep', () => {
+    const nodes = tree(node('a', 1, 'completed'), node('b', 2, 'completed', 'a'), node('c', 3, 'failed', 'b'))
+    expect(layout(nodes, new Set(['a'])).placed.find(p => p.id === 'a')?.fold).toMatchObject({ failed: true })
   })
 })
 
@@ -75,7 +80,7 @@ describe('groups', () => {
 
   it('count only what they hold when folded, never themselves', () => {
     const nodes = tree(group('folder', 'completed', false), group('survey', 'completed', true, 'folder'), node('s', 2, 'completed', 'survey'))
-    expect(layout(nodes, new Set(['folder'])).placed.find(p => p.id === 'folder')?.fold).toEqual({ hidden: 1, running: false })
+    expect(layout(nodes, new Set(['folder'])).placed.find(p => p.id === 'folder')?.fold).toMatchObject({ hidden: 1, running: false })
   })
 
   it('fold evidence that has finished, and leave running evidence and the work open', () => {

@@ -16,8 +16,8 @@ export const DECK_STEP = 10
 // Fewer finished siblings in a row than this stay as cards.
 export const MIN_DECK = 3
 
-// What a folded node keeps out of sight: how many agents, and whether any of them still runs.
-export type Folded = { hidden: number; running: boolean }
+// What a folded node keeps out of sight: how many agents, and whether any of them still runs or failed.
+export type Folded = { hidden: number; running: boolean; failed: boolean }
 
 // Finished siblings in a row with nothing under them, piled so each shows only its top strip and
 // the last shows whole. `ids` in start order.
@@ -91,7 +91,7 @@ export function quietEvidence(nodes: Record<string, AgentNode>): Set<string> {
 function folded(kids: Map<string, AgentNode[]>, id: string): Folded {
   const under = (one: string): AgentNode[] => (kids.get(one) ?? []).flatMap(kid => [kid, ...under(kid.id)])
   const all = under(id).filter(n => n.kind !== 'group')
-  return { hidden: all.length, running: all.some(n => n.status === 'running') }
+  return { hidden: all.length, running: all.some(n => n.status === 'running'), failed: all.some(n => n.status === 'failed') }
 }
 
 // A node's children as the column shows them: single cards, and decks where enough finished
