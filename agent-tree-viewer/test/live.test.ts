@@ -53,7 +53,7 @@ describe('a session’s plan', () => {
       { type: 'assistant', timestamp: '2026-10-09T10:00:01.000Z', message: { content: [{ type: 'tool_use', id: 'x', name: 'ExitPlanMode', input: { plan: '# Sent', planFilePath: planFile } }] } },
     ]
     writeFileSync(main, entries.map(e => JSON.stringify(e)).join('\n') + '\n')
-    return new SessionWatch({ id: 's', main, dir: join(dir, 's') }, 60000, dir)
+    return new SessionWatch({ id: 's', main, dir: join(dir, 's') }, 60000, () => [])
   }
 
   it('reads the plan file, which holds edits made after the plan was sent', () => {

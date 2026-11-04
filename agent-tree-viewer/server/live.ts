@@ -83,12 +83,12 @@ export class SessionWatch {
   private readonly files: SessionFiles
   private readonly staleMs: number
 
-  // `repo` is the folder the session runs in, whose agentics store holds the runs it started.
-  constructor(files: SessionFiles, staleMs: number, repo: string) {
+  // `stores` names the agentics stores holding the runs the session started, as of now.
+  constructor(files: SessionFiles, staleMs: number, stores: () => readonly string[]) {
     this.files = files
     this.staleMs = staleMs
     this.main = follow(files.main)
-    this.runWatch = new RunWatch(repo, projectsDirOf(files.main), files.id)
+    this.runWatch = new RunWatch(stores, projectsDirOf(files.main), files.id)
   }
 
   // Agents a Workflow ran keep their transcripts one folder down, in `workflows/<run id>/`.

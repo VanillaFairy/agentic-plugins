@@ -373,7 +373,8 @@ export function withBeat(meta: RunMeta, beat: Record<string, unknown> | undefine
   return Number.isNaN(at) || at <= meta.heartbeatAt ? meta : { ...meta, heartbeatAt: at }
 }
 
-export type StoredRun = { meta: RunMeta; log: RunLog }
+// `store`: the agentics store the run was read from.
+export type StoredRun = { store: string; meta: RunMeta; log: RunLog }
 
 // The agentics store of the repository `repo` is a checkout of.
 export const storeOf = (repo: string) => join(mainCheckout(repo), '.agentics')
@@ -428,29 +429,41 @@ export class RunStore {
       const meta = home.meta
       if (meta === undefined || !wanted(meta)) continue
       home.log ??= new RunLogTail(where)
-      out.push({ meta, log: home.log.read() })
+      out.push({ store: this.store, meta, log: home.log.read() })
     }
     return out
   }
 }
 
-// Follows the runs one session started, and every session they dispatched.
+// Follows the runs one session started, and every session they dispatched. A session can start
+// runs in several stores, one per folder agentics ran in; `stores` names them as of now.
 export class RunWatch {
-  private store: RunStore
+  private stores = new Map<string, RunStore>()
   private sessions = new Map<string, Followed>()
 
+  private readonly storesNow: () => readonly string[]
   private readonly projectsDir: string
   private readonly session: string
 
-  constructor(repo: string, projectsDir: string, session: string) {
-    this.store = new RunStore(storeOf(repo))
+  constructor(stores: () => readonly string[], projectsDir: string, session: string) {
+    this.storesNow = stores
     this.projectsDir = projectsDir
     this.session = session
   }
 
+  private storeAt(path: string): RunStore {
+    let store = this.stores.get(path)
+    if (store === undefined) {
+      store = new RunStore(path)
+      this.stores.set(path, store)
+    }
+    return store
+  }
+
   // Every run this session started, read up to now.
   read(): RunSource[] {
-    return this.store.read(meta => meta.session === this.session).map(({ meta, log }) => {
+    const started = this.storesNow().flatMap(path => this.storeAt(path).read(meta => meta.session === this.session))
+    return started.map(({ meta, log }) => {
       const transcripts = new Map<string, { facts: FileFacts; mtime: number }>()
       for (const [session, d] of log.sessions) {
         let f = this.sessions.get(session)

@@ -98,14 +98,21 @@ export function groupSessions(rows: readonly SessionRow[]): ProjectGroup[] {
 // last activity. A run whose starting session is not listed leaves its sessions listed; so does a
 // run.json older than its `session` field, which never reaches here. A session that started a run
 // stays listed even when another run dispatched it. `parents` maps each dispatched session to the
-// session that started its run.
-export function foldRuns(rows: readonly SessionRow[], runs: readonly StoredRun[]): { rows: SessionRow[]; parents: Map<string, string> } {
+// session that started its run; `stores` names, for each session that started runs, the stores
+// they are in, which its tree reads.
+export function foldRuns(
+  rows: readonly SessionRow[],
+  runs: readonly StoredRun[],
+): { rows: SessionRow[]; parents: Map<string, string>; stores: Map<string, string[]> } {
   const listed = new Set(rows.map(r => r.id))
   const starters = new Set(runs.map(r => r.meta.session).filter(id => listed.has(id)))
   const parents = new Map<string, string>()
+  const stores = new Map<string, string[]>()
   const lines = new Map<string, { at: number; line: RunLine }[]>()
-  for (const { meta, log } of runs) {
+  for (const { store, meta, log } of runs) {
     if (!starters.has(meta.session)) continue
+    const known = stores.get(meta.session) ?? []
+    if (!known.includes(store)) stores.set(meta.session, [...known, store])
     for (const session of log.sessions.keys()) if (!starters.has(session)) parents.set(session, meta.session)
     const own = lines.get(meta.session) ?? []
     own.push({ at: meta.startedAt || 0, line: { node: runNodeId(meta.run), run: meta.run, program: meta.program, agents: log.sessions.size } })
@@ -133,6 +140,7 @@ export function foldRuns(rows: readonly SessionRow[], runs: readonly StoredRun[]
         }
       }),
     parents,
+    stores,
   }
 }
 
@@ -179,6 +187,7 @@ export class SessionIndex {
   private files = new Map<string, SessionFiles>()
   private rows = new Map<string, SessionRow>()
   private parents = new Map<string, string>()
+  private stores = new Map<string, string[]>()
   private runs = new RunStores()
 
   private readonly opts: IndexOptions
@@ -300,12 +309,13 @@ export class SessionIndex {
     this.files = files
     this.rows = new Map(folded.rows.map(r => [r.id, r]))
     this.parents = folded.parents
+    this.stores = folded.stores
     return groupSessions(folded.rows)
   }
 
-  // What the last listing found: each session's files and row, and the session each dispatched
-  // session belongs to.
-  known(): { files: Map<string, SessionFiles>; rows: Map<string, SessionRow>; parents: Map<string, string> } {
-    return { files: this.files, rows: this.rows, parents: this.parents }
+  // What the last listing found: each session's files and row, the session each dispatched
+  // session belongs to, and the stores holding each session's runs.
+  known(): { files: Map<string, SessionFiles>; rows: Map<string, SessionRow>; parents: Map<string, string>; stores: Map<string, string[]> } {
+    return { files: this.files, rows: this.rows, parents: this.parents, stores: this.stores }
   }
 }

@@ -19,6 +19,7 @@ export type Listed = {
   files: Map<string, SessionFiles>
   rows: Map<string, SessionRow>
   parents: Map<string, string>
+  stores: Map<string, string[]>
 }
 
 export class Listing {
@@ -54,6 +55,11 @@ export class Listing {
   // The session whose agentics run dispatched this one, as the latest listing found it.
   parentOf(id: string): string | undefined {
     return this.latest?.parents.get(id)
+  }
+
+  // The agentics stores holding the runs a session started, as the latest listing found them.
+  storesOf(id: string): readonly string[] {
+    return this.latest?.stores.get(id) ?? []
   }
 
   // The files of a session the latest listing found.

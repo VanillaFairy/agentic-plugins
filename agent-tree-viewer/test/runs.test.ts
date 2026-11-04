@@ -2,7 +2,7 @@ import { appendFileSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'n
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { RunStore, RunStores, RunWatch, emptyRunLog, ingestRun, lastBeat, projectDirName, readRunMeta, returnOf, runNodeId, runNodes, withBeat } from '../server/runs.ts'
+import { RunStore, RunStores, RunWatch, emptyRunLog, ingestRun, lastBeat, projectDirName, readRunMeta, returnOf, runNodeId, runNodes, storeOf, withBeat } from '../server/runs.ts'
 import type { RunLog, RunSource } from '../server/runs.ts'
 import { emptyFacts, ingest } from '../server/transcript.ts'
 
@@ -185,12 +185,24 @@ describe('the run store', () => {
     write(join(repo, '.agentics', 'auth', '.state', 'events.jsonl'), [{ ...dispatched('s2', 'leaf', 'implementer', worktree), execution: '20261020-180000' }])
     write(join(projects, projectDirName(worktree), 's1.jsonl'), [toolCall(1, 'c1')])
 
-    const runs = new RunWatch(worktree, projects, 'parent').read()
+    const runs = new RunWatch(() => [storeOf(worktree)], projects, 'parent').read()
     expect(runs.map(r => r.meta.run).sort()).toEqual(['auth.20261020-180000', 'mine'])
     const mine = runs.find(r => r.meta.run === 'mine')
     expect(mine?.transcripts.get('s1')?.facts.calls.map(c => c.id)).toEqual(['c1'])
     expect(runs.find(r => r.meta.program === 'execute')?.log.sessions.has('s2')).toBe(true)
   })
+  it('follows a session’s runs in every store it is told of, one named after the watch began included', () => {
+    dir = mkdtempSync(join(tmpdir(), 'atv-runs-'))
+    const [first, second] = [join(dir, 'a', '.agentics'), join(dir, 'b', '.agentics')]
+    write(join(first, '.state', 'runs', 'r1', 'run.json'), { ...runJson('parent'), run: 'r1' })
+    write(join(second, '.state', 'runs', 'r2', 'run.json'), { ...runJson('parent'), run: 'r2' })
+    const stores = [first]
+    const watch = new RunWatch(() => stores, join(dir, 'projects'), 'parent')
+    expect(watch.read().map(r => r.meta.run)).toEqual(['r1'])
+    stores.push(second)
+    expect(watch.read().map(r => r.meta.run).sort()).toEqual(['r1', 'r2'])
+  })
+
   it('lists every run of a repository once from any of its checkouts, and sees a dispatch added since', () => {
     dir = mkdtempSync(join(tmpdir(), 'atv-runs-'))
     const repo = join(dir, 'repo')

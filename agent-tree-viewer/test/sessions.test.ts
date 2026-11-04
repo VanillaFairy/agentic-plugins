@@ -2,7 +2,7 @@ import { mkdirSync, mkdtempSync, rmSync, utimesSync, writeFileSync } from 'node:
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { projectDirName } from '../server/runs.ts'
+import { projectDirName, storeOf } from '../server/runs.ts'
 import { SessionIndex, groupSessions, pickTitle, readHints } from '../server/sessions.ts'
 import type { SessionRow } from '../server/sessions.ts'
 
@@ -47,6 +47,34 @@ describe('the session list', () => {
     expect(known.parents.get(child)).toBe(parent)
     expect(known.parents.get(orphan)).toBeUndefined()
     expect(known.rows.get(child)).toBeUndefined()
+  })
+
+  it('names every store a session started runs in, a subfolder’s own store included', () => {
+    dir = mkdtempSync(join(tmpdir(), 'atv-list-'))
+    const repo = join(dir, 'repo')
+    const sub = join(repo, 'sub')
+    const projects = join(dir, 'projects')
+    const now = Date.now()
+    const session = (id: string, cwd: string) => {
+      mkdirSync(join(projects, projectDirName(cwd)), { recursive: true })
+      writeFileSync(join(projects, projectDirName(cwd), `${id}.jsonl`), JSON.stringify({ type: 'user', cwd, message: { content: `prompt ${id}` } }) + '\n')
+    }
+    const run = (folder: string, name: string, session: string, child: string) => {
+      const home = join(folder, '.agentics', '.state', 'runs', name)
+      mkdirSync(home, { recursive: true })
+      writeFileSync(join(home, 'run.json'), JSON.stringify({ run: name, program: 'rule', session, started_at: new Date(now).toISOString(), heartbeat_at: new Date(now).toISOString() }))
+      writeFileSync(join(home, 'state.jsonl'), JSON.stringify({ kind: 'dispatched', session: child, role: 'ruler', thread: child, cwd: folder }) + '\n')
+    }
+    const [parent, near, far] = [1, 2, 3].map(n => `bbbbbbbb-0000-0000-0000-00000000000${n}`) as [string, string, string]
+    session(parent, repo)
+    session(near, repo)
+    session(far, sub)
+    run(repo, 'r1', parent, near)
+    run(sub, 'r2', parent, far)
+
+    const index = new SessionIndex({ projectsDir: projects, desktopDir: join(dir, 'none'), maxAgeMs: 3_600_000, presence: () => new Map() })
+    expect(index.list(now).flatMap(g => g.sessions).find(s => s.id === parent)?.runs?.map(r => r.run).sort()).toEqual(['r1', 'r2'])
+    expect(index.known().stores.get(parent)?.sort()).toEqual([storeOf(repo), storeOf(sub)].sort())
   })
 })
 
