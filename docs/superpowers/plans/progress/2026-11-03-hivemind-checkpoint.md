@@ -1,8 +1,8 @@
 Status: DONE
 # 2026-11-03-hivemind checkpoint
 
-Wave: 8 — T13
-Integration head: a6ffa82
+Wave: final-fix
+Integration head: 7203732
 Remaining: none
 
 ## Tasks
@@ -31,8 +31,10 @@ Remaining: none
 | T11 | 6 | sdd/2026-11-03-hivemind/T11 | merged | 1 | 25064f1 |
 | T12 | 7 | sdd/2026-11-03-hivemind/T12 | merged | 1 | 8076e33 |
 | T13 | 8 | sdd/2026-11-03-hivemind/T13 | merged | 1 | a6ffa82 |
+| final-fix | final-fix | sdd/2026-11-03-hivemind/final-fix | merged | 1 | 7203732 |
 
 ## Decisions and deviations
+- final-fix: merged 7203732 (re-review ADDRESSED, suite 312/312). C1,C2,I1-I7 closed; user rulings I3 (dead agent leftover and escrow reclaimed to supply, own ledger line) and I6 (proportional thermostat) applied and spec section 8 and section 4 amended in the outer repo. Spec edit was done by a second executor with the outer repo as worktree (the fix implementer was denied there). A bud at the lower budding clamp now waits until the parent holds twice wake_reserve. child() on a parent that starved (balance 0) stays unpaid. 24 Minors (plan/FINAL-review.md) left unfixed. TaskUpdate unavailable: orchestrator closes #25.
 - W8 T13: merged a6ffa82 (review 1 SPEC FAIL, fixed in 17-line round, re-review skipped; suite 287/287). Skill launches `hive run` in background, Monitor waits on outbox only, background exit notification ends the run. Minors left in plan/T13-review.md. Open for final review: README tells users to tune with `hive sim <dir>`; reviewer could not confirm sim does not mutate the run dir it is pointed at (cli.mjs runHive). TaskUpdate unavailable: orchestrator closes #21.
 - W7 T12: merged 8076e33 (review PASS, 4 Minor in plan/T12-review.md; suite 287/287). cli.mjs writes inbox files via .tmp then rename, name max(now,newest existing)-counter; sim uses {...physics.sim_cost, ...fitCostModel}. `hive run` and real `report` (SDK) untested by design. TaskUpdate unavailable: orchestrator closes #20.
 - W6 T11: merged 25064f1 (review PASS, 4 Minor in plan/T11-review.md; suite 279/279). Stub critics re-look up to run.burst-1 times in a wake until another lineage's answer exists (else no attack ever happens); the runner records claimId->{agent,lineage} from claims it mediates. fitCostModel needs `tool` events too, returns start_write/turn_output/turn_context only; T12 should merge `{...physics.sim_cost, ...fitCostModel(events)}`. Fresh worktrees need `npm ci` (knowledge/install-deps-in-worktree). TaskUpdate unavailable: orchestrator closes #19.
@@ -59,4 +61,4 @@ Remaining: none
 - none
 
 ## Knowledge entries
-- install-deps-in-worktree (W6), run-scheduler-tests, runner-agent-view, run-one-scheduler-test, wrap-script-runner (W5)
+- scratch-checkout-for-red-runs, edit-scripts-crlf (final-fix), install-deps-in-worktree (W6), run-scheduler-tests, runner-agent-view, run-one-scheduler-test, wrap-script-runner (W5)

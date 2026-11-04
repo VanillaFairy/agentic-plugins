@@ -72,7 +72,8 @@ You ⇄ main session (/hivemind skill)
 The graph is the state, as in think-tank: one Markdown file per node in `graph/`, YAML frontmatter
 and a body, a git repository. The scheduler is its only writer and commits every `commit_every`
 ticks, the commit message summarizing them. `events.jsonl` is the audit trail: one line per tool
-call, debit, credit, escrow, write-off, birth, death, verdict and thermostat change, never edited.
+call, endow, debit, escrow, release, charge, write-off, feed, credit (income, novelty, critic),
+upkeep, reclaim, birth, death, verdict, thermostat change and strength non-convergence, never edited.
 The field (§5) is derived from the graph and the clock, never stored.
 
 | `kind` | Holds |
@@ -193,13 +194,14 @@ without touching the rest of the design. Rewards and the food supply are in the 
 
 **Food supply.** A run starts with a supply (default 1,000,000 energy). Founders' seeds are endowed
 from it; budded and spawned children from their parent. Income comes out of it; agents' spending
-goes nowhere.
+goes nowhere. A dead agent's leftover balance and escrow go back to it (see Death).
 
 **Escrow.** Before a wake the scheduler moves `wake_reserve` (an estimate of the wake's token cost)
 from the agent's balance to its escrow; an agent that can't cover it isn't woken. Token cost is
 debited from escrow as streamed usage arrives, the rest returns after the wake, and if an
 interrupted wake reports no usage, the reserve is written off with a `write_off` line. So balances
-never go below zero, and supply, balances, escrows, spending and write-offs always add up.
+never go below zero, and supply, balances, escrows, spending and write-offs always add up. An agent that dies mid-wake keeps its escrow until the wake
+is paid, and a newborn that cannot cover the reserve is not woken until it can.
 
 **The clock.** One tick is one agent tool call. Ledger lines, income, upkeep and thermostat changes
 are written to the log but never advance the clock, so time moves only when an agent acts and a run
@@ -221,7 +223,10 @@ replays exactly. At every tick the scheduler settles the flows:
   balance, and places it in the niche with the most tension per living agent. The child is woken
   first among agents of its priority. Agents whose claims stand earn more than their upkeep, grow
   and bud; the rest drain away. Nobody ranks anyone.
-- **Death.** An agent at zero balance dies at once.
+- **Death.** An agent at zero balance dies at once. A dead agent pays for its own last wake from
+  the escrow held for it; what is left, balance and escrow, then goes back to the supply as a
+  `reclaim` line in the log. This holds for the founder after its one wake, an agent past the
+  context cap and an agent starved mid-wake, so the books still balance.
 
 Fitness, in the user's weighting (survival under attack × relevance, plus novelty that cools), is
 therefore not computed anywhere: it is the agent's net income.
@@ -231,7 +236,9 @@ of its argument subtree (§11). The hive's spread is the mean over active questi
 normalized entropy of the strength mass behind each worldview, so compatible answers in one
 worldview don't count as scattered. Spread is smoothed as a moving average over recent ticks. A
 target spread starts high and cools a little every tick. A clamped proportional controller acts on
-the smoothed error:
+the smoothed error. Each lever is its clamp's midpoint moved by gain x (the error's size beyond the
+band) x the clamp's range, in the direction below, recomputed every tick and clamped, so every lever
+is back at its midpoint once the error is inside the band:
 
 - below the band (herding): the mutation rate, the novelty weight and the wake floor's slack rise,
   and the budding threshold falls, so new variants are born;
