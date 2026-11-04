@@ -1,9 +1,9 @@
 Status: DONE
 # 2026-11-03-hivemind checkpoint
 
-Wave: 7 — T12
-Integration head: 8076e33
-Remaining: T13
+Wave: 8 — T13
+Integration head: a6ffa82
+Remaining: none
 
 ## Tasks
 | Task | Wave | Branch | State | Review cycles | Merge commit |
@@ -30,8 +30,10 @@ Remaining: T13
 | T10 | 5 | sdd/2026-11-03-hivemind/T10 | merged | 2 | 50ae99e |
 | T11 | 6 | sdd/2026-11-03-hivemind/T11 | merged | 1 | 25064f1 |
 | T12 | 7 | sdd/2026-11-03-hivemind/T12 | merged | 1 | 8076e33 |
+| T13 | 8 | sdd/2026-11-03-hivemind/T13 | merged | 1 | a6ffa82 |
 
 ## Decisions and deviations
+- W8 T13: merged a6ffa82 (review 1 SPEC FAIL, fixed in 17-line round, re-review skipped; suite 287/287). Skill launches `hive run` in background, Monitor waits on outbox only, background exit notification ends the run. Minors left in plan/T13-review.md. Open for final review: README tells users to tune with `hive sim <dir>`; reviewer could not confirm sim does not mutate the run dir it is pointed at (cli.mjs runHive). TaskUpdate unavailable: orchestrator closes #21.
 - W7 T12: merged 8076e33 (review PASS, 4 Minor in plan/T12-review.md; suite 287/287). cli.mjs writes inbox files via .tmp then rename, name max(now,newest existing)-counter; sim uses {...physics.sim_cost, ...fitCostModel}. `hive run` and real `report` (SDK) untested by design. TaskUpdate unavailable: orchestrator closes #20.
 - W6 T11: merged 25064f1 (review PASS, 4 Minor in plan/T11-review.md; suite 279/279). Stub critics re-look up to run.burst-1 times in a wake until another lineage's answer exists (else no attack ever happens); the runner records claimId->{agent,lineage} from claims it mediates. fitCostModel needs `tool` events too, returns start_write/turn_output/turn_context only; T12 should merge `{...physics.sim_cost, ...fitCostModel(events)}`. Fresh worktrees need `npm ci` (knowledge/install-deps-in-worktree). TaskUpdate unavailable: orchestrator closes #19.
 - W5 T09d: merged 3cb1807 (review PASS, 2 Minor left in plan/T09d-review.md; suite 271/271). G1 (throwing wake written off) and G3 (only a verdict on the ask id answers it) fixed in scheduler.mjs; G2 skipped [D2]; the verdict step of the ask test now answers by ask id. TaskUpdate unavailable: orchestrator closes #24 and #17. User answers D1 fix, D2 accept (implementer skips [D2] lines; rule 6 "above" read as standing >=), D3 fix. D3 also changes the verdict step of the test corrected in 4bbd374 (answer asks by ask id).
