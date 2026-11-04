@@ -1,9 +1,9 @@
 Status: DONE
 # 2026-11-03-hivemind checkpoint
 
-Wave: 6 — T11
-Integration head: 25064f1
-Remaining: T12, T13
+Wave: 7 — T12
+Integration head: 8076e33
+Remaining: T13
 
 ## Tasks
 | Task | Wave | Branch | State | Review cycles | Merge commit |
@@ -29,8 +29,10 @@ Remaining: T12, T13
 | T09d | 5 | sdd/2026-11-03-hivemind/T09d | merged | 1 | 3cb1807 |
 | T10 | 5 | sdd/2026-11-03-hivemind/T10 | merged | 2 | 50ae99e |
 | T11 | 6 | sdd/2026-11-03-hivemind/T11 | merged | 1 | 25064f1 |
+| T12 | 7 | sdd/2026-11-03-hivemind/T12 | merged | 1 | 8076e33 |
 
 ## Decisions and deviations
+- W7 T12: merged 8076e33 (review PASS, 4 Minor in plan/T12-review.md; suite 287/287). cli.mjs writes inbox files via .tmp then rename, name max(now,newest existing)-counter; sim uses {...physics.sim_cost, ...fitCostModel}. `hive run` and real `report` (SDK) untested by design. TaskUpdate unavailable: orchestrator closes #20.
 - W6 T11: merged 25064f1 (review PASS, 4 Minor in plan/T11-review.md; suite 279/279). Stub critics re-look up to run.burst-1 times in a wake until another lineage's answer exists (else no attack ever happens); the runner records claimId->{agent,lineage} from claims it mediates. fitCostModel needs `tool` events too, returns start_write/turn_output/turn_context only; T12 should merge `{...physics.sim_cost, ...fitCostModel(events)}`. Fresh worktrees need `npm ci` (knowledge/install-deps-in-worktree). TaskUpdate unavailable: orchestrator closes #19.
 - W5 T09d: merged 3cb1807 (review PASS, 2 Minor left in plan/T09d-review.md; suite 271/271). G1 (throwing wake written off) and G3 (only a verdict on the ask id answers it) fixed in scheduler.mjs; G2 skipped [D2]; the verdict step of the ask test now answers by ask id. TaskUpdate unavailable: orchestrator closes #24 and #17. User answers D1 fix, D2 accept (implementer skips [D2] lines; rule 6 "above" read as standing >=), D3 fix. D3 also changes the verdict step of the test corrected in 4bbd374 (answer asks by ask id).
 - W5 T09: audit T09c returned FAIL on separation only because T09b's branch carries commit 4bbd374, a one-line correction to the locked test 'an ask reaches the user once' (it expected `quiet` with three unanswered sent asks, contradicting rule 9 and the test 'an outstanding ask keeps a hive that nobody can wake waiting'). A fresh agent made it after T09b's review, the green fix then removed the scheduler's rule-9 workaround; the gate passes with --red 4bbd374 and was run by the wave-controller. Gap D3 asks whether a verdict on an ask's candidate claims answers it (4bbd374 answers the asks that way).
