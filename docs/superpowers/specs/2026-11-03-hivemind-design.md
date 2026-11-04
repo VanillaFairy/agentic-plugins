@@ -187,7 +187,10 @@ and returns a list of genomes, one per lens the goal calls for, with explorers a
 `species_ratio`. The scheduler starts each as a fresh agent endowed from the supply, then the
 founder dies like any agent. Nothing later sends an agent to a question nobody works, so the
 founder staffs every question it opens: its first turn and its `look` say how many seeds the supply
-covers, and `seed` refuses a list with fewer explorers than open questions.
+covers, and `seed` refuses a list with fewer explorers than open questions. Seeding may take only
+`seed_share` (default half) of the supply, at what a seed costs it: its endowment and its grace
+wakes. `seed` refuses a longer list. The rest pays income and the work that follows the user's
+verdicts; a hive that seeds its whole supply lives only on grace and goes quiet when grace runs out.
 
 ## 8. Energy, fitness and the thermostat
 
@@ -198,7 +201,10 @@ without touching the rest of the design. Rewards and the food supply are in the 
 
 **Food supply.** A run starts with a supply (default 1,000,000 energy). Founders' seeds are endowed
 from it; budded and spawned children from their parent. Income comes out of it; agents' spending
-goes nowhere. A dead agent's leftover balance and escrow go back to it (see Death).
+goes nowhere. A dead agent's leftover balance and escrow go back to it (see Death). A seed also has
+`grace_wakes` wakes the supply pays for, while the supply can; once it cannot, the seed wakes on its
+own balance like any other agent and keeps its grace. Whether a wake is the supply's is decided once,
+when it starts, and the same answer settles its bill.
 
 **Escrow.** Before a wake the scheduler moves `wake_reserve` (an estimate of the wake's token cost)
 from the agent's balance to its escrow; an agent that can't cover it isn't woken. Token cost is
@@ -234,7 +240,10 @@ stays still. At every tick the scheduler settles the flows:
 - **Death.** An agent at zero balance dies at once. A dead agent pays for its own last wake from
   the escrow held for it; what is left, balance and escrow, then goes back to the supply as a
   `reclaim` line in the log. This holds for the founder after its one wake, an agent past the
-  context cap and an agent starved mid-wake, so the books still balance.
+  context cap and an agent starved mid-wake, so the books still balance. When nothing else can move
+  the hive (no wake, no idle tick, no ask with the user), every agent that cannot pay for a wake and
+  earns nothing is retired as `stuck`: it can never act again, and its balance goes back to the
+  supply for the agents that still can.
 
 Fitness, in the user's weighting (survival under attack × relevance, plus novelty that cools), is
 therefore not computed anywhere: it is the agent's net income.
@@ -406,7 +415,10 @@ The arithmetic is where mistakes hide, and all of it is testable without a model
   attacks sit in separate claims, answers attacked by fewer than two lineages left out;
 - asks reach the outbox by threshold or by timeout; verdicts pin, flood heat, and are mail for the
   agents working where they land, waking one that went quiet;
-- `seed` refuses a list with fewer explorers than open questions.
+- `seed` refuses a list with fewer explorers than open questions, or more seeds than `seed_share`
+  of the supply covers;
+- a seed with grace left wakes on its own balance once the supply cannot pay, and keeps its grace;
+- a stalled hive retires the agents that cannot pay and earn nothing, refunding the supply.
 
 **`hive sim`** runs the whole loop with scripted stub agents instead of models, so the physics
 (prices, income, upkeep, budding, cooling) can be tuned to settle before any tokens are spent. Its
