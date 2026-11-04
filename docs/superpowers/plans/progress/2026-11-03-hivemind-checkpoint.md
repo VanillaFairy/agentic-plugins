@@ -1,9 +1,9 @@
 Status: DONE
 # 2026-11-03-hivemind checkpoint
 
-Wave: 5 — T09a, T09b, T09c, T09d, T10
-Integration head: 3cb1807
-Remaining: T11, T12, T13
+Wave: 6 — T11
+Integration head: 25064f1
+Remaining: T12, T13
 
 ## Tasks
 | Task | Wave | Branch | State | Review cycles | Merge commit |
@@ -28,8 +28,10 @@ Remaining: T11, T12, T13
 | T09c | 5 | sdd/2026-11-03-hivemind/T09c | audited; gaps closed by T09d | 0 | |
 | T09d | 5 | sdd/2026-11-03-hivemind/T09d | merged | 1 | 3cb1807 |
 | T10 | 5 | sdd/2026-11-03-hivemind/T10 | merged | 2 | 50ae99e |
+| T11 | 6 | sdd/2026-11-03-hivemind/T11 | merged | 1 | 25064f1 |
 
 ## Decisions and deviations
+- W6 T11: merged 25064f1 (review PASS, 4 Minor in plan/T11-review.md; suite 279/279). Stub critics re-look up to run.burst-1 times in a wake until another lineage's answer exists (else no attack ever happens); the runner records claimId->{agent,lineage} from claims it mediates. fitCostModel needs `tool` events too, returns start_write/turn_output/turn_context only; T12 should merge `{...physics.sim_cost, ...fitCostModel(events)}`. Fresh worktrees need `npm ci` (knowledge/install-deps-in-worktree). TaskUpdate unavailable: orchestrator closes #19.
 - W5 T09d: merged 3cb1807 (review PASS, 2 Minor left in plan/T09d-review.md; suite 271/271). G1 (throwing wake written off) and G3 (only a verdict on the ask id answers it) fixed in scheduler.mjs; G2 skipped [D2]; the verdict step of the ask test now answers by ask id. TaskUpdate unavailable: orchestrator closes #24 and #17. User answers D1 fix, D2 accept (implementer skips [D2] lines; rule 6 "above" read as standing >=), D3 fix. D3 also changes the verdict step of the test corrected in 4bbd374 (answer asks by ask id).
 - W5 T09: audit T09c returned FAIL on separation only because T09b's branch carries commit 4bbd374, a one-line correction to the locked test 'an ask reaches the user once' (it expected `quiet` with three unanswered sent asks, contradicting rule 9 and the test 'an outstanding ask keeps a hive that nobody can wake waiting'). A fresh agent made it after T09b's review, the green fix then removed the scheduler's rule-9 workaround; the gate passes with --red 4bbd374 and was run by the wave-controller. Gap D3 asks whether a verdict on an ask's candidate claims answers it (4bbd374 answers the asks that way).
 - W5 T09b/T10: the runner gets a flat view `{ ...fm }` (id, session, founder, genome); T11's sim runner takes the same view (knowledge/runner-agent-view.md, referenced from T11). Real runner `mutate`/`report` throw on failure or usage limit and have no `limit` field; the scheduler logs a thrown mutate as a failed birth, but a thrown `report` (T12) must be handled by the CLI. Idle guard: an agent whose wake made no accepted call is ineligible until the tick moves. T12 must write inbox files atomically (a half-written .json is logged rejected and consumed).
@@ -53,4 +55,4 @@ Remaining: T11, T12, T13
 - none
 
 ## Knowledge entries
-- run-scheduler-tests, runner-agent-view, run-one-scheduler-test, wrap-script-runner (W5)
+- install-deps-in-worktree (W6), run-scheduler-tests, runner-agent-view, run-one-scheduler-test, wrap-script-runner (W5)
