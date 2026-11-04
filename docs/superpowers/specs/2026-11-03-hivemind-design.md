@@ -98,9 +98,11 @@ If it hasn't converged by `max_iters` it keeps the last iterate and logs `streng
 Strength is recomputed after every write.
 
 - **Base score** comes from provenance (a data table, e.g. F verified 0.8, F unchecked 0.5, I 0.5,
-  A 0.3). An F claim is **verified** when an agent of another lineage posts a supporting claim with
-  `checks: <it>` after reading the cited source with the `source` tool; a `checks` claim that
-  attacks it marks the check failed.
+  A 0.3). An F claim must cite a file its author read with `source` or a page its author fetched
+  with a 2xx status; what an agent saw only in search results or on a page that would not load is
+  I. An F claim is **verified** when an agent of another lineage posts a supporting claim with
+  `checks: <it>` after reading one of the files or pages it cites; a `checks` claim that attacks
+  it marks the check failed.
 - **Ceilings (F2).** A claim's strength never exceeds the ceiling of its provenance (A below I,
   I below verified F), however much support it gets: agreement never upgrades a claim.
 - **Aggregation by lineage.** Attacks and supports on a claim are aggregated per lineage before
@@ -139,7 +141,7 @@ A question is **active** when any node under it was written within `crowd_window
 | `define` | post a definition claim for a contested term (F3) | moderate |
 | `question` | open a sub-question under a question | moderate |
 | `message` | a short note to another agent, delivered to its inbox and shown in its next `look` | cheap |
-| `ask_user` | raise a question for the user with its candidate claims (§9) | high |
+| `ask_user` | raise a question for the user with its candidate claims (§9) | free |
 | `spawn` | fork a specialist child with a stated lens change, endowing it from the parent's balance | high plus endowment |
 | `rest` | end the wake | free |
 
@@ -259,10 +261,10 @@ run: prices, rates, thresholds (`standing_threshold`, `strong_threshold`, `harve
 
 ## 9. The user
 
-**Questions.** An agent raises an `ask` with `ask_user`, at a high price, naming the claims an
+**Questions.** An agent raises an `ask` with `ask_user`, free of charge, naming the claims an
 answer would settle. Other agents support it or attack it ("evidence settles this, not taste") like
-any claim. It reaches `outbox/` once its strength crosses `ask_threshold`, or after `ask_max_ticks`
-with no attack standing against it. The main session waits on one background watcher that wakes it
+any claim. It reaches `outbox/` once its strength crosses `ask_threshold`, or with no attack standing
+against it after `ask_max_ticks` or when the hive goes quiet, whichever comes first. The main session waits on one background watcher that wakes it
 only when a file lands in `outbox/` or the scheduler exits. It puts the question to the user in
 plain words, with the candidate claims as the choices, without stopping the run, and writes the
 answer to `inbox/` as a verdict.
@@ -288,16 +290,27 @@ arrives; it is never pushed on a timer.
 2. Work where tension is high in your niche; leave crowded nodes.
 3. Attack the strongest claim you disagree with. An attack on a claim much weaker than your own
    strongest earns nothing; answer a weak claim only when it blocks something that matters.
-4. Every claim says where it comes from: observed (with a source anyone can check), inferred, or
-   assumed. Agreement never turns an inference into an observation (F2).
-5. Check other families' observations: read the source, then support or attack with `checks`.
+4. Every claim says where it comes from: observed (F, from a page you fetched or a file you read,
+   cited in its source), inferred, or assumed. What you saw only in search results is inferred.
+   Agreement never turns an inference into an observation (F2).
+5. Check other families' observations: read a page or file the claim cites, then support or attack
+   it with `checks`. A checked observation stands far stronger than an unchecked one.
 6. Support only with a claim of your own that adds something; bare agreement is not a claim.
 7. Never refute a question; if it doesn't serve the goal, attack its relevance (F1).
 8. When a disagreement rests on a word, define the word first (F3).
-9. When rival answers stand, say what would decide between them (`decides`).
-10. Ask the user only what is theirs: taste, priority, purpose (F11).
-11. If a question needs a lens nobody brings, spawn one.
-12. Your genome is who you are; argue from it.
+9. Answers to one question are rivals: post a new answer only when it excludes the others, and
+   add to an answer by supporting it. When rival answers stand, say what would decide between them
+   (`decides`).
+10. An answer is settled only once it survives attack from other families: when one of yours is
+    attacked, answer the attack.
+11. Ask the user what only they can say: taste, priority, purpose (F11). Asking is free: whenever
+    an answer turns on it, ask with `ask_user` rather than assume or answer for each case.
+12. If a question needs a lens nobody brings, spawn one.
+13. Your genome is who you are; argue from it.
+14. When the goal's sources include `web`, WebSearch and WebFetch are yours too: an observed claim
+    from the web gives the URLs of pages you fetched as its source. A page that came back with an
+    error was not read. To check a web claim, fetch a page it cites with WebFetch, then support or
+    attack it with `checks`, as you would a file read with `source`.
 
 ## 11. Ending and harvest
 
