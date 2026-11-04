@@ -69,11 +69,12 @@ export function withoutDone(nodes: Record<string, AgentNode>): Record<string, Ag
 }
 
 // The nodes, the session's own card included, with agents under them and every one of those done.
+// A failed agent counts as done here: nothing more will come of it.
 export function allDoneUnder(nodes: Record<string, AgentNode>): Set<string> {
   const kids = childrenOf(nodes)
   const found = new Set<string>()
   const done = (id: string): boolean => {
-    const under = (kids.get(id) ?? []).map(kid => done(kid.id) && kid.status === 'completed')
+    const under = (kids.get(id) ?? []).map(kid => done(kid.id) && (kid.status === 'completed' || kid.status === 'failed'))
     const all = under.every(Boolean)
     if (under.length > 0 && all) found.add(id)
     return all

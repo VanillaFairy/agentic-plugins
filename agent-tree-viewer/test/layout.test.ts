@@ -33,6 +33,11 @@ describe('allDoneUnder', () => {
   it('takes in the session itself once every agent is done', () => {
     expect(allDoneUnder(tree(node('a', 1, 'completed'), node('b', 2, 'completed', 'a'))).has(ROOT)).toBe(true)
   })
+
+  it('counts a failed agent as done', () => {
+    const nodes = tree(node('a', 1, 'completed'), node('b', 2, 'failed', 'a'), node('c', 3, 'failed'), node('d', 4, 'killed', 'c'))
+    expect([...allDoneUnder(nodes)].sort()).toEqual(['a'])
+  })
 })
 
 describe('layout', () => {
