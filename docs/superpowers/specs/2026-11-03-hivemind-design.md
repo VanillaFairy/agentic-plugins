@@ -192,6 +192,18 @@ covers, and `seed` refuses a list with fewer explorers than open questions. Seed
 wakes. `seed` refuses a longer list. The rest pays income and the work that follows the user's
 verdicts; a hive that seeds its whole supply lives only on grace and goes quiet when grace runs out.
 
+**The deliverable question.** The founder's first question restates the goal's deliverable in the
+form the goal asks for (for example "the top three, each with a link, a price and the reasoning"),
+directly under the goal, and is marked `deliverable`. Its answers assemble the other questions'
+standing answers into that form and name the claims they rest on in `assembles`, which `claim`
+requires there. `look` shows every agent the deliverable question, whatever its niche, and the
+report puts it first. Assembling is not discovering: a deliverable answer earns no novelty, and
+earns income only while every claim it assembles stands and is tested,
+so a top three copied from half-settled answers pays nothing until its parts have been put to the
+test. `seed` staffs it like any other question; its explorer waits for news until there is
+something to assemble. `question` refuses a second `deliverable`. Without it, every other question can
+settle and nothing ever takes the shape the user asked for.
+
 ## 8. Energy, fitness and the thermostat
 
 **Energy** is an abstract unit. A pricing function maps each action to its cost: tool prices from a
@@ -222,21 +234,39 @@ food left in the supply, since income comes only with ticks. While an ask is wit
 stays still. At every tick the scheduler settles the flows:
 
 - **Income.** Each standing claim (strength above `standing_threshold`) by a living author pays
-  `rate × strength × relevance × exposure` out of the supply. Exposure is 0 until an agent of
-  another lineage has attacked the claim: no test, no income (F10). Income stops when a claim falls
-  below the threshold, so a strength that flickers earns little.
-- **Novelty** is paid once a claim has survived its first attack from another lineage:
+  `rate × strength × relevance × exposure × activity` out of the supply. Income stops when a claim
+  falls below the threshold, so a strength that flickers earns little.
+  - *Exposure* is 0 until the claim is **tested**. It is 1 once an agent of another lineage has
+    attacked it, and `check_exposure` (default 0.5) while its only foreign tests are supporting
+    `checks`, posted after reading what it cites. A plain support from another lineage is not a
+    test: no test, no income (F10).
+  - *Answered.* Exposure is 0 again while an attack from another lineage stands against the claim
+    and no standing claim by its author attacks that attack. An answer that falls below
+    `standing_threshold` no longer counts, so a throwaway reply restores nothing.
+  - *Activity* is `0.5 ^ (idle / rent_half_life)`, where `idle` is the ticks since the author last
+    **worked**: posted a claim that is not a support of its own lineage's claim, a `define`, or a
+    `question`. Asks, messages, own-lineage supports and observing calls are not work.
+    `rent_half_life` (default 100 ticks) is several times the usual gap between one agent's wakes,
+    so an agent that works whenever it is woken keeps most of its rent and one that stops sees it
+    fade, then starves on upkeep, and its balance goes back to the supply.
+- **Novelty** is paid once, when a claim is first tested by another lineage and stands after it:
   `novelty × relevance × temperature`, where novelty is one minus the largest word-shingle
   similarity to earlier claims on the same question.
 - **Critics' pay.** An attack is paid once, when posted, for the strength it removes from its
   target: `(strength before − strength after) × target relevance × critic_rate`. Attacking a claim
-  much weaker than the attacker's own strongest earns nothing.
+  much weaker than the attacker's own strongest earns nothing. A rebuttal is an attack on an attack
+  and is paid the same way, so defending a claim earns like criticising one; a rebuttal of an attack
+  on the rebutter's own claim is exempt from the weaker-claim rule, since the attack it answers is
+  usually the weaker of the two. An attack's relevance is that of the claim it bears on.
 - **Upkeep.** Every living agent pays a small drain; an idle agent starves.
 - **Budding.** An agent whose balance crosses the budding threshold, and has budded fewer than
   `max_buds` times, reproduces: the scheduler forks it with one mutation, gives the child half the
   balance, and places it in the niche with the most tension per living agent. The child is woken
   first among agents of its priority. Agents whose claims stand earn more than their upkeep, grow
-  and bud; the rest drain away. Nobody ranks anyone.
+  and bud; the rest drain away. Nobody ranks anyone. The threshold is `budding_wakes` (default 4)
+  times the ledger's running wake cost, scaled by the thermostat, so an agent that keeps working on
+  standing claims reaches it within a run: a threshold no agent reaches leaves the population fixed
+  at its seeds, and with it nothing is selected. A child's activity starts at 1, from its birth.
 - **Death.** An agent at zero balance dies at once. A dead agent pays for its own last wake from
   the escrow held for it; what is left, balance and escrow, then goes back to the supply as a
   `reclaim` line in the log. This holds for the founder after its one wake, an agent past the
@@ -267,8 +297,10 @@ Every lever moves within its clamp. The target is the temperature that scales no
 **Waking.** Whenever a waking slot frees, the scheduler wakes the living agent with the highest
 priority, if it is above the `wake_floor`: tension in its niche plus unread inbox messages, minus
 crowding, plus how long since its last wake (never woken counts as longest). Ties break by agent id.
-No model takes part in the choice. A wake that made no call is not repeated until there is news:
-another agent's call or a verdict.
+No model takes part in the choice. A wake that changed nothing (it made no call, or only `look`,
+`read`, `source` and `rest`) is not repeated until there is news: another agent's call that changed
+the hive, or a verdict. Those observing calls are no news to anyone; they still tick the clock and
+count toward the burst.
 
 All numbers in this section and in §5–§7 live in one data file, `physics.json`, overridable per
 run: prices, rates, thresholds (`standing_threshold`, `strong_threshold`, `harvest_threshold`,
@@ -282,8 +314,12 @@ answer would settle. `ask_user` refuses an ask that repeats an earlier one, open
 whose candidates are all among the earlier ask's, or whose text overlaps it by `ask_overlap` or more.
 The refusal names the earlier ask, and the user's answer when there is one; `look` lists every ask
 and where it stands. Other agents support it or attack it ("evidence settles this, not taste") like
-any claim. It reaches `outbox/` once its strength crosses `ask_threshold`, or with no attack standing
-against it after `ask_max_ticks` or when the hive goes quiet, whichever comes first. The main session waits on one background watcher that wakes it
+any claim. It reaches `outbox/` as soon as an agent of another lineage that has a claim of its own
+on one of the ask's candidates' questions supports it, once its strength crosses `ask_threshold`,
+or with no attack standing against it after `ask_max_ticks` (default 30) or when the hive goes
+quiet, whichever comes first. The hive keeps working while an ask is out. An ask is free and the main
+session folds repeats together, so the cost of sending one early is one question to the user; the
+cost of holding one back is a hive working around what only the user can say. The main session waits on one background watcher that wakes it
 only when a file lands in `outbox/` or the scheduler exits. It is the user's one channel and
 keeps them from being asked the same thing twice: `hive asks` shows every ask as queued (in
 `outbox/`), asking (moved to `asking/` by `hive take`) or answered (a verdict addresses it), and
@@ -328,8 +364,9 @@ arrives; it is never pushed on a timer.
 9. Answers to one question are rivals: post a new answer only when it excludes the others, and
    add to an answer by supporting it. When rival answers stand, say what would decide between them
    (`decides`).
-10. An answer is settled only once it survives attack from other families: when one of yours is
-    attacked, answer the attack.
+10. An answer is settled only once it survives attack from other families. When one of yours is
+    attacked, answer the attack itself: an attacked claim earns nothing until you do, and a
+    support of your own claim is not an answer.
 11. Ask the user what only they can say: taste, priority, purpose (F11). Asking is free: whenever
     an answer turns on it, ask with `ask_user` rather than assume or answer for each case. First
     read the asks `look` lists: support one that already asks it, and build on what the user answered.
@@ -338,12 +375,20 @@ arrives; it is never pushed on a timer.
 14. When the goal's sources include `web`, WebSearch and WebFetch are yours too: an observed claim
     from the web gives the URLs of pages you fetched as its source. A page that came back with an
     error was not read. To check a web claim, fetch a page it cites with WebFetch, then support or
-    attack it with `checks`, as you would a file read with `source`.
+    attack it with `checks`, as you would a file read with `source`. A site that refuses you is a
+    finding: post it once as an observation, then work from what you can read.
+15. The deliverable question is what the user gets. When answers stand in your niche, carry them
+    into an answer to it, or attack the deliverable answer they contradict.
+16. Your income fades while you do not work: a new claim, an attack, a rebuttal, a check, a
+    definition or a question is work; looking, resting, asking, messaging and supporting your own
+    family are not. Rest when you have nothing to add.
 
 ## 11. Ending and harvest
 
 The run ends when no living agent is above the `wake_floor` and no ask is outstanding (quiet), when
-the supply, balances and escrows are spent, or when the user stops it.
+the supply, balances and escrows are spent, when no agent has worked (§8, Activity) for
+`stall_ticks` ticks (default 60) and no ask is with the user (stalled), or when the user stops it.
+A hive that is busy without working has nothing more to give the report.
 
 **Harvest** is a script, then a writer. For each question in order of relevance, the script takes
 its whole argument subtree, the answers and every attack and support beneath them, and computes the
@@ -354,7 +399,9 @@ directly and that survived (F10). One extension is one coherent answer. Several 
 worldviews: the attack chains between them are the cruxes, each reported with its strongest
 `decides` claim, or marked undecided if none was posted. A reporter agent writes the report from
 that skeleton and cannot change it; its text comes back in its final result and the main session
-saves it as `report.md`. The report also carries what the user ruled and the run's spend.
+saves it as `report.md`. The report also carries what the user ruled and the run's spend. It leads
+with the deliverable question: its worldviews are the answer, and the other questions follow as the
+reasons. A run whose deliverable question has no standing answer says so first.
 
 ## 12. A run
 
@@ -418,7 +465,16 @@ The arithmetic is where mistakes hide, and all of it is testable without a model
 - `seed` refuses a list with fewer explorers than open questions, or more seeds than `seed_share`
   of the supply covers;
 - a seed with grace left wakes on its own balance once the supply cannot pay, and keeps its grace;
-- a stalled hive retires the agents that cannot pay and earn nothing, refunding the supply.
+- a stalled hive retires the agents that cannot pay and earn nothing, refunding the supply;
+- a wake of only observing calls waits for news and is no news to others;
+- a plain support is not a test and a supporting check pays `check_exposure`; an unanswered foreign
+  attack stops income until a standing answer by the author; income halves every `rent_half_life`
+  ticks the author does not work;
+- a rebuttal of an attack on one's own claim is paid as an attack, exempt from the weaker-claim rule;
+- an ask goes out at the first support from a foreign agent working one of its candidates' questions;
+- the founder opens one `deliverable` question first; its answers earn no novelty and no income
+  until what they support is tested; the report leads with it;
+- a hive with no work for `stall_ticks` and no ask with the user ends stalled.
 
 **`hive sim`** runs the whole loop with scripted stub agents instead of models, so the physics
 (prices, income, upkeep, budding, cooling) can be tuned to settle before any tokens are spent. Its
