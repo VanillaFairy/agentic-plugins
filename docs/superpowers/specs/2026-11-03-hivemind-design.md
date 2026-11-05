@@ -185,12 +185,15 @@ crossover (merge two lenses), species shift.
 **Founders.** A run starts with one founder agent that reads the goal, opens the first questions,
 and returns a list of genomes, one per lens the goal calls for, with explorers and critics in the
 `species_ratio`. The scheduler starts each as a fresh agent endowed from the supply, then the
-founder dies like any agent. Nothing later sends an agent to a question nobody works, so the
-founder staffs every question it opens: its first turn and its `look` say how many seeds the supply
+founder dies like any agent. The founder staffs every question it opens: its first turn and its `look` say how many seeds the supply
 covers, and `seed` refuses a list with fewer explorers than open questions. Seeding may take only
 `seed_share` (default half) of the supply, at what a seed costs it: its endowment and its grace
 wakes. `seed` refuses a longer list. The rest pays income and the work that follows the user's
 verdicts; a hive that seeds its whole supply lives only on grace and goes quiet when grace runs out.
+A question an agent opens later is staffed by the scheduler with what its harvest needs (§11): an
+explorer and critics of two lineages, each a transplant of the opener's lens with a new lineage,
+endowed from the supply like a seed while the seed share covers one. A member the question already
+has is not staffed again.
 
 **The deliverable question.** The founder's first question restates the goal's deliverable in the
 form the goal asks for (for example "the top three, each with a link, a price and the reasoning"),
