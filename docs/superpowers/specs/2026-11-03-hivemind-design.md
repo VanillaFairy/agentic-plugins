@@ -111,7 +111,7 @@ Strength is recomputed after every write.
 - **Rival answers.** Every two answers to the same question attack each other, implicitly, with no
   claim needed: answers to one question are alternatives, and a question with several true answers
   is argued as one composite answer. A claim has one relation, so without this no two answers
-  could ever be in conflict. Implicit rivalry counts in strengths and in harvest's extensions, but
+  could ever be in conflict. Implicit rivalry counts in strengths and makes each harvested answer its own worldview, but
   never as being tested: income, novelty, critics' pay and harvest's two-lineage rule count only
   attack claims.
 
@@ -278,10 +278,9 @@ stays still. At every tick the scheduler settles the flows:
 Fitness, in the user's weighting (survival under attack × relevance, plus novelty that cools), is
 therefore not computed anywhere: it is the agent's net income.
 
-**Entropy thermostat.** For each active question, its rival worldviews are the preferred extensions
-of its argument subtree (§11). The hive's spread is the mean over active questions of the
-normalized entropy of the strength mass behind each worldview, so compatible answers in one
-worldview don't count as scattered. Spread is smoothed as a moving average over recent ticks. A
+**Entropy thermostat.** For each active question, its rival worldviews are its harvested answers
+(§11). The hive's spread is the mean over active questions of the normalized entropy of the
+strength mass behind each worldview. Spread is smoothed as a moving average over recent ticks. A
 target spread starts high and cools a little every tick. A clamped proportional controller acts on
 the smoothed error. Each lever is its clamp's midpoint moved by gain x (the error's size beyond the
 band) x the clamp's range, in the direction below, recomputed every tick and clamped, so every lever
@@ -390,13 +389,11 @@ the supply, balances and escrows are spent, when no agent has worked (§8, Activ
 `stall_ticks` ticks (default 60) and no ask is with the user (stalled), or when the user stops it.
 A hive that is busy without working has nothing more to give the report.
 
-**Harvest** is a script, then a writer. For each question in order of relevance, the script takes
-its whole argument subtree, the answers and every attack and support beneath them, and computes the
-preferred extensions (Dung semantics) of its attack relation, including the implicit rivalry
-between its answers. It projects each extension onto the answers, keeping only answers with
-strength above `harvest_threshold` that attack claims from at least two other lineages targeted
-directly and that survived (F10). One extension is one coherent answer. Several are rival
-worldviews: the attack chains between them are the cruxes, each reported with its strongest
+**Harvest** is a script, then a writer. For each question in order of relevance, the script keeps
+the answers with strength at or above `harvest_threshold` that attack claims from at least two other
+lineages targeted directly (F10). An attack left standing is no veto: strength
+(§5) has already charged the answer for it. Rival answers attack each other, so each kept answer is
+one worldview. Several are rival worldviews, and each pair is a crux, reported with its strongest
 `decides` claim, or marked undecided if none was posted. A reporter agent writes the report from
 that skeleton and cannot change it; its text comes back in its final result and the main session
 saves it as `report.md`. The report also carries what the user ruled and the run's spend. It leads
@@ -431,7 +428,7 @@ hivemind/
     genome.mjs  genomes, operator choice, the mutation call, lineages
     tools.mjs   the physics tools
     scheduler.mjs the loop: ticks, waking, pauses, end
-    harvest.mjs extensions, projection, cruxes, report skeleton
+    harvest.mjs harvested answers, cruxes, report skeleton
     hive.mjs    CLI: init, run, sim, status
   test/
 ```
