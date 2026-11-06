@@ -183,17 +183,20 @@ inversion (flip the stance), transplant (a lens from an unrelated field; starts 
 crossover (merge two lenses), species shift.
 
 **Founders.** A run starts with one founder agent that reads the goal, opens the first questions,
-and returns a list of genomes, one per lens the goal calls for, with explorers and critics in the
-`species_ratio`. The scheduler starts each as a fresh agent endowed from the supply, then the
-founder dies like any agent. The founder staffs every question it opens: its first turn and its `look` say how many seeds the supply
-covers, and `seed` refuses a list with fewer explorers than open questions. Seeding may take only
-`seed_share` (default half) of the supply, at what a seed costs it: its endowment and its grace
-wakes. `seed` refuses a longer list. The rest pays income and the work that follows the user's
-verdicts; a hive that seeds its whole supply lives only on grace and goes quiet when grace runs out.
-A question an agent opens later is staffed by the scheduler with what its harvest needs (§11): an
-explorer and critics of two lineages, each a transplant of the opener's lens with a new lineage,
-endowed from the supply like a seed while the seed share covers one. A member the question already
-has is not staffed again.
+and returns a list of genomes, the lenses of its questions' teams. The scheduler starts each as a
+fresh agent endowed from the supply, then the founder dies like any agent. Every question gets a
+`team` (default three explorers and two critics, each of its own lineage): explorers enough to back
+and defend one another's answers, and critics of two lineages, which a harvest needs (§11). The
+founder's first turn gives the team, and its `look` says how many seeds it may place: its open
+questions' teams, as far as the supply covers. `seed` refuses a longer list. Seeding may take only
+`seed_share` of the supply, at what a seed costs it: its endowment and its grace wakes. The rest pays
+income and the work that follows the user's verdicts; a hive that seeds its whole supply lives only
+on grace and goes quiet when grace runs out. The scheduler staffs every place in a team left open:
+on the founder's questions once its seeds land, on a question an agent opens later at once. Each
+member it staffs is a transplant of the opener's lens with a new lineage, endowed from the supply
+like a seed while the seed share covers one. A member the question already has is not staffed again.
+Seeding stops at the teams because every seed past them adds wakes to the debate before the harvest
+settles and little to the harvest itself.
 
 **The deliverable question.** The founder's first question restates the goal's deliverable in the
 form the goal asks for (for example "the top three, each with a link, a price and the reasoning"),
@@ -203,7 +206,7 @@ requires there. `look` shows every agent the deliverable question, whatever its 
 report puts it first. Assembling is not discovering: a deliverable answer earns no novelty, and
 earns income only while every claim it assembles stands and is tested,
 so a top three copied from half-settled answers pays nothing until its parts have been put to the
-test. `seed` staffs it like any other question; its explorer waits for news until there is
+test. It gets a team like any other question; its explorers wait for news until there is
 something to assemble. `question` refuses a second `deliverable`. Without it, every other question can
 settle and nothing ever takes the shape the user asked for.
 
@@ -462,8 +465,8 @@ The arithmetic is where mistakes hide, and all of it is testable without a model
   attacks sit in separate claims, answers attacked by fewer than two lineages left out;
 - asks reach the outbox by threshold or by timeout; verdicts pin, flood heat, and are mail for the
   agents working where they land, waking one that went quiet;
-- `seed` refuses a list with fewer explorers than open questions, or more seeds than `seed_share`
-  of the supply covers;
+- `seed` refuses more seeds than the open questions' teams hold or `seed_share` of the supply covers,
+  and the scheduler staffs every team to full;
 - a seed with grace left wakes on its own balance once the supply cannot pay, and keeps its grace;
 - a stalled hive retires the agents that cannot pay and earn nothing, refunding the supply;
 - a wake of only observing calls waits for news and is no news to others;
