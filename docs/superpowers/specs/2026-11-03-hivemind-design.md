@@ -8,6 +8,12 @@ Status: draft for the user's review. Nothing built.
 answer. Agents spawn, argue, reproduce, mutate and die under a small set of ground rules and an
 energy economy, and the answer is what the swarm's argument graph holds once it goes quiet.
 
+**Explorative.** It is an inventive swarm: it has to find the questions as well as answer them, so
+the hive endorses opening them. The ground rules ask agents to open the questions an answer turns
+on before they defend anything (§10), a question that draws an answer which holds up pays its
+opener (§8, Novelty), and the hive is tuned on the whole tree, where a question it never opened
+scores nothing.
+
 It is a separate plugin from think-tank, in the vanillafairy marketplace. Think-tank is a brain: a
 tree of topics, each run by a moderator, that expands and then collapses. Hivemind is a hive: no
 moderators, coordination only through a shared environment. The two share an intellectual base
@@ -257,7 +263,10 @@ stays still. At every tick the scheduler settles the flows:
     fade, then starves on upkeep, and its balance goes back to the supply.
 - **Novelty** is paid once, when a claim is first tested by another lineage and stands after it:
   `novelty × relevance × temperature`, where novelty is one minus the largest word-shingle
-  similarity to earlier claims on the same question.
+  similarity to earlier claims on the same question. The first answer to a question that earns
+  novelty so pays the question's opener too, once, at the question's relevance, with novelty
+  measured against the earlier questions under the same parent: a question is work that earns once
+  it draws an answer that holds up.
 - **Critics' pay.** An attack is paid once, when posted, for the strength it removes from its
   target: `(strength before − strength after) × target relevance × critic_rate`. Attacking a claim
   much weaker than the attacker's own strongest earns nothing. A rebuttal is an attack on an attack
@@ -369,22 +378,25 @@ arrives; it is never pushed on a timer.
 9. Answers to one question are rivals: post a new answer only when it excludes the others, and
    add to an answer by supporting it. When rival answers stand, say what would decide between them
    (`decides`).
-10. An answer is settled only once it survives attack from other families. When one of yours is
+10. Explore. When an answer turns on something nobody has asked yet, open it as a child question
+    at once, before you defend or back anything: the hive finds what it never asks about only by
+    chance. A question earns its opener novelty once an answer to it holds up under test.
+11. An answer is settled only once it survives attack from other families. When one of yours is
     attacked, answer the attack itself: an attacked claim earns nothing until you do, and a
     support of your own claim is not an answer.
-11. Ask the user what only they can say: taste, priority, purpose (F11). Asking is free: whenever
+12. Ask the user what only they can say: taste, priority, purpose (F11). Asking is free: whenever
     an answer turns on it, ask with `ask_user` rather than assume or answer for each case. First
     read the asks `look` lists: support one that already asks it, and build on what the user answered.
-12. If a question needs a lens nobody brings, spawn one.
-13. Your genome is who you are; argue from it.
-14. When the goal's sources include `web`, WebSearch and WebFetch are yours too: an observed claim
+13. If a question needs a lens nobody brings, spawn one.
+14. Your genome is who you are; argue from it.
+15. When the goal's sources include `web`, WebSearch and WebFetch are yours too: an observed claim
     from the web gives the URLs of pages you fetched as its source. A page that came back with an
     error was not read. To check a web claim, fetch a page it cites with WebFetch, then support or
     attack it with `checks`, as you would a file read with `source`. A site that refuses you is a
     finding: post it once as an observation, then work from what you can read.
-15. The deliverable question is what the user gets. When answers stand in your niche, carry them
+16. The deliverable question is what the user gets. When answers stand in your niche, carry them
     into an answer to it, or attack the deliverable answer they contradict.
-16. Your income fades while you do not work: a new claim, an attack, a rebuttal, a check, a
+17. Your income fades while you do not work: a new claim, an attack, a rebuttal, a check, a
     definition or a question is work; looking, resting, asking, messaging and supporting your own
     family are not. Rest when you have nothing to add.
 
@@ -455,7 +467,8 @@ The arithmetic is where mistakes hide, and all of it is testable without a model
 - the ledger: escrow before a wake, write-off on an interrupt with no usage; balances never go
   below zero; supply, balances, escrows, spending and write-offs always add up;
 - income: none before another lineage attacks; stopping when a claim falls; novelty paid once,
-  after the first attack, scaled by relevance and temperature; critics paid for strength removed;
+  after the first attack, scaled by relevance and temperature, and to a question's opener once, by
+  the first answer so paid; critics paid for strength removed;
 - budding at the threshold splits the balance, respects `max_buds` and the species floor, and
   places the child; death at zero is immediate;
 - the thermostat moves each lever the right way on each side of the band, within its clamp;
