@@ -218,11 +218,16 @@ select {
   position: absolute;
   top: 0;
   bottom: 0;
-  left: calc(var(--rail-width, 250px) - 3px);
   width: 6px;
   cursor: col-resize;
   touch-action: none;
   z-index: 2;
+}
+.splitter.rail-edge {
+  left: calc(var(--rail-width, 250px) - 3px);
+}
+.splitter.detail-edge {
+  right: calc(var(--detail-width, 360px) - 3px);
 }
 .splitter:hover,
 .splitter:focus-visible {
@@ -269,7 +274,8 @@ select {
   top: 0;
   right: 0;
   bottom: 0;
-  width: 360px;
+  width: var(--detail-width, 360px);
+  max-width: 100%;
   box-shadow: -6px 0 16px rgba(0, 0, 0, 0.12);
 }
 .d-close {

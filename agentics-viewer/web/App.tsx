@@ -13,7 +13,7 @@ import { Outline } from './Outline.tsx'
 import { Board } from './Board.tsx'
 import { Detail } from './Detail.tsx'
 import { Splitter } from './Splitter.tsx'
-import { loadRailWidth, saveRailWidth } from './rail-width.ts'
+import { RAIL_WIDTH, DETAIL_WIDTH, loadWidth, saveWidth } from './pane-width.ts'
 
 function projectDisplayName(project: string | null): string {
   if (project === null) return ''
@@ -37,7 +37,8 @@ export function App(): JSX.Element {
   const [listOpen, setListOpen] = useState(false)
   const [openProjectOpen, setOpenProjectOpen] = useState(false)
   const [theme, setTheme] = useState<Theme>(() => loadTheme() ?? systemTheme())
-  const [railWidth, setRailWidth] = useState(loadRailWidth)
+  const [railWidth, setRailWidth] = useState(() => loadWidth(RAIL_WIDTH))
+  const [detailWidth, setDetailWidth] = useState(() => loadWidth(DETAIL_WIDTH))
 
   function toggleTheme(): void {
     const next: Theme = theme === 'dark' ? 'light' : 'dark'
@@ -213,6 +214,7 @@ export function App(): JSX.Element {
         highlight={highlight}
         onHighlight={setHighlight}
         narrow={narrow}
+        detailWidth={detailWidth}
       />
     )
   }
@@ -240,9 +242,19 @@ export function App(): JSX.Element {
           selected={selected}
         />
       )}
-      <div class="main" style={{ '--rail-width': `${railWidth}px` }}>
+      <div class="main" style={{ '--rail-width': `${railWidth}px`, '--detail-width': `${detailWidth}px` }}>
         {model !== null && (!narrow || listOpen) && <Outline model={model} selected={selected} onSelect={selectNode} />}
-        {model !== null && !narrow && <Splitter width={railWidth} onChange={setRailWidth} onCommit={saveRailWidth} />}
+        {model !== null && !narrow && (
+          <Splitter
+            pane={RAIL_WIDTH}
+            edge="right"
+            label="Resize the outline"
+            class="rail-edge"
+            width={railWidth}
+            onChange={setRailWidth}
+            onCommit={(px) => saveWidth(RAIL_WIDTH, px)}
+          />
+        )}
         <div class="board-col">
           {bars}
           {boardContent}
@@ -259,6 +271,17 @@ export function App(): JSX.Element {
               setDetailOpen(false)
               setHighlight([])
             }}
+          />
+        )}
+        {detailOpen && selectedView !== null && snapshot !== null && model !== null && !narrow && (
+          <Splitter
+            pane={DETAIL_WIDTH}
+            edge="left"
+            label="Resize the detail panel"
+            class="detail-edge"
+            width={detailWidth}
+            onChange={setDetailWidth}
+            onCommit={(px) => saveWidth(DETAIL_WIDTH, px)}
           />
         )}
       </div>

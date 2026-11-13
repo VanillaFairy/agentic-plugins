@@ -473,6 +473,11 @@ In wide mode the outline's right edge is a drag handle. The outline starts at 25
 dragged between 160 and 560 px. The arrow keys move the focused handle 16 px at a time, and Home
 or a double-click resets it. The width is remembered per browser in `localStorage`, like the theme.
 
+The detail panel's left edge is a drag handle that works the same way: it starts at 360 px and can
+be dragged between 280 and 800 px, never wider than the board, and its width is remembered
+separately from the outline's. Selecting a node pans it clear of the panel at whatever width the
+panel has.
+
 In narrow mode the outline opens as a drawer from the List button, the pickers drop their
 "Project" and "Effort" prefixes, and the cost and the counts line are hidden. Long picker labels
 end with an ellipsis.
@@ -567,7 +572,7 @@ dispatches, nothing measured" when nothing was), and the Open project button (th
 
 **Detail panel.**
 
-- It is open or closed. Open, it lies over the board: 360 px at the right edge in wide mode, the
+- It is open or closed. Open, it lies over the board: 360 px (resizable, §7.4) at the right edge in wide mode, the
   bottom sheet in narrow mode. Closed, it takes no room and the whole board takes the pointer.
   Selecting a node opens it; the X at its top right closes it and leaves the node selected.
 

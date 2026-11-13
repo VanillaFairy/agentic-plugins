@@ -1,14 +1,23 @@
 import type { JSX } from 'preact'
 import { useRef } from 'preact/hooks'
-import { RAIL_WIDTH, clampRailWidth } from './rail-width.ts'
+import { clampWidth } from './pane-width.ts'
+import type { PaneWidth } from './pane-width.ts'
 
-// The drag handle on the outline's right edge. `onChange` fires on every move; `onCommit` once the
-// drag or key press is done, so the width is stored once rather than on every pointer event.
+// The drag handle on a side pane's inner edge. `edge` is the side of the pane the handle sits on:
+// the outline's handle is on its right, so moving it right widens the pane; the detail panel's is
+// on its left, so moving it left does. `onChange` fires on every move; `onCommit` once the drag or
+// key press is done, so the width is stored once rather than on every pointer event.
 export function Splitter(props: {
+  pane: PaneWidth
+  edge: 'left' | 'right'
+  label: string
+  class: string
   width: number
   onChange: (px: number) => void
   onCommit: (px: number) => void
 }): JSX.Element {
+  const { pane } = props
+  const sign = props.edge === 'right' ? 1 : -1
   const drag = useRef<{ x: number; width: number; last: number } | null>(null)
 
   function down(e: PointerEvent): void {
@@ -21,7 +30,7 @@ export function Splitter(props: {
   function move(e: PointerEvent): void {
     const d = drag.current
     if (d === null) return
-    d.last = clampRailWidth(d.width + e.clientX - d.x)
+    d.last = clampWidth(pane, d.width + sign * (e.clientX - d.x))
     props.onChange(d.last)
   }
 
@@ -33,8 +42,8 @@ export function Splitter(props: {
   }
 
   function key(e: KeyboardEvent): void {
-    const by = e.key === 'ArrowLeft' ? -RAIL_WIDTH.step : e.key === 'ArrowRight' ? RAIL_WIDTH.step : 0
-    const next = e.key === 'Home' ? RAIL_WIDTH.initial : by !== 0 ? clampRailWidth(props.width + by) : null
+    const dx = e.key === 'ArrowLeft' ? -pane.step : e.key === 'ArrowRight' ? pane.step : 0
+    const next = e.key === 'Home' ? pane.initial : dx !== 0 ? clampWidth(pane, props.width + sign * dx) : null
     if (next === null) return
     e.preventDefault()
     props.onChange(next)
@@ -42,19 +51,19 @@ export function Splitter(props: {
   }
 
   function reset(): void {
-    props.onChange(RAIL_WIDTH.initial)
-    props.onCommit(RAIL_WIDTH.initial)
+    props.onChange(pane.initial)
+    props.onCommit(pane.initial)
   }
 
   return (
     <div
-      class="splitter"
+      class={`splitter ${props.class}`}
       role="separator"
       aria-orientation="vertical"
-      aria-label="Resize the outline"
+      aria-label={props.label}
       aria-valuenow={props.width}
-      aria-valuemin={RAIL_WIDTH.min}
-      aria-valuemax={RAIL_WIDTH.max}
+      aria-valuemin={pane.min}
+      aria-valuemax={pane.max}
       tabIndex={0}
       title="Drag to resize, double-click to reset"
       onPointerDown={down}
