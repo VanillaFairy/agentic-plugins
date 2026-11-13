@@ -2,11 +2,14 @@
 // is clicked, selects a card when it is clicked, and eases cards to their new
 // places as the tree grows.
 //
+// Cards and the camera ease in the same frame loop by the same law, so a change that moves both
+// reads on screen as one motion; a separately timed camera would land the cards first and then
+// drag them a second time.
+//
 // Until someone pans or zooms by hand, it follows the session: the tree at a readable size,
 // with the newest running agent in sight.
 
 import { select } from 'd3-selection'
-import 'd3-transition'
 import { zoom, zoomIdentity } from 'd3-zoom'
 import type { ZoomBehavior, ZoomTransform } from 'd3-zoom'
 import type { SessionSnapshot } from '../shared/model.ts'
@@ -22,8 +25,7 @@ const FIT_MARGIN = 28
 const MAX_FIT_SCALE = 1.15
 // Following never shrinks the cards past where their text stays readable.
 const MIN_FOLLOW_SCALE = 0.6
-const MOVE_MS = 320
-// How quickly a card closes on its new place: the gap shrinks by e every this many ms.
+// How quickly cards and the camera close on their new places: the gap shrinks by e every this many ms.
 const EASE_MS = 110
 const ZOOM_STEP = 1.4
 
@@ -64,6 +66,8 @@ export class TreeView {
   private sessionId: string | undefined
   private at = new Map<string, { x: number; y: number; alpha: number }>()
   private transform: ZoomTransform = zoomIdentity
+  // Where the camera is easing to; unset once it is there or someone pans or zooms by hand.
+  private camera: ZoomTransform | undefined
   private following = true
   private hovered: string | undefined
   private palette: Palette
@@ -87,7 +91,10 @@ export class TreeView {
       .scaleExtent(SCALE_EXTENT)
       .on('zoom', e => {
         this.transform = e.transform
-        if (e.sourceEvent) this.follow(false)
+        if (e.sourceEvent) {
+          this.camera = undefined
+          this.follow(false)
+        }
         this.request()
       })
     select(canvas).call(this.behavior).on('dblclick.zoom', null)
@@ -150,7 +157,7 @@ export class TreeView {
     this.canvas.removeEventListener('click', this.onClick)
     this.canvas.removeEventListener('pointermove', this.onHover)
     this.canvas.removeEventListener('pointerleave', this.onLeave)
-    select(this.canvas).interrupt().on('.zoom', null)
+    select(this.canvas).on('.zoom', null)
   }
 
   private relayout(): void {
@@ -212,16 +219,23 @@ export class TreeView {
   }
 
   private move(target: ZoomTransform, animate: boolean): void {
-    const sel = select(this.canvas)
-    if (animate && !this.reduced.matches) sel.transition().duration(MOVE_MS).call(this.behavior.transform, target)
-    else sel.interrupt().call(this.behavior.transform, target)
+    if (animate && !this.reduced.matches) {
+      this.camera = target
+      this.request()
+    } else {
+      this.camera = undefined
+      select(this.canvas).call(this.behavior.transform, target)
+    }
   }
 
+  // About the canvas's centre; presses in quick succession compound on where the camera is headed.
   private zoomBy(factor: number): void {
     this.follow(false)
-    const sel = select(this.canvas)
-    if (this.reduced.matches) sel.call(this.behavior.scaleBy, factor)
-    else sel.transition().duration(MOVE_MS / 1.5).call(this.behavior.scaleBy, factor)
+    const from = this.camera ?? this.transform
+    const k = Math.min(SCALE_EXTENT[1], Math.max(SCALE_EXTENT[0], from.k * factor))
+    const cx = this.width / 2
+    const cy = this.height / 2
+    this.move(zoomIdentity.translate(cx - ((cx - from.x) * k) / from.k, cy - ((cy - from.y) * k) / from.k).scale(k), true)
   }
 
   private resize(): void {
@@ -292,14 +306,14 @@ export class TreeView {
     this.frame = 0
     const dt = this.lastTick === 0 ? 16 : Math.min(100, time - this.lastTick)
     this.lastTick = time
-    const k = 1 - Math.exp(-dt / EASE_MS)
+    const step = 1 - Math.exp(-dt / EASE_MS)
     let moving = false
     for (const p of this.lay.placed) {
       const a = this.at.get(p.id)
       if (a === undefined) continue
-      a.x += (p.x - a.x) * k
-      a.y += (p.y - a.y) * k
-      a.alpha += (1 - a.alpha) * k
+      a.x += (p.x - a.x) * step
+      a.y += (p.y - a.y) * step
+      a.alpha += (1 - a.alpha) * step
       if (Math.abs(p.x - a.x) + Math.abs(p.y - a.y) < 0.3 && a.alpha > 0.995) {
         a.x = p.x
         a.y = p.y
@@ -307,6 +321,16 @@ export class TreeView {
       } else {
         moving = true
       }
+    }
+    const cam = this.camera
+    if (cam !== undefined) {
+      const t = this.transform
+      const there = Math.abs(cam.x - t.x) + Math.abs(cam.y - t.y) < 0.3 && Math.abs(cam.k - t.k) < 1e-4
+      if (there) this.camera = undefined
+      else moving = true
+      const next = there ? cam : zoomIdentity.translate(t.x + (cam.x - t.x) * step, t.y + (cam.y - t.y) * step).scale(t.k + (cam.k - t.k) * step)
+      // Through the zoom behaviour, so a drag started mid-ease grabs the canvas where it shows.
+      select(this.canvas).call(this.behavior.transform, next)
     }
 
     const dpr = window.devicePixelRatio || 1
